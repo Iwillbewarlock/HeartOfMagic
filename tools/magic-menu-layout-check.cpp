@@ -841,9 +841,9 @@ namespace
         // final review: the .tmp could not be put in place
         using Layout::FailedPut;
         Expect(Layout::AfterFailedPut(true, true, true) == FailedPut::kFileThere && Layout::AfterFailedPut(true, true, false) == FailedPut::kFileThere,
-            "a failed put with the file still there (ReplaceFileW 1176 / the move failed before it): nothing to restore");
+            "a failed put with the file still there (the .bak copy or the move over the file failed): nothing to restore");
         Expect(Layout::AfterFailedPut(true, false, true) == FailedPut::kRestoreBak,
-            "the replace moved the old file to .bak and the move failed (1177 + MoveFileExW): .bak moved back");
+            "the file found gone after a failed put with a .bak there: .bak moved back");
         Expect(Layout::AfterFailedPut(true, false, false) == FailedPut::kNoFile, "no file and no .bak: nothing to restore");
         Expect(Layout::AfterFailedPut(false, false, true) == FailedPut::kNoFile,
             "a first save (no replace) with an old .bak lying there: the .bak is not moved in");

@@ -183,7 +183,9 @@ D9 Add-on API: `struct Registration { std::uint32_t apiVersion; std::uint32_t st
    lent only for the call; registration only before the first menu open after kDataLoaded; documented as a CommonLib
    C++ ABI interface (GFxValue), not a C ABI.
 D10 Layout file safety: write to `SL_MagicMenu_Layout.json.tmp` in the same folder, check every write/flush/close, then
-   ReplaceFileW (fallback MoveFileExW with REPLACE_EXISTING) keeping `SL_MagicMenu_Layout.json.bak`; a file that fails
+   ReplaceFileW (fallback MoveFileExW with REPLACE_EXISTING) keeping `SL_MagicMenu_Layout.json.bak` (2026-10-31: the old
+   file copied to `.bak`, then MoveFileExW REPLACE_EXISTING | WRITE_THROUGH; ReplaceFileW made the file vanish under MO2's
+   usvfs in a game run); a file that fails
    to read is copied to `.bad` before a save may overwrite it; a schema `"version": 1` (future versions: read-only,
    not overwritten); a failed save logs, does not claim success, and keeps the mode's State to retry.
 D11 Redraw: moves and scrolls only change transforms; a confirmed width change (border released, block dropped in the

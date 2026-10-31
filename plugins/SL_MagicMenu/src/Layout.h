@@ -273,8 +273,9 @@ namespace Layout
     {
         bool refuse = false;        // nothing written (a newer build's file)
         bool copyBadFirst = false;  // the unreadable file copied to <file>.bad first; the save fails if that copy fails
-        bool replace = false;       // the file exists: ReplaceFileW keeping <file>.bak (fallback: copy to .bak + MoveFileExW);
-                                    // false: no file yet, MoveFileExW of the .tmp alone (ReplaceFileW needs an existing target)
+        bool replace = false;       // the file exists: copied to <file>.bak, then MoveFileExW of the .tmp over it (not
+                                    // ReplaceFileW: under MO2's usvfs it made the file vanish, game run 2026-10-31);
+                                    // false: no file yet, MoveFileExW of the .tmp alone
 
         bool operator==(const SavePlan&) const = default;
     };
@@ -287,9 +288,10 @@ namespace Layout
     /// file as it was and the next try plans the same).
     FileState AfterSave(FileState a_state, bool a_written);
 
-    /// After the .tmp could not be put in the file's place (final review): what the save does with what is on disk. A replace
-    /// can move the old file to .bak and then fail to move the new one in (ReplaceFileW's ERROR_UNABLE_TO_MOVE_REPLACEMENT_2,
-    /// 1177), and the MoveFileExW fallback can fail too: the layout file is then gone, the user's layout only in .bak
+    /// After the .tmp could not be put in the file's place (final review): what the save does with what is on disk. The
+    /// replace copies the old file to .bak and moves the .tmp over it, so a failed copy or move leaves the file in place
+    /// (kFileThere); a file found gone anyway (the ReplaceFileW replace before 2026-10-31 could move the old file to .bak and
+    /// then fail, error 1177) leaves the user's layout only in .bak, which is moved back
     enum class FailedPut
     {
         kFileThere,   // the layout file is in place (as it was): the .tmp is removed

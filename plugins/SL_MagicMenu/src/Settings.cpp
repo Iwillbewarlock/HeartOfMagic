@@ -266,11 +266,9 @@ namespace Settings
 
         // Win32 file moves (kernel32; REX::W32 has none of them), declared here so this file needs no <Windows.h>. The types are
         // the SDK's (BOOL = int, DWORD = unsigned long, LPCWSTR, LPVOID)
-        extern "C" __declspec(dllimport) int __stdcall ReplaceFileW(const wchar_t* a_replaced, const wchar_t* a_replacement, const wchar_t* a_backup,
-            unsigned long a_flags, void* a_exclude, void* a_reserved);
         extern "C" __declspec(dllimport) int __stdcall MoveFileExW(const wchar_t* a_existing, const wchar_t* a_new, unsigned long a_flags);
         extern "C" __declspec(dllimport) int __stdcall CopyFileW(const wchar_t* a_existing, const wchar_t* a_new, int a_failIfExists);
-        constexpr unsigned long kReplaceIgnoreMergeErrors = 0x2;                       // REPLACEFILE_IGNORE_MERGE_ERRORS
+        constexpr int kCopyOverwrite = 0;                                               // CopyFileW bFailIfExists FALSE
         constexpr unsigned long kMoveReplaceExisting = 0x1, kMoveWriteThrough = 0x8;  // MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH
 
         // The JSON written to a_tmp; every step checked (std::ofstream: flush() is the stream's, not FlushFileBuffers - D10 asks for
@@ -298,24 +296,18 @@ namespace Settings
             return true;
         }
 
-        // The written .tmp put in the file's place (the plan's replace: the old file kept as .bak)
+        // The written .tmp put in the file's place (the plan's replace: the old file kept as .bak). A replace copies the old file
+        // to .bak (overwriting the last one), then moves the .tmp over the file. Not ReplaceFileW (D10's first choice until
+        // 2026-10-31): under MO2's usvfs it made the file vanish - game run 2026-10-31, the saves logged "written (the old file
+        // kept as .bak)" at 11:01:43 and 11:02:50 read back "not found" in the same session (SelfTest L3 FAIL) while the file
+        // and its .bak on disk were right; the first save's plain MoveFileExW (11:02:36) read back fine. The old file is never
+        // moved away here: a failed copy fails the save with the file as it was, and a failed move leaves it in place too
         bool PutInPlace(const std::filesystem::path& a_path, const std::filesystem::path& a_tmp, bool a_replace, std::string* a_why)
         {
             const auto bak = WithSuffix(a_path, L".bak");
-            if (a_replace) {
-                if (ReplaceFileW(a_path.c_str(), a_tmp.c_str(), bak.c_str(), kReplaceIgnoreMergeErrors, nullptr, nullptr)) return true;
-                const auto replaceError = REX::W32::GetLastError();
-                // the fallback (D10): ReplaceFileW can fail on a virtual file system (MO2's usvfs, unverified) or after it moved the
-                // old file to .bak already (ERROR_UNABLE_TO_MOVE_REPLACEMENT_2, 1177; RecoverFailedPut moves it back when the move fails too): the old file copied to .bak when it is still there,
-                // then the move
-                std::error_code ec;
-                if (std::filesystem::exists(a_path, ec) && !CopyFileW(a_path.c_str(), bak.c_str(), 0)) {
-                    *a_why = std::format("ReplaceFileW failed (error {}) and the old file could not be kept as {} (error {})", replaceError, Shown(bak),
-                        REX::W32::GetLastError());
-                    return false;
-                }
-                logger::warn("Settings: layout save - ReplaceFileW failed (error {}); the old file kept as {}, moving the new one in", replaceError,
-                    Shown(bak));
+            if (a_replace && !CopyFileW(a_path.c_str(), bak.c_str(), kCopyOverwrite)) {
+                *a_why = std::format("the old file could not be kept as {} (CopyFileW error {}) - nothing written", Shown(bak), REX::W32::GetLastError());
+                return false;
             }
             if (!MoveFileExW(a_tmp.c_str(), a_path.c_str(), kMoveReplaceExisting | kMoveWriteThrough)) {
                 *a_why = std::format("MoveFileExW {} -> {} failed (error {})", Shown(a_tmp), Shown(a_path), REX::W32::GetLastError());
@@ -324,8 +316,8 @@ namespace Settings
             return true;
         }
 
-        // After PutInPlace failed (final review): the old file moved back from .bak when the replace took it away and no file is
-        // left (Layout::AfterFailedPut). False: the .tmp must be kept - .bak could not be moved back, the log and a_why name where
+        // After PutInPlace failed (final review): the old file moved back from .bak when no file is left (Layout::AfterFailedPut;
+        // the copy-then-move replace never moves the old file away, so this is kept for a file gone some other way). False: the .tmp must be kept - .bak could not be moved back, the log and a_why name where
         // the old and the edited layout are. True: the .tmp may be removed (the caller does, as before)
         bool RecoverFailedPut(const std::filesystem::path& a_path, const std::filesystem::path& a_tmp, bool a_replace, std::string* a_why)
         {
@@ -498,7 +490,7 @@ namespace Settings
         }
         if (plan.copyBadFirst) {
             const auto bad = WithSuffix(path, L".bad");
-            if (!CopyFileW(path.c_str(), bad.c_str(), 0)) {
+            if (!CopyFileW(path.c_str(), bad.c_str(), kCopyOverwrite)) {
                 why = std::format("the file that failed to read could not be kept as {} (error {})", Shown(bad), REX::W32::GetLastError());
                 return done(SaveResult::kFailed);
             }
