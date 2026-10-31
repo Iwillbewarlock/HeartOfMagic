@@ -73,6 +73,11 @@ namespace Preview
     /// Every frame of the magic menu movie (any thread): keeps the latest box, visible rect and selection.
     void OnFrame(const FrameInfo& a_frame);
 
+    /// Widget sent the list's selection to SkyUI itself (SelectInList's selectedIndex setter, PassToOriginal): SkyUI's
+    /// UpdateItem3D follows and the game shows the row's model again for a frame. Any thread (only counted here); the next
+    /// PostDisplay takes the frame, and a Q3 lost hide within kOwnSetFrames of it is not counted (game run 2026-10-31)
+    void OnOwnListSet();
+
     /// MagicMenu::PostDisplay, after the menu's own. a_active false (the preview box is not shown, the menu closes, the
     /// call is for another movie): changes nothing; what it hid stays hidden (no box to draw it in; the close gives it
     /// back). Else: gives back the selection's model it hid, places and fits (a_fit), and with a_overPass draws the

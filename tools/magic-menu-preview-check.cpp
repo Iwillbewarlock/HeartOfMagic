@@ -450,6 +450,19 @@ namespace
         Expect(HidesForTab(true, true, true) && HidesForTab(false, false, true), "on Powers with bHidePowers3D: hidden whatever the rest says");
     }
 
+    // game run 2026-10-31: the Q3 lost frames came right after our own list sets (SkyUI's UpdateItem3D for the row)
+    void OwnListSet()
+    {
+        std::printf("a lost hide after our own list set (PreviewMath::AfterOwnListSet)\n");
+        using PreviewMath::AfterOwnListSet;
+        constexpr std::uint64_t kWindow = 3;
+        Expect(AfterOwnListSet(892, 892, kWindow) && AfterOwnListSet(895, 892, kWindow),
+            "lost at the set's frame and kWindow frames after it: the set's frame, not counted");
+        Expect(!AfterOwnListSet(896, 892, kWindow), "one frame past the window: a lost hide (counted)");
+        Expect(!AfterOwnListSet(1, 0, kWindow) && !AfterOwnListSet(0, 0, kWindow), "no own set this menu (0): every lost hide counted");
+        Expect(!AfterOwnListSet(891, 892, kWindow), "a frame before the set (never past the counter): counted");
+    }
+
     void ArtShapes()
     {
         std::printf("spell art shapes: backdrop disc and glow (spec v7 P7.1)\n");
@@ -799,6 +812,7 @@ int main()
     MotionWhileHidden();
     FitMath();
     TabHide();
+    OwnListSet();
     ArtShapes();
     PixelDecode();
     DarkCompare();

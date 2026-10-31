@@ -33,6 +33,14 @@ namespace PreviewMath
         return (a_movePreview && !a_previewBlockHidden) || a_hide3D;
     }
 
+    /// Q3 (game run 2026-10-31): a model we hid that came back at PostDisplay a_frame is not a lost hide when our own list set
+    /// (Preview::OnOwnListSet, first seen at PostDisplay a_ownSetFrame; 0 = none this menu) was at most a_window frames before:
+    /// SkyUI's UpdateItem3D for the row showed it, as at a selection change
+    constexpr bool AfterOwnListSet(std::uint64_t a_frame, std::uint64_t a_ownSetFrame, std::uint64_t a_window)
+    {
+        return a_ownSetFrame > 0 && a_frame >= a_ownSetFrame && a_frame - a_ownSetFrame <= a_window;
+    }
+
     inline constexpr float kGameShare = 0.45f;     // share of the screen height the game's own preview takes (IR)
     inline constexpr float kFill = 0.92f;          // what is seen of a model fills this share of the box
     inline constexpr float kGrowMost = 3.0f;       // and grows at most this many times the game's size

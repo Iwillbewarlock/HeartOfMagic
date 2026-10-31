@@ -79,6 +79,9 @@ namespace Preview
         constexpr int kAnimSamples = 5;              // samples per model and menu, then its Q3 anim verdict
         constexpr int kControllerSearchMost = 256;   // objects looked at for a time controller under a model
         constexpr int kSightLinesMost = 8;           // per menu: "became the selection's" lines; later ones only counted
+        // game run 2026-10-31: after our own list set (Widget SelectInList / PassToOriginal) SkyUI's UpdateItem3D shows the
+        // row's model for a frame; a lost hide this many PostDisplays after the set is that frame's, not counted as lost
+        constexpr std::uint64_t kOwnSetFrames = 3;
         constexpr int kRestartLinesMost = 3;         // per model and menu: "samples start over" lines
         constexpr int kArtSearchMost = 512;          // P7: objects looked at under one model for its backdrop and glow shapes
         constexpr float kUnplaceSlack = 1e-3f;       // P7.2 self-test: allowed error, a share of the value (at least of 1)
@@ -291,6 +294,8 @@ namespace Preview
             int tabHides = 0;
             bool dirtyLogged = false;            // P8: the dirty-state line logged this menu
             std::uint64_t selectionFrame = 0;    // the frame of the last selection change (P8's check waits kDarkCheckDelay after it)
+            std::uint64_t ownSetFrame = 0;       // the frame that first saw our last own list set (OnOwnListSet; 0 = none this menu)
+            std::uint64_t ownSetsSeen = 0;       // g_ownListSets as that frame read it (0 at a reset: a set before it is the first frame's)
             int darkChecks = 0;
             std::uint64_t darkCheckedFor = 0;    // the selectionFrame P8 last checked (one check per selection)
             bool swapChainLogged = false;  // spec v12 C3 / G10
@@ -311,6 +316,7 @@ namespace Preview
             int overPasses = 0, hides = 0, held = 0, lost = 0, hidePass = 0, hideFail = 0, sights = 0, flashes = 0, again = 0;
             int left = 0, replaced = 0, doubles = 0, rebuilt = 0;
             int lostLines = 0;  // the "Q3 lost" lines this menu (the first kSightLinesMost; later ones only counted in lost)
+            int lostOwnSet = 0; // lost frames within kOwnSetFrames of our own list set: not in lost, no hide verdict
             int clipped = 0, clipHeld = 0, clipDropped = 0, clipUnjudged = 0, clipSkipped = 0, clipUnfitted = 0, clipTargetChanged = 0;
             // blocks plan Task 3 (D2): frames whose box was wholly out of its column (nothing drawn), unfitted frames scissored to
             // the column alone, and the L2 preview clip verdicts (the scissor inside the column's pixels)
@@ -352,6 +358,7 @@ namespace Preview
         } g_slot;
 
         std::atomic<bool> g_closing{ false };   // the close event came: nothing until the next open
+        std::atomic<std::uint64_t> g_ownListSets{ 0 };  // OnOwnListSet calls (any thread); PostDisplay notes the frame it sees a new one
         std::atomic<bool> g_irActive{ false };  // Inventory Reforged's panel is in this magic menu
         // Bumped on every menu open and close; main-thread work runs only for the generation it belongs to
         std::atomic<std::uint64_t> g_generation{ 0 };
@@ -1551,17 +1558,22 @@ namespace Preview
                     auto* model = loaded.spModel.get();
                     if (!model || model != hidden.Key() || !loaded.itemBase || loaded.itemBase->GetFormID() != hidden.base) continue;
                     const bool held = model->GetAppCulled();
-                    (held ? clip.held : clip.lost) += 1;
+                    // game run 2026-10-31: the lost frames came right after our own list sets (a tree's show spell, a category
+                    // change's put-back, a click passed on): SkyUI's UpdateItem3D for the row, a selection change's frame
+                    const bool afterOwnSet = !held && PreviewMath::AfterOwnListSet(clip.frame, clip.ownSetFrame, kOwnSetFrames);
+                    (held ? clip.held : afterOwnSet ? clip.lostOwnSet : clip.lost) += 1;
                     // 2026-10-31 (the "Q3 lost" of the last game run): what the model and the manager were when it came back
                     if (!held && clip.lostLines++ < kSightLinesMost) {
                         logger::info("Preview: Q3 lost {} ({}) at PostDisplay {}: hidden after the last over-pass, shown again before this hook - {} "
-                                     "frame(s) after the last selection change, scale {:.3f}, itemPos {:.2f},{:.2f},{:.2f} itemScale {:.3f}, load task {}{}",
+                                     "frame(s) after the last selection change, scale {:.3f}, itemPos {:.2f},{:.2f},{:.2f} itemScale {:.3f}, load task {}{}{}",
                             model->name.c_str(), SpellName(loaded.itemBase), clip.frame, clip.frame - clip.selectionFrame, model->local.scale,
                             a_manager.itemPos.x, a_manager.itemPos.y, a_manager.itemPos.z, a_manager.itemScale, loading ? "pending" : "none",
+                            afterOwnSet ? std::format(" (our own list set {} frame(s) ago - not counted)", clip.frame - clip.ownSetFrame) : std::string{},
                             clip.lostLines == kSightLinesMost ? " - later ones counted only (summary at close)" : "");
                     }
                     auto* watched = FindWatched(model, hidden.base);
-                    if (watched && !std::exchange(watched->hideJudged, true)) {
+                    // a frame after our own set gives no hide verdict: the model's next hide is judged instead
+                    if (watched && !afterOwnSet && !std::exchange(watched->hideJudged, true)) {
                         (held ? clip.hidePass : clip.hideFail) += 1;
                         SelfTest(std::format("Q3 hide {} {} {}: hidden after the over-pass of the last PostDisplay, at PostDisplay {} {}",
                             held ? "PASS" : "FAIL", watched->name, watched->spell, clip.frame,
@@ -3260,7 +3272,8 @@ float4 PSMain(float4 position : SV_Position) : SV_Target
                                   clip.clipHeld > 0                             ? "PASS" :
                                                                                   "NOT JUDGED";
             const auto line = std::format("Q3 summary hide {}, clip {} - menu {}: {} over-passes in {} PostDisplays; hide: {} hides, held through the game's pass "
-                                          "{} times, given back by something else {} times (hide PASS {} FAIL {}), {} changes to a selection's "
+                                          "{} times, given back by something else {} times ({} more within {} frames of our own list set, "
+                                          "not counted) (hide PASS {} FAIL {}), {} changes to a selection's "
                                           "model ({} of them drawn unclipped by the game's pass that frame), {} given back on being selected "
                                           "again, {} not given back (the game showed another model of the form), {} earlier-selection models "
                                           "left hidden, {} models built anew at a known address, {} frames drawing two or more models of one "
@@ -3269,7 +3282,8 @@ float4 PSMain(float4 position : SV_Position) : SV_Target
                                           "the column's viewport); column: {} frames out of view (nothing drawn), L2 preview clip PASS {} FAIL {} "
                                           "(not cut by the column {}, not judged); "
                                           "anim moved {}, still {}, not judged {}",
-                hide, scissor, a_generation, clip.overPasses, clip.frame, clip.hides, clip.held, clip.lost, clip.hidePass, clip.hideFail, clip.sights,
+                hide, scissor, a_generation, clip.overPasses, clip.frame, clip.hides, clip.held, clip.lost, clip.lostOwnSet, kOwnSetFrames, clip.hidePass,
+                clip.hideFail, clip.sights,
                 clip.flashes, clip.again, clip.replaced, clip.left, clip.rebuilt, clip.doubles, clip.clipped, clip.clipHeld, clip.clipDropped,
                 clip.clipTargetChanged, clip.clipUnjudged, clip.clipSkipped, clip.clipUnfitted, clip.columnOnly, clip.columnOut, clip.columnClipPass,
                 clip.columnClipFail, clip.columnClipNotCut, clip.animMoved, clip.animStill, clip.animNone);
@@ -3319,6 +3333,11 @@ float4 PSMain(float4 position : SV_Position) : SV_Target
         g_slot.generation = g_generation.load();
     }
 
+    void OnOwnListSet()
+    {
+        ++g_ownListSets;
+    }
+
     // The order the spec sets (v5, "Changes from the GPT design review"): give back -> place/fit -> scissor -> Render
     // -> scissor restored -> hide (the scissor only when this frame's place/fit succeeded). FitAll skips hidden models,
     // so the give-back comes first; the hide comes after our Render, so the game's next own pass (before the next movie)
@@ -3341,6 +3360,10 @@ float4 PSMain(float4 position : SV_Position) : SV_Target
         const auto frame = current ? TakeFrame(generation) : std::nullopt;
         if (current) {
             ++clip.frame;
+            if (const auto sets = g_ownListSets.load(); sets != clip.ownSetsSeen) {
+                clip.ownSetsSeen = sets;
+                clip.ownSetFrame = clip.frame;
+            }
             if (frame) {
                 const auto was = clip.shown.Form();
                 clip.shown = { frame->selected, frame->treeSpell };
