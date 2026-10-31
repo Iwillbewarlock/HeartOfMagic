@@ -13,10 +13,10 @@
 
 ## Credits
 
-- The 3D preview's placement (`plugins/SL_MagicMenu/src/Preview.cpp`) follows the method of Inventory Reforged's
-  item view (PlacePreview / FitPreview). Its code was read for the method only; no code was taken from it.
-- `00 Core/MCM/Settings/InventoryReforged.ini` is a settings file for Inventory Reforged (it turns Inventory
-  Reforged's own magic menu panel off). It holds no Inventory Reforged code.
+- LayMovi - Inventory Reforged (GPL-3.0): the 3D preview's placement follows the method of Inventory Reforged's item
+  view, with the author's permission. Thank you.
+- SKSE/Plugins/InventoryReforged/MagicMenuRewrite.ini turns Inventory Reforged's own magic-menu panel off; it holds no
+  Inventory Reforged code.
 
 ## Corresponding Source
 

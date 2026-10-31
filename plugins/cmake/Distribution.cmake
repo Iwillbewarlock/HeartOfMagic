@@ -284,7 +284,8 @@ message(STATUS "  Archive:  ${DIST_DIR}/${_dist_folder_name}.zip (+ ${_pdb_folde
 #      fomod/ModuleConfig.xml, fomod/info.xml
 #      00 Core/SKSE/Plugins/MagicMenuRewrite.dll, MagicMenuRewrite.ini
 #      00 Core/SKSE/Plugins/MagicMenuRewrite/lang/en.json, ko.json
-#      00 Core/MCM/Settings/InventoryReforged.ini
+#      00 Core/SKSE/Plugins/InventoryReforged/MagicMenuRewrite.ini (Inventory Reforged
+#        loads every ini in that folder; it turns IR's magic-menu panel off)
 #      10 Heart of Magic Block/SKSE/Plugins/MagicMenuRewrite_HoM.dll
 #      10 Heart of Magic Block/SKSE/Plugins/MagicMenuRewrite_HoM/lang/en.json, ko.json
 #      LICENSE, THIRD-PARTY-NOTICES.md, licenses/ (as 3b, with the ports these
@@ -342,7 +343,7 @@ add_custom_command(TARGET assemble_magicmenu_dist POST_BUILD
     COMMAND "${CMAKE_COMMAND}" -E rm -rf "${_mm_dist}" "${_mm_pdb_dir}"
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${_mm_dist}/fomod"
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${_mm_core}/SKSE/Plugins/MagicMenuRewrite/lang"
-    COMMAND "${CMAKE_COMMAND}" -E make_directory "${_mm_core}/MCM/Settings"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${_mm_core}/SKSE/Plugins/InventoryReforged"
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${_mm_hom}/SKSE/Plugins/MagicMenuRewrite_HoM/lang"
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${_mm_pdb_dir}/SKSE/Plugins"
     COMMAND "${CMAKE_COMMAND}" -E copy
@@ -354,8 +355,8 @@ add_custom_command(TARGET assemble_magicmenu_dist POST_BUILD
     "${_mm_core_src}/MagicMenuRewrite.ini"
     "${_mm_core}/SKSE/Plugins/"
     COMMAND "${CMAKE_COMMAND}" -E copy
-    "${_mm_core_src}/MCM/Settings/InventoryReforged.ini"
-    "${_mm_core}/MCM/Settings/"
+    "${_mm_core_src}/InventoryReforged/MagicMenuRewrite.ini"
+    "${_mm_core}/SKSE/Plugins/InventoryReforged/"
     COMMAND "${CMAKE_COMMAND}" -E copy_directory
     "${_mm_core_src}/lang"
     "${_mm_core}/SKSE/Plugins/MagicMenuRewrite/lang"

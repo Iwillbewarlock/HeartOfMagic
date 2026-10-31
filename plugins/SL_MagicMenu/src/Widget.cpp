@@ -6066,7 +6066,7 @@ namespace Widget
         // ---------------------------------------------------------------------
 
         // Inventory Reforged runs its panel in this magic menu (it can be off for the magic menu: bMagicMenu = 0,
-        // which this mod ships in MCM/Settings/InventoryReforged.ini). Read only; never touched.
+        // which this mod ships in SKSE/Plugins/InventoryReforged/MagicMenuRewrite.ini). Read only; never touched.
         bool IrActive(RE::GFxMovieView* a_movie)
         {
             RE::GFxValue script;

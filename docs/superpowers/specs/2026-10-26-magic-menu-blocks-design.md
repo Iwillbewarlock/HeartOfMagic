@@ -59,7 +59,9 @@ wrong reading and are dropped (user: "배열을 유저가 조정하고 자동으
   menu) toggles the layout mode, beside the keyboard key; with the gamepad the right stick scrolls the column of the
   focused block (there is no cursor). Input.cpp only listens today: the layout mode needs to consume the D-pad / A / B /
   arrow / Enter / Esc it uses while it is on (and nothing while it is off), so SkyUI's list and menu close do not react.
-- Safety net only (not normal play): the mod ships `MCM/Settings/InventoryReforged.ini` with `[Panel] bMagicMenu = 0`,
+- Safety net only (not normal play): the mod ships `SKSE/Plugins/InventoryReforged/MagicMenuRewrite.ini` with `[Panel] bMagicMenu = 0`
+  (2026-10-31, from `MCM/Settings/InventoryReforged.ini`, the player's whole IR settings file; IR loads every ini in that
+  folder and keeps a setting the player changed),
   so Inventory Reforged's magic-menu panel is off and never shares this menu with ours (user 2026-10-26: our mod
   turns IR's magic-menu editing off). Only if a player turns IR's magic-menu panel back on in its MCM (irActive), or
   turns off our own fallback switches (bOwnCard=0, bMovePreview=0, bDrawPreviewOver=0 - debugging/rollback switches),
