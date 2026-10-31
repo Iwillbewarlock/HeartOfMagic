@@ -1,0 +1,57 @@
+[size=4][b]What It Does[/b][/size]
+Magic Menu Rewrite (version 1.0.0) by Iwillbewarlock is an SKSE plugin for Skyrim Special Edition and Anniversary Edition (SE and AE runtimes; not built for VR). It redraws SkyUI's magic menu around the spell list, while the spell list itself stays SkyUI's.
+
+[size=4][b]Blocks[/b][/size]
+In the core plugin (MagicMenuRewrite.dll), each panel is a block in two columns, and each column scrolls on its own:
+[list]
+[*] [b]3D Preview Box:[/b] The selected spell's 3D model is drawn in its own box beside the list.
+[*] [b]Spell Card:[/b] Shows school, skill level, magicka cost, cast type, duration, and description.
+[*] [b]Edit Mode:[/b] A gear button under the columns (or key K) switches between view mode and edit mode. In edit mode, the player drags blocks between and within the columns; places are saved for all characters (MagicMenuRewrite_Layout.json). A "reset layout" button returns to the default.
+[*] [b]Key Hints:[/b] The menu's own keys appear in SkyUI's bottom key-hint row (K for edit mode; with the Heart of Magic block, also U for next spell and G to set learning target).
+[*] [b]Add-on Blocks:[/b] Other SKSE plugins can add their own blocks to the menu (Block API). Optional blocks are chosen in the installer (FOMOD).
+[/list]
+
+[size=4][b]Heart of Magic Block[/b][/size]
+This optional block (MagicMenuRewrite_HoM.dll) needs Heart of Magic Librarian. Without Heart of Magic installed, this block shows nothing.
+[list]
+[*] [b]Spell Tree Window:[/b] Shows the selected spell's place in Heart of Magic's spell tree, with its neighbours, hover tooltips, and click to show a spell (a spell not in the list shows on the card and in the 3D box).
+[*] [b]Learning Progress Card:[/b] Shows the school's learning target and progress, and spells you can learn.
+[*] [b]Node Card:[/b] Shows the clicked or picked spell's state and its prerequisites, and a button to set it as the learning target.
+[*] [b]Keys:[/b] U picks the next learnable spell, and G sets it as the learning target.
+[/list]
+
+[size=4][b]Requirements[/b][/size]
+[list]
+[*] SKSE64, Address Library for SKSE Plugins, SkyUI.
+[*] Optional: Heart of Magic Librarian (for the Heart of Magic block).
+[*] Optional: SKSE Menu Framework (for the settings tab; Korean text there needs EnableKorean = true in SKSEMenuFramework.ini).
+[/list]
+
+[size=4][b]Installation[/b][/size]
+Use the FOMOD installer:
+[list]
+[*] [b]Step 1 - Core:[/b] Always installed.
+[*] [b]Step 2 - Add-on blocks:[/b] "Heart of Magic Librarian block" (recommended when Heart of Magic is installed).
+[/list]
+
+[size=4][b]Compatibility[/b][/size]
+[list]
+[*] [b]Inventory Reforged:[/b] The archive includes MCM/Settings/InventoryReforged.ini that turns Inventory Reforged's own magic-menu panel off, so the two do not share the magic menu. If you have your own InventoryReforged.ini settings, let yours win (it holds only that one setting).
+[*] [b]UI and Hotkey Mods:[/b] Works with Untarnished UI's bottom bar and STB Hotkey System's key hints (seen in testing).
+[*] [b]Spell Research:[/b] A Spell Research block is a later add-on, not in this release.
+[/list]
+
+[size=4][b]Settings[/b][/size]
+Languages supported are English and Korean, chosen from the game's language automatically (Korean is also chosen on an English game with Korean strings), or set in the INI / settings tab.
+
+An optional settings tab in SKSE Menu Framework sets the language and which blocks are shown. Without SKSE Menu Framework, the same settings are in MagicMenuRewrite.ini. Choices from the tab are kept in MagicMenuRewrite_User.ini, so a mod update does not reset them.
+
+[size=4][b]Credits and License[/b][/size]
+Source: GitHub Iwillbewarlock/HeartOfMagic, tag magic-menu-v1.0.0. License: the mod's own code is MIT; the DLLs contain CommonLibSSE-NG (GPL-3.0 with the Modding and Linking Exceptions), so the DLLs ship as a GPL combined work (THIRD-PARTY-NOTICES.md in the archive).
+[list]
+[*] [b]LayMovi[/b] - Inventory Reforged: the 3D preview's placement follows the method of Inventory Reforged's item view; its code was read for the method only, no code was taken.
+[*] [b]DinkelTwinkel[/b] - Heart of Magic (original): four shared headers from Heart of Magic (MIT).
+[*] [b]Thiago099[/b] - SKSE Menu Framework 2 API header (MIT).
+[*] [b]schlangster and the SkyUI team[/b] - SkyUI.
+[*] [b]CommonLibSSE-NG[/b] (alandtse and contributors), spdlog, {fmt}, nlohmann-json, Xbyak, DirectXMath.
+[/list]

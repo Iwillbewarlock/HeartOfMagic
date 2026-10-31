@@ -1,0 +1,59 @@
+[spoiler]
+[size=4][b]모드 소개[/b][/size]
+Magic Menu Rewrite (버전 1.0.0, 제작자: Iwillbewarlock)는 스카이림 스페셜 에디션 및 애니버서리 에디션(SE 및 AE 런타임 지원, VR은 지원하지 않음)용 SKSE 플러그인입니다. 주문 목록 자체는 SkyUI의 것을 그대로 유지하면서, 주문 목록 주변의 SkyUI 마법 메뉴를 새로 그립니다.
+
+[size=4][b]블록 구성[/b][/size]
+코어 플러그인(MagicMenuRewrite.dll)에서 각 패널은 2열로 구성된 블록 형태이며, 각 열은 개별적으로 스크롤됩니다.
+[list]
+[*] [b]3D 미리보기 상자:[/b] 선택한 주문의 3D 모델을 목록 옆의 전용 상자에 그립니다.
+[*] [b]주문 카드:[/b] 마법 학파, 숙련 단계, 매지카 비용, 시전 유형, 지속 시간, 설명을 표시합니다.
+[*] [b]편집 모드:[/b] 열 아래의 톱니바퀴 버튼(또는 K 키)으로 보기 모드와 편집 모드를 전환합니다. 편집 모드에서는 블록을 열 사이 또는 같은 열 안에서 드래그해 배치할 수 있으며, 위치는 모든 캐릭터에 공통으로 저장됩니다(MagicMenuRewrite_Layout.json). "처음 배치로" 버튼을 누르면 기본값으로 돌아갑니다.
+[*] [b]키 안내:[/b] 메뉴 전용 단축키가 SkyUI 하단 키 안내 줄에 표시됩니다(K: 편집 모드, Heart of Magic 블록 사용 시 U: 다음 주문, G: 학습 목표 지정 추가).
+[*] [b]애드온 블록:[/b] 다른 SKSE 플러그인도 자체 블록을 메뉴에 추가할 수 있습니다(Block API). 선택형 블록은 설치 프로그램(FOMOD)에서 고를 수 있습니다.
+[/list]
+
+[size=4][b]Heart of Magic 블록[/b][/size]
+선택 사항인 이 블록(MagicMenuRewrite_HoM.dll)은 Heart of Magic Librarian이 필요합니다. Heart of Magic이 설치되어 있지 않으면 이 블록은 아무것도 표시하지 않습니다.
+[list]
+[*] [b]주문 트리 창:[/b] Heart of Magic 주문 트리에서 선택한 주문의 위치와 인접 주문, 마우스 오버 툴팁을 표시하며, 주문을 클릭해 확인할 수 있습니다(보유 목록에 없는 주문도 주문 카드와 3D 상자에 표시됩니다).
+[*] [b]학습 진행도 카드:[/b] 해당 학파의 학습 목표와 진행 상황, 배울 수 있는 주문을 표시합니다.
+[*] [b]노드 카드:[/b] 클릭하거나 선택한 주문의 상태와 선행 조건, 그리고 해당 주문을 학습 목표로 지정하는 버튼을 표시합니다.
+[*] [b]단축키:[/b] U 키는 학습 가능한 다음 주문을 선택하고, G 키는 해당 주문을 학습 목표로 설정합니다.
+[/list]
+
+[size=4][b]필수 및 선택 요구 사항[/b][/size]
+[list]
+[*] 필수: SKSE64, Address Library for SKSE Plugins, SkyUI
+[*] 선택: Heart of Magic Librarian (Heart of Magic 블록용)
+[*] 선택: SKSE Menu Framework (설정 탭용. 설정 탭에서 한국어 텍스트를 보려면 SKSEMenuFramework.ini에서 EnableKorean = true 설정이 필요합니다)
+[/list]
+
+[size=4][b]설치 방법[/b][/size]
+FOMOD 설치 프로그램을 통해 설치합니다.
+[list]
+[*] [b]1단계 - 코어(Core):[/b] 항상 설치됩니다.
+[*] [b]2단계 - 애드온 블록(Add-on blocks):[/b] "Heart of Magic Librarian block" (Heart of Magic이 설치된 경우 권장).
+[/list]
+
+[size=4][b]호환성[/b][/size]
+[list]
+[*] [b]Inventory Reforged:[/b] 압축 파일에 Inventory Reforged 자체 마법 메뉴 패널을 끄는 MCM/Settings/InventoryReforged.ini가 포함되어 있어 두 모드가 마법 메뉴를 겹쳐 쓰지 않도록 합니다. 해당 설정 한 줄만 들어 있으므로, 직접 설정한 InventoryReforged.ini가 있다면 기존 파일이 우선하도록 두세요.
+[*] [b]기타 UI 및 단축키 모드:[/b] 테스트에서 Untarnished UI의 하단 바와 STB Hotkey System의 키 안내와 함께 정상 작동하는 것을 확인했습니다.
+[*] [b]Spell Research:[/b] Spell Research 블록은 추후 애드온으로 제공될 예정이며 이번 릴리스에는 포함되지 않았습니다.
+[/list]
+
+[size=4][b]설정 및 언어[/b][/size]
+영어와 한국어를 지원하며, 게임 언어 설정에 따라 자동으로 선택됩니다(영어판 게임에 한국어 스트링을 적용한 환경에서도 한국어가 자동 선택됨). INI 파일이나 설정 탭에서 직접 지정할 수도 있습니다.
+
+SKSE Menu Framework의 선택형 설정 탭에서 언어와 표시할 블록을 설정할 수 있습니다. SKSE Menu Framework가 없으면 MagicMenuRewrite.ini에서 동일한 설정을 변경할 수 있습니다. 설정 탭에서 선택한 내용은 MagicMenuRewrite_User.ini에 보관되므로 모드를 업데이트해도 초기화되지 않습니다.
+
+[size=4][b]크레딧 및 라이선스[/b][/size]
+소스 코드: GitHub Iwillbewarlock/HeartOfMagic, 태그 magic-menu-v1.0.0. 라이선스: 모드 자체 코드는 MIT 라이선스이며, DLL에는 CommonLibSSE-NG(모딩 및 링킹 예외가 적용된 GPL-3.0)가 포함되어 있어 GPL 결합 저작물로 배포됩니다(압축 파일 내 THIRD-PARTY-NOTICES.md 참고).
+[list]
+[*] [b]LayMovi[/b] - Inventory Reforged: 3D 미리보기 배치에 Inventory Reforged 아이템 뷰의 방식을 따랐습니다. 방식 파악을 위해 코드를 열람했을 뿐이며 코드는 가져오지 않았습니다.
+[*] [b]DinkelTwinkel[/b] - Heart of Magic (원작): Heart of Magic의 공유 헤더 4개(MIT).
+[*] [b]Thiago099[/b] - SKSE Menu Framework 2 API 헤더(MIT).
+[*] [b]schlangster 및 SkyUI 팀[/b] - SkyUI.
+[*] [b]CommonLibSSE-NG[/b] (alandtse 및 기여자들), spdlog, {fmt}, nlohmann-json, Xbyak, DirectXMath.
+[/list]
+[/spoiler]
