@@ -13,8 +13,8 @@
 #include <vector>
 
 // =============================================================================
-// LANG GAME - the game side of LangFiles.h, shared by SL_MagicMenu and
-// SL_MagicMenu_HoM: [Display] sLanguage from Data/SKSE/Plugins/SL_MagicMenu.ini
+// LANG GAME - the game side of LangFiles.h, shared by MagicMenuRewrite and
+// MagicMenuRewrite_HoM: [Display] sLanguage from Data/SKSE/Plugins/MagicMenuRewrite.ini
 // (both DLLs read the same key), the game's sLanguage:General, a localized
 // game string for auto's Hangul check (GameText), the load of a DLL's Catalog
 // with its log lines, and its refresh. Load at kDataLoaded (the game's INI
@@ -24,7 +24,7 @@
 
 namespace LangGame
 {
-    inline constexpr const char* kIniRelative = "Data/SKSE/Plugins/SL_MagicMenu.ini";
+    inline constexpr const char* kIniRelative = "Data/SKSE/Plugins/MagicMenuRewrite.ini";
     inline constexpr std::uint32_t kValueChars = 64;
 
     /// A path under the game folder (GetPrivateProfileString looks a bare relative name up in the Windows folder)
@@ -36,8 +36,8 @@ namespace LangGame
     }
 
     // fix round 1 I2 (2026-10-31): the player's own file, written by the settings tab and never shipped, so a mod update (which
-    // replaces SL_MagicMenu.ini) keeps the choices; under MO2 it lands in Overwrite, as SL_MagicMenu_Layout.json does
-    inline constexpr const char* kUserIniRelative = "Data/SKSE/Plugins/SL_MagicMenu_User.ini";
+    // replaces MagicMenuRewrite.ini) keeps the choices; under MO2 it lands in Overwrite, as MagicMenuRewrite_Layout.json does
+    inline constexpr const char* kUserIniRelative = "Data/SKSE/Plugins/MagicMenuRewrite_User.ini";
 
     namespace Detail
     {
@@ -60,8 +60,8 @@ namespace LangGame
         }
     }
 
-    /// a_key of a_section as the player set it: SL_MagicMenu_User.ini's when that file has the key (an empty value too), else
-    /// SL_MagicMenu.ini's, else "" (LangFiles::Layered)
+    /// a_key of a_section as the player set it: MagicMenuRewrite_User.ini's when that file has the key (an empty value too), else
+    /// MagicMenuRewrite.ini's, else "" (LangFiles::Layered)
     inline std::string IniString(std::string_view a_section, std::string_view a_key, std::uint32_t a_maxChars = kValueChars)
     {
         return LangFiles::Layered(Detail::ReadKey(kUserIniRelative, a_section, a_key, a_maxChars), Detail::ReadKey(kIniRelative, a_section, a_key, a_maxChars));

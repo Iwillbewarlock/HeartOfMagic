@@ -4,7 +4,7 @@
 // {placeholders} and the " · " separators the same in en, ko and the built-in text, the built-in text equal to en.json -
 // and the shared LangFiles.h as the DLLs run it: [Display] sLanguage + the game's language -> the code, the file chain
 // (<code>.json, en.json, built-in) on the real folders and on made-up ones, the Catalog's one load and its refresh at a menu open, the log lines. The
-// shipped SL_MagicMenu.ini must carry [Display] sLanguage=auto and an empty [Blocks] sHidden.
+// shipped MagicMenuRewrite.ini must carry [Display] sLanguage=auto and an empty [Blocks] sHidden.
 // Not covered here (the game only): LangGame.h's ini and game INI setting reads.
 //
 //   magic-menu-lang-check               one PASS/FAIL line per check, a total line
@@ -378,18 +378,18 @@ namespace
 
     void DistIni()
     {
-        std::printf("the shipped SL_MagicMenu.ini\n");
+        std::printf("the shipped MagicMenuRewrite.ini\n");
         const auto language = DistValue("[Display]", "sLanguage");
         Expect(language == kAuto, Text("[Display] sLanguage=auto (found %s, value '%s')", language ? "yes" : "no", language.value_or("").c_str()));
         const auto hidden = DistValue("[Blocks]", "sHidden");
         Expect(hidden && hidden->empty(), Text("[Blocks] sHidden= (empty: every block shown; found %s)", hidden ? "yes" : "no"));
     }
 
-    // Fix round 1 I2: the settings tab writes the player's SL_MagicMenu_User.ini (never shipped); a key there wins over the shipped
-    // SL_MagicMenu.ini, an empty value included (LangFiles::Layered, the order LangGame::IniString reads them in)
+    // Fix round 1 I2: the settings tab writes the player's MagicMenuRewrite_User.ini (never shipped); a key there wins over the shipped
+    // MagicMenuRewrite.ini, an empty value included (LangFiles::Layered, the order LangGame::IniString reads them in)
     void UserFileOrder()
     {
-        std::printf("the player's SL_MagicMenu_User.ini before the shipped SL_MagicMenu.ini\n");
+        std::printf("the player's MagicMenuRewrite_User.ini before the shipped MagicMenuRewrite.ini\n");
         using Value = std::optional<std::string>;
         Expect(Layered(Value("ko"), Value("auto")) == "ko", "both files have the key: the player's file wins");
         Expect(Layered(Value(""), Value("preview")) == "", "the player's file has the key empty (every block ticked on again): empty, not the shipped value");

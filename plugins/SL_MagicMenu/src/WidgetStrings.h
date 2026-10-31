@@ -13,7 +13,7 @@
 // WIDGET STRINGS - the magic menu's on-screen text table (out of WidgetText.h so
 // tools/magic-menu-lang-check can read it: no game types). Each row's text is
 // the built-in English, the last fallback; the shown text comes from
-// Data/SKSE/Plugins/SL_MagicMenu/lang/<code>.json, then en.json (LangFiles.h,
+// Data/SKSE/Plugins/MagicMenuRewrite/lang/<code>.json, then en.json (LangFiles.h,
 // loaded once at kDataLoaded by Main.cpp). Placeholders in braces are filled by
 // Fill(); {key} already carries its brackets ("[U]"). Wording: the reviewed
 // drafts of 2026-10-31 (en.json / ko.json); the Korean, Gemini Argon's draft
@@ -120,7 +120,7 @@ namespace WidgetText
         { Str::kHintLayout, "hint_layout", "Edit mode" },
         // fix round 1: the same key's hint in the layout mode (the gear's layout_gear_leave without the key)
         { Str::kHintLayoutLeave, "hint_layout_leave", "View mode" },
-        // 2026-10-31: the settings tab in SKSE Menu Framework - its item under the "Magic Menu Note" section, the language row (the
+        // 2026-10-31: the settings tab in SKSE Menu Framework - its item under the "Magic Menu Rewrite" section, the language row (the
         // language names themselves, English and 한국어, are not translated), the block checkboxes and their notes
         { Str::kSetItem, "settings_item", "Settings" },
         { Str::kSetLanguage, "settings_language", "Language" },
@@ -150,7 +150,7 @@ namespace WidgetText
     inline LangFiles::Catalog<StrEntry, kStrings.size()> g_catalog{ kStrings };
 
     /// The language folder under the game folder
-    inline constexpr const char* kLangDir = "Data/SKSE/Plugins/SL_MagicMenu/lang";
+    inline constexpr const char* kLangDir = "Data/SKSE/Plugins/MagicMenuRewrite/lang";
 
     inline const char* Text(Str a_id)
     {

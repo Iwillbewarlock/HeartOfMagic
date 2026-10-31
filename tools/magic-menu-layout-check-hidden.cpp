@@ -24,7 +24,7 @@ namespace HiddenCheck
         using ExpectFn = void (*)(bool, const std::string&);
 
         constexpr double kTolerance = 1e-9;
-        const std::string kTree = "SL_MagicMenu_HoM.tree", kProgress = "SL_MagicMenu_HoM.progress", kNodeCard = "SL_MagicMenu_HoM.nodecard";
+        const std::string kTree = "MagicMenuRewrite_HoM.tree", kProgress = "MagicMenuRewrite_HoM.progress", kNodeCard = "MagicMenuRewrite_HoM.nodecard";
 
         std::string Show(const Ids& a_ids)
         {
@@ -41,7 +41,7 @@ namespace HiddenCheck
         {
             std::printf("[Blocks] sHidden: parse, write back, toggle\n");
             a_expect(HiddenBlocks::Parse("").empty() && HiddenBlocks::Parse("  ,, ,\t").empty(), "empty value and only separators/spaces: nothing hidden");
-            const auto spaced = HiddenBlocks::Parse(" preview , SL_MagicMenu_HoM.tree,,\tspellcard ,");
+            const auto spaced = HiddenBlocks::Parse(" preview , MagicMenuRewrite_HoM.tree,,\tspellcard ,");
             a_expect(spaced == Ids{ "preview", kTree, "spellcard" }, "spaces and tabs trimmed, empty items dropped, order kept (got " + Show(spaced) + ")");
             const auto repeated = HiddenBlocks::Parse("preview,Other.block,preview");
             a_expect(repeated == Ids{ "preview", "Other.block" }, "a repeat dropped (the first kept); an unknown id kept as written (got " + Show(repeated) + ")");

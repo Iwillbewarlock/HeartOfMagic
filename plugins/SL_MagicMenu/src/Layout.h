@@ -36,7 +36,7 @@ namespace Layout
     inline constexpr const char* kNodeCard = "nodecard";
     // [Debug] bDebugFillerBlock's test add-on (blocks plan Task 6): placed in the left column after the spell card, so the
     // preview's column scrolls (the RF3 test path; final review ruling)
-    inline constexpr const char* kDebugFillerId = "SL_MagicMenu.filler";
+    inline constexpr const char* kDebugFillerId = "MagicMenuRewrite.filler";
 
     inline constexpr int kColumns = 2;
     inline constexpr int kJsonVersion = 1;
@@ -251,7 +251,7 @@ namespace Layout
         const std::vector<BlockId>& a_addons, const State& a_default);
 
     /// The other way, for every write: each final id with an alias written as its retired id, so the file keeps the old ids and an
-    /// older SL_MagicMenu reads it as before. Never a duplicate: a retired id already beside its final one is dropped (the final
+    /// older MagicMenuRewrite reads it as before. Never a duplicate: a retired id already beside its final one is dropped (the final
     /// one's place is the player's); a final id with no alias is written as is. An empty map: unchanged
     State ToLegacy(State a_state, const std::map<BlockId, BlockId>& a_legacyToFinal);
 

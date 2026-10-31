@@ -1,11 +1,11 @@
 // =============================================================================
-// SL_MagicMenu - the magic menu
+// MagicMenuRewrite - the magic menu
 // =============================================================================
 // Draws a 3D preview box and a spell card into SkyUI's magic menu, on a board
 // with the layout mode's gear and the key-hint strip, and hosts other plugins'
 // blocks (BlockApi.h). Since HoM add-on plan Task 5 it knows no Heart of Magic:
 // the spell tree, the learning progress and the node card are the HoM add-on's
-// blocks (SL_MagicMenu_HoM). Spec: docs/superpowers/specs/2026-10-24-magic-menu-proto.md,
+// blocks (MagicMenuRewrite_HoM). Spec: docs/superpowers/specs/2026-10-24-magic-menu-proto.md,
 // docs/superpowers/specs/2026-10-30-magic-menu-hom-addon-design.md
 // =============================================================================
 
@@ -50,7 +50,7 @@ namespace
         }
         if (a_msg->type != BlockApi::kMessageRegister) return;
         if (!a_msg->sender || !*a_msg->sender) {
-            logger::warn("SL_MagicMenu: an add-on block registration with no sender name - ignored (not answered)");
+            logger::warn("MagicMenuRewrite: an add-on block registration with no sender name - ignored (not answered)");
             return;
         }
         const auto outcome = Widget::RegisterBlock(a_msg->sender, a_msg->data, a_msg->dataLen);
@@ -72,7 +72,7 @@ namespace
             // every plugin is loaded now, so the any-sender listener (nullptr) covers them all; add-ons send from kPostPostLoad on
             auto* messaging = SKSE::GetMessagingInterface();
             const bool listening = messaging && messaging->RegisterListener(nullptr, OnAnyMessage);
-            logger::info("SL_MagicMenu: add-on block registrations {}", listening ? "open (message type 'SLMB', until the first magic menu open)" :
+            logger::info("MagicMenuRewrite: add-on block registrations {}", listening ? "open (message type 'SLMB', until the first magic menu open)" :
                                                                                    "NOT possible - the any-sender listener was refused");
             return;
         }
@@ -83,7 +83,7 @@ namespace
         // 2026-10-31: the optional SKSE Menu Framework tab (language, blocks); without the framework one log line
         SettingsTab::Register(LangGame::AutoCode());
         if (Settings::Get().debugFillerBlock) Widget::RegisterDebugFiller();  // blocks plan Task 6: through the add-on path
-        logger::info("SL_MagicMenu: kDataLoaded on thread {}, main thread {}", REX::W32::GetCurrentThreadId(), GameThread::Id());
+        logger::info("MagicMenuRewrite: kDataLoaded on thread {}, main thread {}", REX::W32::GetCurrentThreadId(), GameThread::Id());
         Widget::Install();
         Input::Install();
         FlushLog();
@@ -97,20 +97,20 @@ SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
     // The main thread: the game's preview data are used on it only. kDataLoaded ran on another thread in the game
     // run of 2026-10-25, so it is taken here, where SKSE loads plugins.
     GameThread::Set();
-    logger::info("SL_MagicMenu: main thread {}", REX::W32::GetCurrentThreadId());
+    logger::info("MagicMenuRewrite: main thread {}", REX::W32::GetCurrentThreadId());
 
     Settings::Load();
     BlockHiding::Read("plugin load");  // [Blocks] sHidden (read again at each magic menu open)
     if (!Settings::Get().enabled) {
-        logger::info("SL_MagicMenu: bEnabled=0 - nothing installed");
+        logger::info("MagicMenuRewrite: bEnabled=0 - nothing installed");
         return true;
     }
     auto* messaging = SKSE::GetMessagingInterface();
     if (!messaging) {
-        logger::error("SL_MagicMenu: no SKSE messaging interface - nothing installed");
+        logger::error("MagicMenuRewrite: no SKSE messaging interface - nothing installed");
         return true;
     }
     messaging->RegisterListener(OnSKSEMessage);
-    logger::info("SL_MagicMenu: listening for SKSE messages (add-on blocks from kPostLoad on)");
+    logger::info("MagicMenuRewrite: listening for SKSE messages (add-on blocks from kPostLoad on)");
     return true;
 }

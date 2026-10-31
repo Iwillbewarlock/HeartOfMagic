@@ -1,5 +1,9 @@
 # Magic menu: block layout (design, 2026-10-26)
 
+Names (2026-10-31, before the first Nexus release): the public name is Magic Menu Rewrite and the shipped files and SKSE
+plugin names are `MagicMenuRewrite*` (was the working name `SL_MagicMenu*`); the repo folders `plugins/SL_MagicMenu*` and the
+CMake targets keep the working name. The text below uses the new product names where it says what ships.
+
 Prototype SL_MagicMenu (this worktree, build 13 deployed as Case 221). Read `2026-10-26-magic-menu-proto-v13.md` and
 `...-v11.md` (tree) for the current state; ledger `Desktop/Claude outputs/ACF-Phase0/M0/video7/LEDGER.md`.
 
@@ -518,10 +522,10 @@ block) messages. v1 and v2 add-ons are read as before. The contract is the heade
 User: "SKSE메뉴에서 언어설정이랑 활성화할 블록창을 고를 수 있게 하자". SKSE Menu Framework is an optional dependency (user
 decision): with it a settings tab appears, without it everything works from the ini as before.
 
-- The tab (`SettingsTab.cpp`, core DLL only): section "Magic Menu Note", one item "Settings" (its name translated once, at
+- The tab (`SettingsTab.cpp`, core DLL only): section "Magic Menu Rewrite", one item "Settings" (its name translated once, at
   kDataLoaded; SKSE Menu Framework cannot rename an item). It needs SKSEMenuFramework.dll installed, loaded and exporting
   every function the page calls (Spell Research Prisma's three checks); else no tab and one log line. The page writes
-  `SL_MagicMenu.ini` with `WritePrivateProfileStringW` at the reader's absolute path, only when a value changes, and touches
+  `MagicMenuRewrite.ini` with `WritePrivateProfileStringW` at the reader's absolute path, only when a value changes, and touches
   no game state from the render thread (it reads the registry's block list under its lock and the language tables, whose
   texts are never freed).
 - Language: auto / English / 한국어 -> `[Display] sLanguage`. Both DLLs read the key again at each magic menu open
@@ -540,8 +544,8 @@ decision): with it a settings tab appears, without it everything works from the 
     spell's 3D where the game puts it; the board is edge-only then (no fill over that 3D).
   - A hidden spell card: neither our card nor a moved SkyUI card - SkyUI's item card stays where SkyUI puts it.
 - Fix round 1 (reviewer, GPT):
-  - The tab writes only the player's `SL_MagicMenu_User.ini` (never shipped: a mod update keeps it; under MO2 it lands in
-    Overwrite). Both keys are read from that file first and from `SL_MagicMenu.ini` when it lacks the key
+  - The tab writes only the player's `MagicMenuRewrite_User.ini` (never shipped: a mod update keeps it; under MO2 it lands in
+    Overwrite). Both keys are read from that file first and from `MagicMenuRewrite.ini` when it lacks the key
     (`LangFiles::Layered`, `LangGame::IniString`). The page takes the values again when a menu open reads other ones (a hand
     edit). The tab needs SKSEMenuFramework.dll loaded; whether the file exists only words the log line.
   - A hidden preview counts as bMovePreview=0 for Preview's tab hide (`PreviewMath::HidesForTab`): leaving the Powers tab

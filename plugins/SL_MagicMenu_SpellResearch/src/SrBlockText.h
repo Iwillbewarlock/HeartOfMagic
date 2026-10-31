@@ -159,7 +159,7 @@ namespace SrBlock
     // Strings, from two sources (user 2026-10-30, SR Prisma's phase 3):
     //  - SR Prisma's own tables (Data/PrismaUI/views/SpellResearch/lang/<code>.json; its docs/settings-tab.md "Other plugins")
     //    for the archetype names and the three group labels: SR <lang>, SR en, then the block's own <lang>, own en, the key;
-    //  - the block's own files (SKSE/Plugins/SL_MagicMenu_SpellResearch/lang/<code>.json) for everything else: own <lang>,
+    //  - the block's own files (SKSE/Plugins/MagicMenuRewrite_SpellResearch/lang/<code>.json) for everything else: own <lang>,
     //    own en, the key.
     // In every table an empty value counts as missing (SR Prisma's rule). Without SR Prisma's files its two tables are null
     // and everything comes from the block's own files

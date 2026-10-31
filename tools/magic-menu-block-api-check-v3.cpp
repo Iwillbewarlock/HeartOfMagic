@@ -45,8 +45,8 @@ namespace BlockApiCheck
 
         const SrV2::BlockApi::Registration sr{ .id = "archetypes", .title = "ARCHETYPES", .height = 132.0f, .drawSelection = SrDrawSelection,
             .tabs = SrV2::BlockApi::kTabSpells };
-        const auto srOutcome = registry.Register("SL_MagicMenu_SpellResearch", &sr, sizeof(sr));
-        const auto* srBlock = registry.Find("SL_MagicMenu_SpellResearch.archetypes");
+        const auto srOutcome = registry.Register("MagicMenuRewrite_SpellResearch", &sr, sizeof(sr));
+        const auto* srBlock = registry.Find("MagicMenuRewrite_SpellResearch.archetypes");
         Expect(srOutcome.accepted && srOutcome.apiVersion == BlockApi::kVersionV2 && srBlock && srBlock->apiVersion == BlockApi::kVersionV2 &&
                    Address(srBlock->drawSelection) == Address(&SrDrawSelection) && srBlock->tabs == BlockApi::kTabSpells && NoV3Fields(srBlock),
             Text("SR's own v2 header bytes (%zu): accepted, answered as v2 (Result.apiVersion %u), no v3 field", sizeof(sr), srOutcome.apiVersion));
@@ -83,7 +83,7 @@ namespace BlockApiCheck
     {
         std::printf("'SLMS' / 'SLMV' (BlockRules::ReadShowSpell, ReadVisible, ShowSpellDue)\n");
         std::string why;
-        const std::string id = "SL_MagicMenu_HoM.tree";
+        const std::string id = "MagicMenuRewrite_HoM.tree";
         const BlockApi::ShowSpellRequest show{ .id = id.c_str(), .formId = 0x0001C789, .requestId = 7, .nameShown = 1 };
         const auto spell = BlockRules::ReadShowSpell(&show, sizeof(show), why);
         Expect(spell && spell->id == id && spell->formId == 0x0001C789 && spell->requestId == 7 && spell->nameShown, "a whole ShowSpellRequest read");
@@ -115,7 +115,7 @@ namespace BlockApiCheck
 
     namespace
     {
-        // The reserved built-in ids of an SL_MagicMenu that still drew the HoM blocks itself (Widget.cpp's kBlocks before HoM add-on
+        // The reserved built-in ids of a MagicMenuRewrite that still drew the HoM blocks itself (Widget.cpp's kBlocks before HoM add-on
         // plan Task 5): the registry's rule for a legacyId whose retired id is still reserved
         const std::set<std::string> kBuiltinsWithHom{ "preview", "tree", "progress", "nodecard", "spellcard" };
         // The core's reserved ids since Task 5 (Widget.cpp's kBlocks): the retired ids are free for a legacyId
@@ -141,7 +141,7 @@ namespace BlockApiCheck
             for (const auto retired : BlockRules::kRetiredIds) {
                 const std::string legacy(retired);
                 const auto outcome = Send(withBuiltins, Bytes(V3(("claims" + legacy).c_str(), legacy.c_str())));
-                Expect(!outcome.accepted && outcome.reason == "the built-in block '" + legacy + "' is still in this SL_MagicMenu",
+                Expect(!outcome.accepted && outcome.reason == "the built-in block '" + legacy + "' is still in this MagicMenuRewrite",
                     Text("legacyId %s while the built-in %s is reserved: refused, reason \"%s\"", legacy.c_str(), legacy.c_str(), outcome.reason.c_str()));
             }
             Expect(withBuiltins.LegacyAliases().empty() && withBuiltins.Blocks().empty(), "... no alias and no block from those refusals");
@@ -321,8 +321,8 @@ namespace BlockApiCheck
                        !BlockRules::ClosesWhenEmpty(false, 0) && BlockRules::ClosesWhenEmpty(true, BlockApi::kFlagOwnMouse),
                 "closes when empty: drawSelection without kFlagKeepWhenEmpty only");
             const bool keeps = BlockRules::ClosesWhenEmpty(true, BlockApi::kFlagKeepWhenEmpty), closes = BlockRules::ClosesWhenEmpty(true, 0);
-            Expect(BlockRules::EmptyLookOf("SL_MagicMenu_HoM.tree", true, keeps, false) == EmptyLook::kAsUsual &&
-                       BlockRules::EmptyLookOf("SL_MagicMenu_HoM.tree", true, keeps, true) == EmptyLook::kAsUsual,
+            Expect(BlockRules::EmptyLookOf("MagicMenuRewrite_HoM.tree", true, keeps, false) == EmptyLook::kAsUsual &&
+                       BlockRules::EmptyLookOf("MagicMenuRewrite_HoM.tree", true, keeps, true) == EmptyLook::kAsUsual,
                 "drawSelection with kFlagKeepWhenEmpty and nothing shown: as usual (place kept), in and out of the layout mode");
             Expect(BlockRules::EmptyLookOf("SpellResearch.archetypes", true, closes) == EmptyLook::kClosed &&
                        BlockRules::EmptyLookOf("SpellResearch.archetypes", true, closes, true) == EmptyLook::kAsUsual,

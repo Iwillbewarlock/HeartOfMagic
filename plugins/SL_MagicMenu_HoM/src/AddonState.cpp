@@ -24,7 +24,7 @@ namespace HomAddon
         // to do the shared work, so it never hides itself (Selection::ProgressHides)
         std::atomic<bool> g_progressAlone{ false };
 
-        // The host's [Blocks] sHidden read the same way (the player's SL_MagicMenu_User.ini first): both other blocks named, by their
+        // The host's [Blocks] sHidden read the same way (the player's MagicMenuRewrite_User.ini first): both other blocks named, by their
         // final or their retired id
         bool ProgressAlone()
         {

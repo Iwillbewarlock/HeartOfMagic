@@ -9,7 +9,7 @@
 // Settings::ResolveLanguage chose. Two sources (SrBlockText.h "Strings"):
 // SR Prisma's own tables (Data/PrismaUI/views/SpellResearch/lang/<code>.json)
 // for the archetype names and the group labels, the block's own files
-// (Data/SKSE/Plugins/SL_MagicMenu_SpellResearch/lang/<code>.json) for the rest
+// (Data/SKSE/Plugins/MagicMenuRewrite_SpellResearch/lang/<code>.json) for the rest
 // and as the fallback. A text no table has shows as its key (logged once).
 // =============================================================================
 

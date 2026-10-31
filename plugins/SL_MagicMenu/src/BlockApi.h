@@ -1,7 +1,7 @@
 #pragma once
 
 // =============================================================================
-// BLOCK API v3 - how another SKSE plugin adds its own block to SL_MagicMenu's
+// BLOCK API v3 - how another SKSE plugin adds its own block to MagicMenuRewrite's
 // magic menu panels (blocks plan Task 6, design review D9; v2: Spell Research
 // add-on design 2026-10-27, "Changes / 1"; v3: HoM add-on design 2026-10-30,
 // "Block API v3"). Copy this header into your plugin;
@@ -13,34 +13,34 @@
 // your plugin with CommonLibSSE-NG (any build whose GFxValue is the game's
 // 0x18-byte value) and the MSVC x64 calling convention.
 //
-// Versions: an SL_MagicMenu with this header reads apiVersion 1 (RegistrationV1, frozen: the v1 header's Registration),
+// Versions: a MagicMenuRewrite with this header reads apiVersion 1 (RegistrationV1, frozen: the v1 header's Registration),
 // 2 (RegistrationV2, frozen: the v2 header's Registration) and 3 (Registration). A v1 or v2 add-on built against its own
 // header keeps working unchanged, its messages included ('SLMD'; 'SLMH' stays readable at apiVersion 2). Version 4 or
-// later is refused with a reason ("update SL_MagicMenu").
+// later is refused with a reason ("update MagicMenuRewrite").
 //
 // Registering:
-//   1. At SKSE load, listen for SL_MagicMenu's answer:
+//   1. At SKSE load, listen for MagicMenuRewrite's answer:
 //        SKSE::GetMessagingInterface()->RegisterListener(BlockApi::kPluginName, OnBlockResult);
-//   2. At kPostPostLoad, kInputLoaded or kDataLoaded (SL_MagicMenu starts listening at kPostLoad; registration closes at
+//   2. At kPostPostLoad, kInputLoaded or kDataLoaded (MagicMenuRewrite starts listening at kPostLoad; registration closes at
 //      the first magic menu open after kDataLoaded - later ones are refused with a reason), send one message per block:
 //        BlockApi::Registration reg{ .id = "MyMod.stats", .title = "STATS", .height = 120.0f, .drawSelection = DrawStats,
 //                                    .tabs = BlockApi::kTabSpells };
 //        SKSE::GetMessagingInterface()->Dispatch(BlockApi::kMessageRegister, &reg, sizeof(reg), BlockApi::kPluginName);
-//      Dispatch returns false when no SL_MagicMenu listened (not installed, or bEnabled=0). The struct only needs to live
-//      for the Dispatch call: SL_MagicMenu copies id, title and legacyId. Only the fields of the version's own layout that
+//      Dispatch returns false when no MagicMenuRewrite listened (not installed, or bEnabled=0). The struct only needs to live
+//      for the Dispatch call: MagicMenuRewrite copies id, title and legacyId. Only the fields of the version's own layout that
 //      structSize and the message size both cover are read: a struct cut short reads its missing fields as null / 0 (pad as
 //      -1), and a v1 or v2 struct that grew past its layout is never read as later fields.
 //   3. The answer comes back, during that Dispatch, as a kMessageResult message to the sender (BlockApi::Result: accepted
 //      or refused, the block's final id and the reason; its apiVersion is the version your registration was read as, or
-//      this SL_MagicMenu's kVersion when it was refused before that). Its strings live only for that call.
+//      this MagicMenuRewrite's kVersion when it was refused before that). Its strings live only for that call.
 //
 // The id: unique, 1..kMaxIdLength characters. An id with no '.' is made "<your plugin name>.<id>" (the result says the
-// final id). It is the block's key in SL_MagicMenu_Layout.json: keep it the same across versions or the player's place
+// final id). It is the block's key in MagicMenuRewrite_Layout.json: keep it the same across versions or the player's place
 // for your block is lost. A block without a saved place goes to the end of the right column; when your plugin is not
 // installed any more, its saved place is kept (the block is skipped while absent).
 //
 // The block: fixed height (stage units, 1280 x 720 stage; finite, > 0, <= kMaxHeight); the width is the column's, which
-// the player can change. SL_MagicMenu draws the block's box and its title strip (no strip when title is null or empty)
+// the player can change. MagicMenuRewrite draws the block's box and its title strip (no strip when title is null or empty)
 // and lends you a fresh, empty clip below the title strip, inside the padding (the "content clip"): draw there with the
 // AS2 drawing API (beginFill / lineTo / createTextField ...). a_width / a_height are that clip's drawable size.
 //
@@ -48,7 +48,7 @@
 // frame handler, never from inside another of your callbacks. The clip is lent for the draw call only: do not keep the GFxValue,
 // the movie or anything made in it past the return (the movie dies when the menu closes), and do not put AS2 handlers
 // (onPress ...) on it - use click. Do not throw out of a callback (an exception is caught and logged, and the block is not
-// drawn or clicked again in that menu). Messages to SL_MagicMenu (registration, kMessageRedraw, kMessageHeight,
+// drawn or clicked again in that menu). Messages to MagicMenuRewrite (registration, kMessageRedraw, kMessageHeight,
 // kMessageShowSpell, kMessageVisible) may come from any thread.
 //
 // When the block is drawn (draw, or drawSelection when it is set - then draw is never called): once after the menu opens,
@@ -60,12 +60,12 @@
 // Effects entry gives (it may be 0 or another form). Look a_shown up and check its form type yourself. There is no
 // per-frame update.
 //
-// kMessageRedraw ('SLMD'): add-on -> SL_MagicMenu, data = the block's final id (NUL-terminated, as the result gave it),
+// kMessageRedraw ('SLMD'): add-on -> MagicMenuRewrite, data = the block's final id (NUL-terminated, as the result gave it),
 // dataLen its size. The block is drawn again on the next UI frame - so do not send it from that draw (or any draw of your
 // block), or the block is drawn again every frame. Ignored while the magic menu is closed (it is drawn at the next open
 // anyway) and for an id that is not a registered block. Not answered.
 //
-// kMessageHeight ('SLMH'): add-on -> SL_MagicMenu, data = a HeightRequest (below), dataLen its size: the block's height for
+// kMessageHeight ('SLMH'): add-on -> MagicMenuRewrite, data = a HeightRequest (below), dataLen its size: the block's height for
 // this menu, for content that needs less room than the block registered with. The registered height is the block's maximum
 // and its size in the layout mode; every magic menu opens at it. On the next UI frame the columns are laid out again with the
 // new height (the blocks below move up or down, the column's scroll follows) and the block is drawn again into its new size
@@ -73,11 +73,11 @@
 // changed, or the block resizes every frame. Several requests for one block before that frame: the last one counts. The
 // struct only needs to live for the Dispatch call (the id is copied). Ignored while the magic menu is closed and for an id
 // that is not a registered block; refused (logged) when height is not finite, <= 0 or more than the registered height. The
-// saved layout (SL_MagicMenu_Layout.json) is not changed. Not answered. 'SLMH' needs an SL_MagicMenu that knows it (the same
+// saved layout (MagicMenuRewrite_Layout.json) is not changed. Not answered. 'SLMH' needs a MagicMenuRewrite that knows it (the same
 // kVersion 2 header with this message): an older one ignores the message, and the block keeps its registered height. v3
-// leaves the HeightRequest as it was: SL_MagicMenu reads it at apiVersion 2 and 3, so a v2 add-on's requests keep working.
+// leaves the HeightRequest as it was: MagicMenuRewrite reads it at apiVersion 2 and 3, so a v2 add-on's requests keep working.
 //
-// click (optional): SL_MagicMenu lays one transparent hit area over the block's content clip. A mouse press there and its
+// click (optional): MagicMenuRewrite lays one transparent hit area over the block's content clip. A mouse press there and its
 // release are handed to click as two points in content clip coordinates (0,0 = the clip's top-left, the same space your
 // draw used), once, on the frame after the release. No call (the press is cancelled) when the release is outside the
 // content area or outside the column's visible part, when between press and release the column scrolled, the block was
@@ -87,7 +87,7 @@
 //
 // tabs: the SkyUI magic menu category tabs the block shows on (kTab* bits; kTabsAll = 0 = every tab, the v1 behaviour).
 // On the other tabs the block is hidden and the blocks below it in its column close up, as the tree, progress and node card
-// blocks did on Powers / Shouts / Active Effects while SL_MagicMenu drew them. kTabSpells is every tab SL_MagicMenu drew its
+// blocks did on Powers / Shouts / Active Effects while MagicMenuRewrite drew them. kTabSpells is every tab MagicMenuRewrite drew its
 // spell tree on: All, Favorites, the five school tabs (Alteration .. Restoration) and any category it does not know (a menu mod's
 // own) - All and Favorites can still hold a power or a shout, which a_shown shows. kTabPowers, kTabShouts and
 // kTabActiveEffects are those three tabs alone. A bit outside kTabsKnown is refused.
@@ -110,7 +110,7 @@
 // this tab, not hidden by kMessageVisible) - right before that block's own frame call, in the same frame (none when the layout
 // mode came on meanwhile, or when the block's frame call is skipped because it has no content clip yet). A block that is not
 // shown never gets the key, not even later: a key pressed on another tab is gone.
-// The return value is logged only: SL_MagicMenu never consumes a key (the menu and the game see it as before). No gamepad.
+// The return value is logged only: MagicMenuRewrite never consumes a key (the menu and the game see it as before). No gamepad.
 //
 // pad: the content clip's inset in the block's box (stage units; top - below the title strip when there is one -, left,
 // right and bottom). < 0 (the default, kPadDefault) is the host's own pad; a pad that is not a finite number or more than
@@ -124,9 +124,9 @@
 //                       Context::layoutMode seen was true (the layout mode owns the mouse; its covers lie above the panels).
 //   kFlagKeepWhenEmpty  the block keeps its place and its box when the menu shows no spell.
 //
-// legacyId: one of SL_MagicMenu's retired built-in block ids ("tree", "progress", "nodecard") that this block takes over:
+// legacyId: one of MagicMenuRewrite's retired built-in block ids ("tree", "progress", "nodecard") that this block takes over:
 // a saved layout's place for that id becomes this block's place (the layout file keeps the retired id on disk, so an older
-// SL_MagicMenu still reads it). Null or "" = none. Refused when the id is not a retired one or another block claimed it.
+// MagicMenuRewrite still reads it). Null or "" = none. Refused when the id is not a retired one or another block claimed it.
 //
 // Context (frame's a_context; it lives for the call only, tabSchool too): apiVersion / structSize first - read only the
 // fields structSize covers (a later host may add fields at the end). shown: as drawSelection's a_shown; listForm: the list's
@@ -141,14 +141,14 @@
 // kContextFrameSeqNeeded): the host's UI frame number this menu, the same for every frame call of one frame and new each
 // frame, from 1 (0 = a host that does not send it) - an add-on with several blocks does its shared work once per frame.
 //
-// kMessageShowSpell ('SLMS'): add-on -> SL_MagicMenu, data = a ShowSpellRequest, dataLen its size: show this spell as a
+// kMessageShowSpell ('SLMS'): add-on -> MagicMenuRewrite, data = a ShowSpellRequest, dataLen its size: show this spell as a
 // click on it in the add-on's block would - selected in the list when it is there, else on the menu's card (and in the 3D
 // preview when that setting is on; nameShown 0: the card hides the name). Queued, taken on the next UI frame: at most one
 // request is served per frame - the newest sent (by any block); the others of that frame are dropped (one log line). It is
 // dropped too when the list selection changed after it was queued (the player's newer choice wins) and while the layout
 // mode is on. Not answered: the next Context shows the result (source kAddon, servedRequest = its requestId).
 //
-// kMessageVisible ('SLMV'): add-on -> SL_MagicMenu, data = a VisibleRequest, dataLen its size: hide the block (shown 0) but
+// kMessageVisible ('SLMV'): add-on -> MagicMenuRewrite, data = a VisibleRequest, dataLen its size: hide the block (shown 0) but
 // keep its place in the column, or show it again (shown 1). Queued, taken on the next UI frame - and taken again after that
 // frame's draws, before its frame calls, so one sent from a draw applies before the frame is shown (a block can hide itself
 // from its first draw). Requests are applied in order; only a change does anything. Every menu opens with the block shown; a
@@ -158,20 +158,20 @@
 // closed and for an id that is not a registered block; refused (logged) when the message is shorter than the fields read,
 // apiVersion is not 3, the id is empty or too long, or ('SLMS') formId is 0. Not answered.
 //
-// kMessageKeyHint ('SLMK', 2026-10-31): add-on -> SL_MagicMenu, data = a KeyHint, dataLen its size: one key hint of the block
+// kMessageKeyHint ('SLMK', 2026-10-31): add-on -> MagicMenuRewrite, data = a KeyHint, dataLen its size: one key hint of the block
 // in SkyUI's own bottom key-hint strip (_root.Menu_mc.bottomBar.buttonPanel: the key's icon and the label, drawn by SkyUI's own
 // buttons like its "Equip" / "Search"). A standing declaration, kept for the game session: send it once the Result gave the
 // final id - at kDataLoaded, while the menu is closed or open (an open menu takes it on its next frame). The same block and
 // scanCode again replaces the label (its place kept); a null or empty label removes that hint. Shown while the block is shown
 // on the current tab (a place on the tab, not hidden by kMessageVisible, the columns up) and the layout mode is off; never
 // while SkyUI shows gamepad buttons (its _platform not 0: the keys are keyboard keys); after SkyUI's own buttons (and those
-// other mods add in SkyUI's updateBottomBar), after SL_MagicMenu's own layout-key hint, in block registration order and, per
+// other mods add in SkyUI's updateBottomBar), after MagicMenuRewrite's own layout-key hint, in block registration order and, per
 // block, in the order first sent. scanCode: a DirectInput keyboard scan code (1..kMaxHintScanCode; the icon is SkyUI's
 // for that code). The label: UTF-8, copied, cut to kMaxHintLabelBytes at a character boundary. The struct only needs to live
 // for the Dispatch call. Refused (logged) when the message is shorter than the fields read, apiVersion is not 3, the id is
 // empty, too long or not a registered block, scanCode is 0 or more than kMaxHintScanCode, or the block has kMaxKeyHints keys
-// already (refusals logged, capped). A hint SkyUI's panel has no button for (it holds 6; SL_MagicMenu adds buttons to it the way the panel makes its own)
-// is dropped and logged. Not answered. An older SL_MagicMenu ignores the message.
+// already (refusals logged, capped). A hint SkyUI's panel has no button for (it holds 6; MagicMenuRewrite adds buttons to it the way the panel makes its own)
+// is dropped and logged. Not answered. An older MagicMenuRewrite ignores the message.
 // =============================================================================
 
 #include <cstddef>
@@ -185,7 +185,7 @@ namespace RE
 
 namespace BlockApi
 {
-    inline constexpr const char* kPluginName = "SL_MagicMenu";
+    inline constexpr const char* kPluginName = "MagicMenuRewrite";
 
     /// The message types, as four characters ('SLMB' ...; built from the characters: no multi-character literal)
     inline constexpr std::uint32_t FourCC(char a_a, char a_b, char a_c, char a_d)
@@ -193,13 +193,13 @@ namespace BlockApi
         return (static_cast<std::uint32_t>(static_cast<unsigned char>(a_a)) << 24) | (static_cast<std::uint32_t>(static_cast<unsigned char>(a_b)) << 16) |
                (static_cast<std::uint32_t>(static_cast<unsigned char>(a_c)) << 8) | static_cast<std::uint32_t>(static_cast<unsigned char>(a_d));
     }
-    inline constexpr std::uint32_t kMessageRegister = FourCC('S', 'L', 'M', 'B');  // add-on -> SL_MagicMenu: data = Registration*
-    inline constexpr std::uint32_t kMessageResult = FourCC('S', 'L', 'M', 'R');    // SL_MagicMenu -> add-on: data = Result*
-    inline constexpr std::uint32_t kMessageRedraw = FourCC('S', 'L', 'M', 'D');    // add-on -> SL_MagicMenu: data = the final id (v2)
-    inline constexpr std::uint32_t kMessageHeight = FourCC('S', 'L', 'M', 'H');    // add-on -> SL_MagicMenu: data = HeightRequest* (v2)
-    inline constexpr std::uint32_t kMessageShowSpell = FourCC('S', 'L', 'M', 'S'); // add-on -> SL_MagicMenu: data = ShowSpellRequest* (v3)
-    inline constexpr std::uint32_t kMessageVisible = FourCC('S', 'L', 'M', 'V');   // add-on -> SL_MagicMenu: data = VisibleRequest* (v3)
-    inline constexpr std::uint32_t kMessageKeyHint = FourCC('S', 'L', 'M', 'K');   // add-on -> SL_MagicMenu: data = KeyHint* (v3)
+    inline constexpr std::uint32_t kMessageRegister = FourCC('S', 'L', 'M', 'B');  // add-on -> MagicMenuRewrite: data = Registration*
+    inline constexpr std::uint32_t kMessageResult = FourCC('S', 'L', 'M', 'R');    // MagicMenuRewrite -> add-on: data = Result*
+    inline constexpr std::uint32_t kMessageRedraw = FourCC('S', 'L', 'M', 'D');    // add-on -> MagicMenuRewrite: data = the final id (v2)
+    inline constexpr std::uint32_t kMessageHeight = FourCC('S', 'L', 'M', 'H');    // add-on -> MagicMenuRewrite: data = HeightRequest* (v2)
+    inline constexpr std::uint32_t kMessageShowSpell = FourCC('S', 'L', 'M', 'S'); // add-on -> MagicMenuRewrite: data = ShowSpellRequest* (v3)
+    inline constexpr std::uint32_t kMessageVisible = FourCC('S', 'L', 'M', 'V');   // add-on -> MagicMenuRewrite: data = VisibleRequest* (v3)
+    inline constexpr std::uint32_t kMessageKeyHint = FourCC('S', 'L', 'M', 'K');   // add-on -> MagicMenuRewrite: data = KeyHint* (v3)
 
     inline constexpr std::uint32_t kVersionV1 = 1;
     inline constexpr std::uint32_t kVersionV2 = 2;

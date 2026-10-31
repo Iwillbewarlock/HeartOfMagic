@@ -2,7 +2,7 @@
 
 // Spell Research - Prisma UI: public SKSE message interface.
 //
-// Lets another SKSE plugin (the SL_MagicMenu add-on first) open a Spell
+// Lets another SKSE plugin (the MagicMenuRewrite add-on first) open a Spell
 // Research window. Copy this header into your plugin; it has no dependencies.
 //
 //   Open:   SKSE::GetMessagingInterface()->Dispatch(SRPrismaAPI::kMessageOpen,

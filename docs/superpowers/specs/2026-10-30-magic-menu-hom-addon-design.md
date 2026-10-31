@@ -1,5 +1,9 @@
 # Magic menu without Heart of Magic: the HoM add-on block (design draft, 2026-10-30)
 
+Names (2026-10-31, before the first Nexus release): the public name is Magic Menu Rewrite and the shipped files and SKSE
+plugin names are `MagicMenuRewrite*` (was the working name `SL_MagicMenu*`); the repo folders `plugins/SL_MagicMenu*` and the
+CMake targets keep the working name. The text below uses the new product names where it says what ships.
+
 Implemented 2026-10-30 (plan docs/superpowers/plans/2026-10-30-magic-menu-hom-addon.md). The contract as built is the
 header comment of `plugins/SL_MagicMenu/src/BlockApi.h`; where it differs from the draft below, "As implemented" says how.
 
@@ -9,10 +13,10 @@ Map of the coupling at f83dc6f3: session notes (explorer report), older map `Des
 
 ## Goal
 
-- `SL_MagicMenu.dll` (the core) builds and runs with no HoM include, no `SpellLearning` listener, no `spell_tree.json` /
+- `MagicMenuRewrite.dll` (the core) builds and runs with no HoM include, no `SpellLearning` listener, no `spell_tree.json` /
   HoM `config.json` read. Without any add-on it shows: 3D preview box, our spell card, the board, the gear / layout mode,
   the key-hint strip. Today the core draws nothing at all without HoM (`Widget.cpp:8378` `if (!Hom::Ready()) return;`).
-- `SL_MagicMenu_HoM.dll` (new, `plugins/SL_MagicMenu_HoM`) registers three blocks through the Block API and draws the
+- `MagicMenuRewrite_HoM.dll` (new, `plugins/SL_MagicMenu_HoM`) registers three blocks through the Block API and draws the
   same tree window, learning progress card and node card as today (marks, legend, labels, badges, tooltip, U / G keys,
   HoM design presets). It needs SpellLearning.dll (HoM API v2); without it it registers no block and says so in
   its log (user 2026-10-30, Q3).
@@ -91,19 +95,19 @@ The 3D preview and our spell card keep following the list selection only (no Sho
   raising kVersion to 3 would refuse SR's v2 height requests). block-api-check sends SR's own v2 header bytes.
 - G-e The saved layout keeps the retired ids on disk: the host maps legacy -> final when it reads a layout and final ->
   legacy when it writes one (SaveLayout, Settings.cpp:508). A file holding both ids keeps the retired one's place. So an
-  older SL_MagicMenu reads the file as before, and upgrade -> save -> downgrade -> upgrade keeps the place (layout-check).
+  older MagicMenuRewrite reads the file as before, and upgrade -> save -> downgrade -> upgrade keeps the place (layout-check).
 - Handlers owned by the add-on: GPtr-held, made once per process on the UI thread, never released while the game runs
   (SKSE plugins are not unloaded); the add-on clears its per-menu state on the menu's close (MenuOpenCloseEvent, as SR).
 
 ## Settings and layout
 
-- Ini keys keep section and name. The add-on reads its keys from the same `SL_MagicMenu.ini`: `[Keys] iNext, iSetTarget`,
+- Ini keys keep section and name. The add-on reads its keys from the same `MagicMenuRewrite.ini`: `[Keys] iNext, iSetTarget`,
   `[Layout] fTree*, fProgress*, fNodeCard*, fTreeScale, fTreeMarkScale, iMaxSteps, iMaxNodes`, `[Debug] fDebugExtraHeight`.
   Block heights come from those rects (bottom - top) as today. The core still reads `fTreeRight` and the item card for
   `DefaultFrames` (the right column's frame) - numbers only, no HoM.
 - Layout: the default layout keeps `tree`, `progress`, `nodecard` in their places as retired ids; `DefaultHeights`
   (Layout.cpp:75-84) drops them and `Arrange` skips an id with no height, so a core-only install has no gap - but its
-  right column is empty (the board still spans both columns; open question Q4). The add-on registers `SL_MagicMenu_HoM.tree` etc. with `legacyId`,
+  right column is empty (the board still spans both columns; open question Q4). The add-on registers `MagicMenuRewrite_HoM.tree` etc. with `legacyId`,
   the host renames the id in place. `Repair` keeps unknown ids (as now), `BuiltinBlocks` loses the three.
 - Empty look: today the tree shows the centred "주문을 고르면 표시됩니다" line (EmptyLookOf kLineCentred) and drawSelection
   add-ons are closed up with nothing shown. v3 blocks get `drawSelection` with a_shown 0 like any block and are NOT
@@ -114,7 +118,7 @@ The 3D preview and our spell card keep following the list selection only (no Sho
 - The row-2 baseline alignment between progress card and node card (W:7170-7186) goes (it is off by design today when the
   tree is fitted; the two cards become separate blocks).
 - Our spell card's school name comes from the spell's own school, not the HoM tree's school (W:4278).
-- Self-test lines L2 / C1 / C2 (node card, progress card) move to the add-on's log `SL_MagicMenu_HoM.log`.
+- Self-test lines L2 / C1 / C2 (node card, progress card) move to the add-on's log `MagicMenuRewrite_HoM.log`.
 
 ## Offline checks and files
 
@@ -125,7 +129,7 @@ The 3D preview and our spell card keep following the list selection only (no Sho
   `magic-menu-layout-check` replaces its built-in tree / progress / nodecard cases with retired ids + alias rename cases,
   `magic-menu-block-api-check` adds v3 parsing (v1 / v2 / v3 bytes, cut-short v3), legacyId rules, the 'SLMS' / 'SLMV'
   queues and the key queue. New `magic-menu-hom-block-check`: the add-on's pure rules (chosen with a key pick, the G
-  condition, the ShowSpell request, ini reading of the moved keys from SL_MagicMenu.ini).
+  condition, the ShowSpell request, ini reading of the moved keys from MagicMenuRewrite.ini).
 - The add-on's files keep the repo's 600 line rule (Widget.cpp's HoM regions split into Tree*.cpp, ProgressCard.cpp,
   NodeCard.cpp, Tooltip.cpp ...); the core's Widget.cpp shrinks by the moved parts.
 
@@ -133,15 +137,15 @@ The 3D preview and our spell card keep following the list selection only (no Sho
 
 New `fomod_magicmenu/` (ModuleConfig.xml + info.xml): step 1 core (required), step 2 "add-on blocks" (checkbox group):
 Heart of Magic Librarian block (default on when SpellLearning.dll is present), place kept for the Spell Research block.
-`Distribution.cmake`: a second assembly `dist/SL_MagicMenu_<VERSION>/` + zip. The HoM `fomod/ModuleConfig.xml` is not touched.
+`Distribution.cmake`: a second assembly `dist/MagicMenuRewrite_<VERSION>/` + zip. The HoM `fomod/ModuleConfig.xml` is not touched.
 
 As built (Task 9): the core is the FOMOD's `requiredInstallFiles` (`00 Core`), not a step; one step "Add-on blocks"
 (SelectAny) with "Heart of Magic Librarian block" (`10 Heart of Magic Block`; Recommended when
 `SKSE\Plugins\SpellLearning.dll` is active, else Optional) and a comment where the Spell Research block goes. The magic
 menu has its own version, `MAGIC_MENU_VERSION` (1.0.0, top-level CMakeLists.txt), for the three magic-menu DLLs, the
-FOMOD's info.xml and the zip names; target `assemble_magicmenu_dist` makes `dist/SL_MagicMenu_<version>/` and its zip
+FOMOD's info.xml and the zip names; target `assemble_magicmenu_dist` makes `dist/MagicMenuRewrite_<version>/` and its zip
 (with LICENSE, its own THIRD-PARTY-NOTICES.md from `fomod_magicmenu/THIRD-PARTY-NOTICES.md.in`, licenses/) and
-`SL_MagicMenu_<version>_DebugSymbols.zip` (the two DLLs' .pdb).
+`MagicMenuRewrite_<version>_DebugSymbols.zip` (the two DLLs' .pdb).
 
 ## As implemented (2026-10-30)
 
@@ -156,7 +160,7 @@ Contract changes made during the implementation (each in BlockApi.h's header com
 - 'SLMV' is taken at the start of the frame and again after that frame's draws, before its `frame` calls, so a block can
   hide itself from its first draw.
 - The saved layout keeps the retired ids (`tree`, `progress`, `nodecard`) on disk: the host maps them to the add-on's ids
-  when it reads a layout and back when it writes one, so an older SL_MagicMenu still reads the file.
+  when it reads a layout and back when it writes one, so an older MagicMenuRewrite still reads the file.
 - Context has no `moved` field: `overlayGeneration` (bumped when the host clears the overlay) and `contentGeneration`
   (bumped when the block is drawn into a new content clip) tell the add-on its clips changed; `ownMouse` and
   `keepWhenEmpty` are the flags `kFlagOwnMouse` and `kFlagKeepWhenEmpty`.

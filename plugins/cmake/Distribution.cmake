@@ -278,20 +278,22 @@ message(STATUS "  Output:   ${DIST_VERSION_DIR}")
 message(STATUS "  Archive:  ${DIST_DIR}/${_dist_folder_name}.zip (+ ${_pdb_folder_name}.zip)")
 
 # ============================================================================
-# 8. The magic menu's own release (SL_MagicMenu, MAGIC_MENU_VERSION from the
+# 8. The magic menu's own release (Magic Menu Rewrite, MAGIC_MENU_VERSION from the
 #    top-level CMakeLists.txt), apart from Heart of Magic's: assemble_magicmenu_dist
-#    makes dist/SL_MagicMenu_<version>/ and its zip, the FOMOD of fomod_magicmenu/:
+#    makes dist/MagicMenuRewrite_<version>/ and its zip, the FOMOD of fomod_magicmenu/:
 #      fomod/ModuleConfig.xml, fomod/info.xml
-#      00 Core/SKSE/Plugins/SL_MagicMenu.dll, SL_MagicMenu.ini
-#      00 Core/SKSE/Plugins/SL_MagicMenu/lang/en.json, ko.json
+#      00 Core/SKSE/Plugins/MagicMenuRewrite.dll, MagicMenuRewrite.ini
+#      00 Core/SKSE/Plugins/MagicMenuRewrite/lang/en.json, ko.json
 #      00 Core/MCM/Settings/InventoryReforged.ini
-#      10 Heart of Magic Block/SKSE/Plugins/SL_MagicMenu_HoM.dll
-#      10 Heart of Magic Block/SKSE/Plugins/SL_MagicMenu_HoM/lang/en.json, ko.json
+#      10 Heart of Magic Block/SKSE/Plugins/MagicMenuRewrite_HoM.dll
+#      10 Heart of Magic Block/SKSE/Plugins/MagicMenuRewrite_HoM/lang/en.json, ko.json
 #      LICENSE, THIRD-PARTY-NOTICES.md, licenses/ (as 3b, with the ports these
 #      two DLLs link)
-#    and the two DLLs' .pdb in SL_MagicMenu_<version>_DebugSymbols.zip. The Spell
+#    and the two DLLs' .pdb in MagicMenuRewrite_<version>_DebugSymbols.zip. The Spell
 #    Research block is not in this release (a later FOMOD option). Nothing above
-#    changes: HoM's assemble_dist stays as it was.
+#    changes: HoM's assemble_dist stays as it was. The targets keep the repo's
+#    working names (SL_MagicMenu, SL_MagicMenu_HoM); $<TARGET_FILE> gives the
+#    shipped MagicMenuRewrite*.dll (their OUTPUT_NAME).
 # ============================================================================
 
 if(NOT DEFINED MAGIC_MENU_DIST_VERSION_DIR)
@@ -339,9 +341,9 @@ endforeach()
 add_custom_command(TARGET assemble_magicmenu_dist POST_BUILD
     COMMAND "${CMAKE_COMMAND}" -E rm -rf "${_mm_dist}" "${_mm_pdb_dir}"
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${_mm_dist}/fomod"
-    COMMAND "${CMAKE_COMMAND}" -E make_directory "${_mm_core}/SKSE/Plugins/SL_MagicMenu/lang"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${_mm_core}/SKSE/Plugins/MagicMenuRewrite/lang"
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${_mm_core}/MCM/Settings"
-    COMMAND "${CMAKE_COMMAND}" -E make_directory "${_mm_hom}/SKSE/Plugins/SL_MagicMenu_HoM/lang"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${_mm_hom}/SKSE/Plugins/MagicMenuRewrite_HoM/lang"
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${_mm_pdb_dir}/SKSE/Plugins"
     COMMAND "${CMAKE_COMMAND}" -E copy
     "${_mm_fomod_src}/fomod/ModuleConfig.xml"
@@ -349,20 +351,20 @@ add_custom_command(TARGET assemble_magicmenu_dist POST_BUILD
     "${_mm_dist}/fomod/"
     COMMAND "${CMAKE_COMMAND}" -E copy
     "$<TARGET_FILE:SL_MagicMenu>"
-    "${_mm_core_src}/SL_MagicMenu.ini"
+    "${_mm_core_src}/MagicMenuRewrite.ini"
     "${_mm_core}/SKSE/Plugins/"
     COMMAND "${CMAKE_COMMAND}" -E copy
     "${_mm_core_src}/MCM/Settings/InventoryReforged.ini"
     "${_mm_core}/MCM/Settings/"
     COMMAND "${CMAKE_COMMAND}" -E copy_directory
     "${_mm_core_src}/lang"
-    "${_mm_core}/SKSE/Plugins/SL_MagicMenu/lang"
+    "${_mm_core}/SKSE/Plugins/MagicMenuRewrite/lang"
     COMMAND "${CMAKE_COMMAND}" -E copy
     "$<TARGET_FILE:SL_MagicMenu_HoM>"
     "${_mm_hom}/SKSE/Plugins/"
     COMMAND "${CMAKE_COMMAND}" -E copy_directory
     "${_mm_hom_src}/lang"
-    "${_mm_hom}/SKSE/Plugins/SL_MagicMenu_HoM/lang"
+    "${_mm_hom}/SKSE/Plugins/MagicMenuRewrite_HoM/lang"
     COMMAND "${CMAKE_COMMAND}" -E $<IF:$<BOOL:$<TARGET_PDB_FILE:SL_MagicMenu>>,copy,true>
     "$<$<BOOL:$<TARGET_PDB_FILE:SL_MagicMenu>>:$<TARGET_PDB_FILE:SL_MagicMenu>>"
     "${_mm_pdb_dir}/SKSE/Plugins/"

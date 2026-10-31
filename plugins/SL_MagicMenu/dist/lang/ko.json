@@ -1,5 +1,5 @@
 {
-  "_about": "SL_MagicMenu strings, Korean. Keys missing here fall back to en.json, then to the plugin's built-in English. Keep the {placeholders} and the ' · ' separators as they are.",
+  "_about": "MagicMenuRewrite strings, Korean. Keys missing here fall back to en.json, then to the plugin's built-in English. Keep the {placeholders} and the ' · ' separators as they are.",
   "preview_title": "미리보기",
   "card_sub": "{school} · {level}",
   "school_alteration": "변화마법",

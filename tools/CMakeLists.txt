@@ -330,7 +330,7 @@ target_link_libraries(magic-menu-sr-block-check PRIVATE
 # =============================================================================
 # The SL_MagicMenu_HoM add-on's own HomSettings.h, Selection.h, Strings.h and
 # HomLayoutMath.h (header only, no game types): the block's keys read from
-# SL_MagicMenu.ini (the shipped dist ini and made-up ones), the registered heights,
+# MagicMenuRewrite.ini (the shipped dist ini and made-up ones), the registered heights,
 # the pick rules (bug G1), the strings' fill and key labels, the cards' height
 # requests, and the tree window / progress card / node card arithmetic moved here
 # from magic-menu-preview-check (HoM add-on plan Task 6). The core's src is on the
@@ -349,7 +349,7 @@ target_include_directories(magic-menu-hom-block-check PRIVATE
 )
 
 target_compile_definitions(magic-menu-hom-block-check PRIVATE
-    HOM_BLOCK_DIST_INI="${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu/dist/SL_MagicMenu.ini"
+    HOM_BLOCK_DIST_INI="${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu/dist/MagicMenuRewrite.ini"
 )
 
 target_link_libraries(magic-menu-hom-block-check PRIVATE
@@ -382,7 +382,7 @@ target_include_directories(magic-menu-lang-check PRIVATE
 target_compile_definitions(magic-menu-lang-check PRIVATE
     MM_CORE_LANG_DIR="${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu/dist/lang"
     MM_HOM_LANG_DIR="${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu_HoM/dist/lang"
-    MM_DIST_INI="${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu/dist/SL_MagicMenu.ini"
+    MM_DIST_INI="${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu/dist/MagicMenuRewrite.ini"
 )
 
 target_link_libraries(magic-menu-lang-check PRIVATE

@@ -9,7 +9,7 @@
 #include <vector>
 
 // =============================================================================
-// WIDGET - everything SL_MagicMenu draws into the magic menu: one clip
+// WIDGET - everything MagicMenuRewrite draws into the magic menu: one clip
 // _root.mmx_root on the menu movie with the board, the 3D preview box, our
 // spell card (or SkyUI's item card moved into its block), the layout mode's
 // gear and the add-on blocks (BlockApi.h; since HoM add-on plan Task 5 the

@@ -1,5 +1,5 @@
 {
-  "_about": "SL_MagicMenu_HoM strings, English - the Heart of Magic block's texts (spell tree window, learning progress card, node card) and the fallback for any key another language file lacks; a key missing here too shows the plugin's built-in English. Keep the {placeholders} and the ' · ' separators as they are.",
+  "_about": "MagicMenuRewrite_HoM strings, English - the Heart of Magic block's texts (spell tree window, learning progress card, node card) and the fallback for any key another language file lacks; a key missing here too shows the plugin's built-in English. Keep the {placeholders} and the ' · ' separators as they are.",
   "progress_title": "{school} progress",
   "progress_target": "Learning target: {spell} ({pct}%)",
   "progress_none_candidates": "No learning target · {n} can be learned · {key} Next spell",

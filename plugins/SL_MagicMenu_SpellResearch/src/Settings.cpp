@@ -17,7 +17,7 @@ namespace Settings
 {
     namespace
     {
-        constexpr const wchar_t* kIniRelative = L"Data/SKSE/Plugins/SL_MagicMenu_SpellResearch.ini";
+        constexpr const wchar_t* kIniRelative = L"Data/SKSE/Plugins/MagicMenuRewrite_SpellResearch.ini";
         constexpr const char* kSrPrismaIniRelative = "Data/SKSE/Plugins/SpellResearchPrismaUI.ini";
         constexpr std::uintmax_t kMaxIniBytes = 256 * 1024;  // SR Prisma's ini is a few KB; anything far bigger is not read
         constexpr std::uint32_t kValueChars = 16;

@@ -14,7 +14,7 @@ namespace BlockApiCheck
 {
     namespace
     {
-        const std::string kTree = "SL_MagicMenu_HoM.tree";
+        const std::string kTree = "MagicMenuRewrite_HoM.tree";
         const std::string kOther = "AddonB.stats";
 
         BlockRules::KeyHintRead Hint(const std::string& a_id, std::uint32_t a_key, const std::string& a_label)

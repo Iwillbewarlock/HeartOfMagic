@@ -1,7 +1,7 @@
 #pragma once
 
 // =============================================================================
-// HIDDEN BLOCKS - [Blocks] sHidden of SL_MagicMenu.ini (2026-10-31, the settings
+// HIDDEN BLOCKS - [Blocks] sHidden of MagicMenuRewrite.ini (2026-10-31, the settings
 // tab: "활성화할 블록창을 고를 수 있게"): the block ids the player turned off, as
 // one comma-separated value. The host treats a hidden block like an add-on that is
 // not installed: no place (its place in the layout file kept, no gap), no panel, no

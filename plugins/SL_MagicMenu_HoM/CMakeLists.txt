@@ -1,8 +1,9 @@
 # ==========================================================================
-# SL_MagicMenu_HoM -- the Heart of Magic blocks for SL_MagicMenu
+# SL_MagicMenu_HoM -- the Heart of Magic blocks for the magic menu
+#   (shipped as MagicMenuRewrite_HoM.dll)
 # ==========================================================================
 # The spell tree window, the learning progress card and the node card as three
-# add-on blocks of SL_MagicMenu (Block API v3), reading Heart of Magic's API v2
+# add-on blocks of MagicMenuRewrite (Block API v3), reading Heart of Magic's API v2
 # and spell_tree.json. The magic menu itself has no Heart of Magic since HoM
 # add-on plan Task 5. Design: docs/superpowers/specs/2026-10-30-magic-menu-hom-addon-design.md
 # The host's shared headers (BlockApi.h, Draw.h, TextFit.h, LayoutMath.h,
@@ -18,12 +19,17 @@ project(
     LANGUAGES CXX
 )
 
+# The repo folder, the CMake project and its target keep the working name; the shipped
+# DLL and the SKSE plugin name (which names the log file) are the product's: MagicMenuRewrite_HoM
+# (renamed before the first Nexus release, 2026-10-31).
+set(MM_PRODUCT_NAME "MagicMenuRewrite_HoM")
+
 if(PROJECT_SOURCE_DIR STREQUAL PROJECT_BINARY_DIR)
     message(FATAL_ERROR "In-source builds not allowed. Use: cmake -B build")
 endif()
 
 add_commonlibsse_plugin(${PROJECT_NAME}
-    NAME ${PROJECT_NAME}
+    NAME ${MM_PRODUCT_NAME}
     AUTHOR "HeartOfMagic"
     USE_ADDRESS_LIBRARY
     MINIMUM_SKSE_VERSION "2.0.12"
@@ -67,28 +73,28 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 )
 
 set_target_properties(${PROJECT_NAME} PROPERTIES
-    OUTPUT_NAME "SL_MagicMenu_HoM"
+    OUTPUT_NAME "${MM_PRODUCT_NAME}"
 )
 
 # --------------------------------------------------------------------------
-# dist/SL_MagicMenu_HoM/ - the install folder for a dev copy, made on every
+# dist/MagicMenuRewrite_HoM/ - the install folder for a dev copy, made on every
 # build (as SL_MagicMenu_SpellResearch_dist); the release zip with the FOMOD is
 # plugins/cmake/Distribution.cmake's assemble_magicmenu_dist:
-#   SKSE/Plugins/SL_MagicMenu_HoM.dll (+ .pdb for crash logs)
-#   SKSE/Plugins/SL_MagicMenu_HoM/lang/*.json (en, ko; sources in dist/lang)
-# No ini of its own: the block reads its keys (and [Display] sLanguage) from SL_MagicMenu.ini.
+#   SKSE/Plugins/MagicMenuRewrite_HoM.dll (+ .pdb for crash logs)
+#   SKSE/Plugins/MagicMenuRewrite_HoM/lang/*.json (en, ko; sources in dist/lang)
+# No ini of its own: the block reads its keys (and [Display] sLanguage) from MagicMenuRewrite.ini.
 # --------------------------------------------------------------------------
-set(HOM_BLOCK_DIST "${CMAKE_SOURCE_DIR}/dist/SL_MagicMenu_HoM")
+set(HOM_BLOCK_DIST "${CMAKE_SOURCE_DIR}/dist/${MM_PRODUCT_NAME}")
 add_custom_target(SL_MagicMenu_HoM_dist ALL
     COMMAND "${CMAKE_COMMAND}" -E rm -rf "${HOM_BLOCK_DIST}"
-    COMMAND "${CMAKE_COMMAND}" -E make_directory "${HOM_BLOCK_DIST}/SKSE/Plugins/SL_MagicMenu_HoM/lang"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${HOM_BLOCK_DIST}/SKSE/Plugins/${MM_PRODUCT_NAME}/lang"
     COMMAND "${CMAKE_COMMAND}" -E copy "$<TARGET_FILE:${PROJECT_NAME}>" "${HOM_BLOCK_DIST}/SKSE/Plugins/"
     COMMAND "${CMAKE_COMMAND}" -E $<IF:$<BOOL:$<TARGET_PDB_FILE:${PROJECT_NAME}>>,copy,true>
         "$<$<BOOL:$<TARGET_PDB_FILE:${PROJECT_NAME}>>:$<TARGET_PDB_FILE:${PROJECT_NAME}>>"
         "${HOM_BLOCK_DIST}/SKSE/Plugins/"
     COMMAND "${CMAKE_COMMAND}" -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/dist/lang"
-        "${HOM_BLOCK_DIST}/SKSE/Plugins/SL_MagicMenu_HoM/lang"
-    COMMENT "Assembling dist/SL_MagicMenu_HoM"
+        "${HOM_BLOCK_DIST}/SKSE/Plugins/${MM_PRODUCT_NAME}/lang"
+    COMMENT "Assembling dist/${MM_PRODUCT_NAME}"
     VERBATIM
 )
 add_dependencies(SL_MagicMenu_HoM_dist ${PROJECT_NAME})

@@ -10,7 +10,7 @@ namespace HomSettings
 {
     namespace
     {
-        constexpr const wchar_t* kIniRelative = L"Data/SKSE/Plugins/SL_MagicMenu.ini";  // the host's ini: the block's keys kept their place
+        constexpr const wchar_t* kIniRelative = L"Data/SKSE/Plugins/MagicMenuRewrite.ini";  // the host's ini: the block's keys kept their place
         constexpr std::uint32_t kValueChars = 64;
 
         Values g_values;
@@ -21,7 +21,7 @@ namespace HomSettings
             std::error_code ec;
             const auto dir = std::filesystem::current_path(ec);
             if (ec) {
-                logger::warn("HomSettings: no current folder ({}), reading SL_MagicMenu.ini by its relative name", ec.message());
+                logger::warn("HomSettings: no current folder ({}), reading MagicMenuRewrite.ini by its relative name", ec.message());
                 return kIniRelative;
             }
             return (dir / kIniRelative).wstring();

@@ -116,7 +116,7 @@ namespace
     }
     const auto kHeights = WithRetired(kCoreHeights);
     // the core's built-in blocks (Settings.cpp BuiltinBlocks) and the same with the three retired ids known (an add-on that took
-    // them over, or an SL_MagicMenu before Task 5 that drew them itself)
+    // them over, or a MagicMenuRewrite before Task 5 that drew them itself)
     const std::set<BlockId> kBuiltins{ Layout::kPreview, Layout::kSpellCard };
     const std::set<BlockId> kKnown{ Layout::kPreview, Layout::kTree, Layout::kProgress, Layout::kSpellCard, Layout::kNodeCard };
 
@@ -1178,7 +1178,7 @@ namespace
 
     // HoM add-on plan Task 2 (design G-e): the retired ids tree / progress / nodecard stay on disk; ToFinal renames them on every
     // read, ToLegacy back on every write. kHomTree is the add-on's final id (the alias a v3 block's legacyId makes)
-    constexpr const char* kHomTree = "SL_MagicMenu_HoM.tree";
+    constexpr const char* kHomTree = "MagicMenuRewrite_HoM.tree";
     const std::map<BlockId, BlockId> kTreeAlias{ { Layout::kTree, kHomTree } };
 
     int Count(const State& a_state, const BlockId& a_id)

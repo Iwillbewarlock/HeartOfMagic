@@ -5,7 +5,7 @@
 
 // =============================================================================
 // BLOCK HIDING - the game side of HiddenBlocks.h: [Blocks] sHidden read from
-// SL_MagicMenu.ini (the path LangGame.h reads) at plugin load and at each magic
+// MagicMenuRewrite.ini (the path LangGame.h reads) at plugin load and at each magic
 // menu open, kept for the widget (applied to that menu) and the settings tab (its
 // first look). Read on the game thread; Setting() from any thread.
 // =============================================================================

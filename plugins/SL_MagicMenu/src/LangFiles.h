@@ -22,9 +22,9 @@
 #include <vector>
 
 // =============================================================================
-// LANG FILES - the language files of the magic menu (SL_MagicMenu) and its
-// Heart of Magic block (SL_MagicMenu_HoM): which language ([Display] sLanguage
-// of SL_MagicMenu.ini, auto = the game's sLanguage:General, or Korean when a
+// LANG FILES - the language files of the magic menu (MagicMenuRewrite) and its
+// Heart of Magic block (MagicMenuRewrite_HoM): which language ([Display] sLanguage
+// of MagicMenuRewrite.ini, auto = the game's sLanguage:General, or Korean when a
 // localized game string holds Hangul - the Korean patch on an English game), the files
 // (<lang dir>/<code>.json: one flat JSON object of strings, UTF-8, a BOM
 // accepted, "_" keys are notes) and each table key's text: the language's
@@ -340,8 +340,8 @@ namespace LangFiles
         return { std::move(texts), std::move(report) };
     }
 
-    /// Fix round 1 I2: a key's value read from the player's file (SL_MagicMenu_User.ini, the settings tab's) and the shipped
-    /// SL_MagicMenu.ini (nullopt: that file has no such key): the player's when it has the key - an empty value too (the player
+    /// Fix round 1 I2: a key's value read from the player's file (MagicMenuRewrite_User.ini, the settings tab's) and the shipped
+    /// MagicMenuRewrite.ini (nullopt: that file has no such key): the player's when it has the key - an empty value too (the player
     /// cleared it) -, else the shipped file's, else ""
     inline std::string Layered(const std::optional<std::string>& a_user, const std::optional<std::string>& a_shipped)
     {

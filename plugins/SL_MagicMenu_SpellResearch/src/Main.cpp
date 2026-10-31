@@ -1,11 +1,11 @@
 // =============================================================================
-// SL_MagicMenu_SpellResearch - the first add-on block of SL_MagicMenu
+// MagicMenuRewrite_SpellResearch - the first add-on block of MagicMenuRewrite
 // =============================================================================
 // Shows the Spell Research archetypes (element, targeting, technique) of the spell
 // on the magic menu's card, "?" with only the group's frame for the ones the
 // player has no knowledge of at the spell's tier, and three links that ask Spell
 // Research Prisma (0.2.1+) to open its journal, alembic and experience windows.
-// Registered through SL_MagicMenu's Block API v2 (BlockApi.h, a copy of the
+// Registered through MagicMenuRewrite's Block API v2 (BlockApi.h, a copy of the
 // host's). SRPrismaAPI.h is SR Prisma's own header, copied unchanged from
 // SpellResearchPrismaUI HEAD dd084c3 plugin/src/SRPrismaAPI.h.
 // Spec: docs/superpowers/specs/2026-10-27-spell-research-addon-design.md
@@ -40,21 +40,21 @@ namespace
     std::atomic<bool> g_homInstalled{ false };
     std::atomic<bool> g_registered{ false };
     std::mutex g_finalIdLock;
-    std::string g_finalId;  // the block's id as SL_MagicMenu accepted it (the 'SLMD' payload)
+    std::string g_finalId;  // the block's id as MagicMenuRewrite accepted it (the 'SLMD' payload)
     std::string g_title;    // the registration's title (lives past the Dispatch)
 
-    // SL_MagicMenu's answer to the registration (BlockApi::Result), during our Dispatch
+    // MagicMenuRewrite's answer to the registration (BlockApi::Result), during our Dispatch
     void OnBlockMessage(SKSE::MessagingInterface::Message* a_msg)
     {
         if (!a_msg || a_msg->type != BlockApi::kMessageResult) return;
         if (!a_msg->data || a_msg->dataLen < sizeof(BlockApi::Result)) {
-            logger::warn("SL_MagicMenu_SpellResearch: a registration answer of {} bytes - ignored", a_msg->dataLen);
+            logger::warn("MagicMenuRewrite_SpellResearch: a registration answer of {} bytes - ignored", a_msg->dataLen);
             return;
         }
         const auto* result = static_cast<const BlockApi::Result*>(a_msg->data);
         const std::string id = result->id ? result->id : "";
         if (result->status != BlockApi::Status::kAccepted) {
-            logger::error("SL_MagicMenu_SpellResearch: SL_MagicMenu refused the block '{}' (API v{}): {}", id, result->apiVersion,
+            logger::error("MagicMenuRewrite_SpellResearch: MagicMenuRewrite refused the block '{}' (API v{}): {}", id, result->apiVersion,
                 result->reason ? result->reason : "");
             return;
         }
@@ -63,7 +63,7 @@ namespace
             g_finalId = id;
         }
         g_registered = true;
-        logger::info("SL_MagicMenu_SpellResearch: block '{}' accepted (API v{})", id, result->apiVersion);
+        logger::info("MagicMenuRewrite_SpellResearch: block '{}' accepted (API v{})", id, result->apiVersion);
     }
 
     void OnBlockBuilt()
@@ -101,15 +101,15 @@ namespace
     void CheckPlugins()
     {
         g_srPrismaUsable = g_srPrismaListening.load();
-        logger::info("SL_MagicMenu_SpellResearch: {} {} (decided by RegisterListener at kPostLoad; its version is not checked - "
+        logger::info("MagicMenuRewrite_SpellResearch: {} {} (decided by RegisterListener at kPostLoad; its version is not checked - "
                      "an SR Prisma before 0.2.1 never answers, which shows as 'does not respond')",
             SRPrismaAPI::kPluginName, g_srPrismaUsable.load() ? "loaded - links on" : "not loaded - no links");
-        logger::info("SL_MagicMenu_SpellResearch: Heart of Magic {} (RegisterListener)", g_homInstalled.load() ? "loaded" : "not loaded");
+        logger::info("MagicMenuRewrite_SpellResearch: Heart of Magic {} (RegisterListener)", g_homInstalled.load() ? "loaded" : "not loaded");
     }
 
     void IgnoreHom(SKSE::MessagingInterface::Message*) {}  // only to learn whether Heart of Magic is loaded (self-test)
 
-    // True when SL_MagicMenu accepted the block
+    // True when MagicMenuRewrite accepted the block
     bool Register()
     {
         auto* messaging = SKSE::GetMessagingInterface();
@@ -123,10 +123,10 @@ namespace
             .tabs = BlockApi::kTabSpells };
         const bool listened = messaging->Dispatch(BlockApi::kMessageRegister, &reg, sizeof(reg), BlockApi::kPluginName);
         if (!listened) {
-            logger::error("SL_MagicMenu_SpellResearch: SL_MagicMenu did not listen (not installed, or bEnabled=0) - no block");
+            logger::error("MagicMenuRewrite_SpellResearch: MagicMenuRewrite did not listen (not installed, or bEnabled=0) - no block");
             return false;
         }
-        if (!g_registered) logger::error("SL_MagicMenu_SpellResearch: SL_MagicMenu sent no accepted answer - no block");
+        if (!g_registered) logger::error("MagicMenuRewrite_SpellResearch: MagicMenuRewrite sent no accepted answer - no block");
         return g_registered.load();
     }
 
@@ -140,7 +140,7 @@ namespace
             const bool srPrisma = messaging->RegisterListener(SRPrismaAPI::kPluginName, BlockDraw::OnSrPrismaMessage);
             g_srPrismaListening = srPrisma;
             g_homInstalled = messaging->RegisterListener(kHomPluginName, IgnoreHom);
-            logger::info("SL_MagicMenu_SpellResearch: listening to SL_MagicMenu {}, to {} {}", host ? "yes" : "NO (not loaded?)",
+            logger::info("MagicMenuRewrite_SpellResearch: listening to MagicMenuRewrite {}, to {} {}", host ? "yes" : "NO (not loaded?)",
                 SRPrismaAPI::kPluginName, srPrisma ? "yes" : "no (not loaded?)");
             break;
         }
@@ -173,7 +173,7 @@ namespace
                 if (auto* ui = RE::UI::GetSingleton()) {
                     ui->AddEventSink<RE::MenuOpenCloseEvent>(MenuSink::Get());
                 } else {
-                    logger::error("SL_MagicMenu_SpellResearch: no UI singleton - no snapshot is ever built (the block says getting ready)");
+                    logger::error("MagicMenuRewrite_SpellResearch: no UI singleton - no snapshot is ever built (the block says getting ready)");
                 }
             }
             FlushLog();
@@ -227,11 +227,11 @@ namespace Addon
 SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
 {
     SKSE::Init(a_skse, SKSE::InitInfo{ .log = false });
-    SetupLog("Spell Research archetypes block for SL_MagicMenu");
+    SetupLog("Spell Research archetypes block for MagicMenuRewrite");
     Settings::Load();
     auto* messaging = SKSE::GetMessagingInterface();
     if (!messaging) {
-        logger::error("SL_MagicMenu_SpellResearch: no SKSE messaging interface - nothing installed");
+        logger::error("MagicMenuRewrite_SpellResearch: no SKSE messaging interface - nothing installed");
         return true;
     }
     messaging->RegisterListener(OnSKSEMessage);

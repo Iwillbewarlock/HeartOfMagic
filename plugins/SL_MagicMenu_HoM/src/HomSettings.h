@@ -15,7 +15,7 @@
 #include <vector>
 
 // =============================================================================
-// HOM SETTINGS - the Heart of Magic block's values from SL_MagicMenu.ini, with
+// HOM SETTINGS - the Heart of Magic block's values from MagicMenuRewrite.ini, with
 // the defaults and the accepted ranges they had in the core's Settings.cpp at
 // f83dc6f3 (a value outside its range, or not a number, keeps the default and is
 // warned about). Moved here in HoM add-on plan Task 5; the reader is Task 6's:
@@ -56,8 +56,8 @@ namespace HomSettings
         // column scroll can be tried in game (0 = no effect)
         double debugExtraHeight = 0.0;
 
-        // [General] bSelfTest: the host's switch (SL_MagicMenu reads the same key, its default 0 since Task 8 fix round 1): the add-on's "SelfTest:" lines
-        // in SL_MagicMenu_HoM.log
+        // [General] bSelfTest: the host's switch (MagicMenuRewrite reads the same key, its default 0 since Task 8 fix round 1): the add-on's "SelfTest:" lines
+        // in MagicMenuRewrite_HoM.log
         bool selfTest = false;
     };
 
@@ -153,7 +153,7 @@ namespace HomSettings
         }
     }
 
-    /// The block's keys of SL_MagicMenu.ini (sections and names as the core read them at f83dc6f3)
+    /// The block's keys of MagicMenuRewrite.ini (sections and names as the core read them at f83dc6f3)
     inline ReadResult Read(const RawFn& a_raw)
     {
         ReadResult read;
@@ -184,7 +184,7 @@ namespace HomSettings
         return { a_values.tree.Height(), a_values.progress.Height(), a_values.nodeCard.Height() + a_values.debugExtraHeight };
     }
 
-    /// Reads the block's keys from Data/SKSE/Plugins/SL_MagicMenu.ini (HomSettings.cpp; call once, at plugin load). Logs them
+    /// Reads the block's keys from Data/SKSE/Plugins/MagicMenuRewrite.ini (HomSettings.cpp; call once, at plugin load). Logs them
     void Load();
 
     /// The values Load() read (the defaults before it)

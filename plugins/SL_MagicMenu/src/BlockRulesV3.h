@@ -83,7 +83,7 @@ namespace BlockRules
         T request{};
         std::memcpy(&request, a_data, std::min<std::size_t>(a_dataLen, sizeof(request)));
         if (request.apiVersion != BlockApi::kVersion) {
-            a_why = "apiVersion " + std::to_string(request.apiVersion) + " (this SL_MagicMenu reads " + std::to_string(BlockApi::kVersion) + ")";
+            a_why = "apiVersion " + std::to_string(request.apiVersion) + " (this MagicMenuRewrite reads " + std::to_string(BlockApi::kVersion) + ")";
             return std::nullopt;
         }
         if (request.structSize < a_needed) {

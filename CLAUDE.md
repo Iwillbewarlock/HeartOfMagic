@@ -135,7 +135,7 @@ When launching sub-agents via the Task tool, choose the correct `subagent_type` 
 
 **ALWAYS use `BuildRelease.ps1`**—never run cmake directly. The script handles VS dev shell setup, configuration, and output paths.
 
-The build also assembles the release: `dist/HeartOfMagic-Librarian_<VERSION>/` and its `.zip` (FOMOD, DLLs, Papyrus, runtime data, the PrismaUI views, `LICENSE`), and the DLLs' debug symbols apart in `dist/HeartOfMagic-Librarian_<VERSION>_DebugSymbols.zip` (`SKSE/Plugins/*.pdb`, an optional file on Nexus for crash logs, and `SKSE/Plugins/SpellLearning/debug.json` from `debug/`: with it the panel's full scan also writes `spell_scan_output.json`; `DeployDev.ps1` puts the same file in the dev install). The panel's development files stay out of it - the dev harness, `run-tests.js`, `test-runner.html`, `test-data/` and `modules/*Test.js` (`plugins/cmake/Distribution.cmake`; a new test module is picked up at the next configure). The magic menu ships apart with its own version (`MAGIC_MENU_VERSION` in the top-level CMakeLists.txt): `dist/SL_MagicMenu_<VERSION>/` and its `.zip`, the FOMOD of `fomod_magicmenu/` (`00 Core` with `SL_MagicMenu.dll` and its ini files, the `10 Heart of Magic Block` option with `SL_MagicMenu_HoM.dll`, `LICENSE`, `THIRD-PARTY-NOTICES.md`, `licenses/`), and its debug symbols in `dist/SL_MagicMenu_<VERSION>_DebugSymbols.zip` (target `assemble_magicmenu_dist`; the Spell Research block is not in it yet).
+The build also assembles the release: `dist/HeartOfMagic-Librarian_<VERSION>/` and its `.zip` (FOMOD, DLLs, Papyrus, runtime data, the PrismaUI views, `LICENSE`), and the DLLs' debug symbols apart in `dist/HeartOfMagic-Librarian_<VERSION>_DebugSymbols.zip` (`SKSE/Plugins/*.pdb`, an optional file on Nexus for crash logs, and `SKSE/Plugins/SpellLearning/debug.json` from `debug/`: with it the panel's full scan also writes `spell_scan_output.json`; `DeployDev.ps1` puts the same file in the dev install). The panel's development files stay out of it - the dev harness, `run-tests.js`, `test-runner.html`, `test-data/` and `modules/*Test.js` (`plugins/cmake/Distribution.cmake`; a new test module is picked up at the next configure). The magic menu ships apart with its own version (`MAGIC_MENU_VERSION` in the top-level CMakeLists.txt): `dist/MagicMenuRewrite_<VERSION>/` and its `.zip`, the FOMOD of `fomod_magicmenu/` (`00 Core` with `MagicMenuRewrite.dll` and its ini files, the `10 Heart of Magic Block` option with `MagicMenuRewrite_HoM.dll`, `LICENSE`, `THIRD-PARTY-NOTICES.md`, `licenses/`), and its debug symbols in `dist/MagicMenuRewrite_<VERSION>_DebugSymbols.zip` (target `assemble_magicmenu_dist`; the Spell Research block is not in it yet). Its public name is Magic Menu Rewrite (2026-10-31; before that the working name `SL_MagicMenu`, from HoM's internal name SpellLearning): the shipped files and the SKSE plugin names are `MagicMenuRewrite*` (`MagicMenuRewrite.dll` / `.ini` / `_User.ini` / `_Layout.json` / `.log`, `SKSE/Plugins/MagicMenuRewrite/lang/`, the same with `_HoM` and `_SpellResearch` for the blocks; the HoM block ids are `MagicMenuRewrite_HoM.tree` / `.progress` / `.nodecard`), while the repo folders `plugins/SL_MagicMenu*` and the CMake project and target names keep the working name (`OUTPUT_NAME` and the plugin `NAME` set the product names).
 
 License files in the release: the project's own code is MIT (`LICENSE` at the zip root), but the DLLs statically
 link CommonLibSSE-NG (GPL-3.0-or-later with the Modding and Linking Exceptions), so they ship as a GPL combined
@@ -144,7 +144,7 @@ says so, lists every statically linked library with its license and points to th
 GitHub tag of the release). `licenses/CommonLibSSE-NG/` holds CommonLib's `COPYING.txt`, `EXCEPTIONS.md` and the
 original CommonLibSSE `LICENSE-MIT.txt`; `licenses/<port>.txt` is each vcpkg library's copyright file. A new
 statically linked library needs its port in `_vcpkg_license_ports` (Distribution.cmake) and a row in the notices;
-for the magic-menu DLLs (SL_MagicMenu, SL_MagicMenu_HoM) also in `_mm_vcpkg_license_ports` (Distribution.cmake) and a
+for the magic-menu DLLs (MagicMenuRewrite, MagicMenuRewrite_HoM) also in `_mm_vcpkg_license_ports` (Distribution.cmake) and a
 row in `fomod_magicmenu/THIRD-PARTY-NOTICES.md.in`.
 
 ### Deploying to the development mod folder
@@ -356,13 +356,13 @@ This project does not have a C++ test framework. Validation is done through:
   overlay clears; `--selftest` the same); the Heart of Magic add-on block's (plugins/SL_MagicMenu_HoM,
   docs/superpowers/specs/2026-10-30-magic-menu-hom-addon-design.md), which build from plugins/SL_MagicMenu_HoM:
   `magic-menu-tree-check` (`--selftest`, or a spell_tree.json), `magic-menu-homstyle-check` (`--selftest`, or HoM's
-  config) and `magic-menu-hom-block-check` (the block's keys read from SL_MagicMenu.ini - the shipped one and made-up
+  config) and `magic-menu-hom-block-check` (the block's keys read from MagicMenuRewrite.ini - the shipped one and made-up
   ones -, the registered heights, the pick rules, the strings, the cards' height requests and the tree window / progress
   card / node card arithmetic; `--selftest` the same); `magic-menu-lang-check` (both DLLs' language files: the core's
   `WidgetStrings.h` and the HoM block's `Strings.h` tables against their `dist/lang/en.json` and `ko.json` - every key, no
   extra key, the files parse, `{placeholders}` and the `" · "` separators equal in en, ko and the built-in English, the
   built-in text equal to en.json - and the shared `plugins/SL_MagicMenu/src/LangFiles.h`: `[Display] sLanguage` of
-  SL_MagicMenu.ini + the game's sLanguage -> the code (auto + KOREAN -> ko, else Hangul in a localized game string - the
+  MagicMenuRewrite.ini + the game's sLanguage -> the code (auto + KOREAN -> ko, else Hangul in a localized game string - the
   magic skills' names - -> ko, else en; `HasHangul` on valid, CP949 and broken UTF-8), the chain `<code>.json`,
   en.json, built-in on the shipped and on made-up folders, the one load per session, the log lines, and the shipped ini's
   `sLanguage=auto`; `--selftest` the same); and the Spell Research add-on block's

@@ -173,7 +173,7 @@ namespace
         auto v4 = V2("v4");
         v4.apiVersion = BlockApi::kVersion + 1;
         const auto v4Outcome = Send(registry, Bytes(v4));
-        ExpectRefused(v4Outcome, "update SL_MagicMenu", "apiVersion 4");
+        ExpectRefused(v4Outcome, "update MagicMenuRewrite", "apiVersion 4");
         Expect(v4Outcome.apiVersion == BlockApi::kVersion && v4Outcome.id.empty(), "apiVersion 4: answered with the host's version, no id read");
         auto v0 = V2("v0");
         v0.apiVersion = 0;

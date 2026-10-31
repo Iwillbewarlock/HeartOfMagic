@@ -36,7 +36,7 @@ namespace BlockRules
                          kFlagShouts = 64, kFlagPowers = 128, kFlagActiveEffects = 256;
 
     /// The BlockApi tab bit of a category flag: Shouts, Powers and Active Effects their own; every other tab (All, Favorites,
-    /// the school tabs, a category SL_MagicMenu does not know) is a spell tab - the tabs it draws its spell tree on
+    /// the school tabs, a category MagicMenuRewrite does not know) is a spell tab - the tabs it draws its spell tree on
     constexpr std::uint32_t TabBit(int a_flag)
     {
         switch (a_flag) {
@@ -89,7 +89,7 @@ namespace BlockRules
         BlockApi::HeightRequest request{};
         std::memcpy(&request, a_data, std::min<std::size_t>(a_dataLen, sizeof(request)));
         if (request.apiVersion != BlockApi::kVersionV2 && request.apiVersion != BlockApi::kVersion) {
-            a_why = "apiVersion " + std::to_string(request.apiVersion) + " (this SL_MagicMenu reads " + std::to_string(BlockApi::kVersionV2) + " or " + std::to_string(BlockApi::kVersion) + ")";
+            a_why = "apiVersion " + std::to_string(request.apiVersion) + " (this MagicMenuRewrite reads " + std::to_string(BlockApi::kVersionV2) + " or " + std::to_string(BlockApi::kVersion) + ")";
             return std::nullopt;
         }
         if (request.structSize < kHeightNeeded) {

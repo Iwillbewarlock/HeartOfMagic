@@ -1,5 +1,5 @@
 {
-  "_about": "SL_MagicMenu_SpellResearch strings, English - the block's own file and its last fallback. The archetype names (archetype.<i>.short / .name) and the group labels come first from Spell Research Prisma's own tables (Data/PrismaUI/views/SpellResearch/lang/<code>.json, keys archetype.*, page.group.*); these are used when SR Prisma's files are missing. The block shows short, falling back to name.",
+  "_about": "MagicMenuRewrite_SpellResearch strings, English - the block's own file and its last fallback. The archetype names (archetype.<i>.short / .name) and the group labels come first from Spell Research Prisma's own tables (Data/PrismaUI/views/SpellResearch/lang/<code>.json, keys archetype.*, page.group.*); these are used when SR Prisma's files are missing. The block shows short, falling back to name.",
   "title": "Research Archetypes",
   "unknown": "?",
   "more": "...",

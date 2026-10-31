@@ -20,7 +20,7 @@ namespace Lang
 {
     namespace
     {
-        constexpr const char* kOwnDir = "Data/SKSE/Plugins/SL_MagicMenu_SpellResearch/lang";
+        constexpr const char* kOwnDir = "Data/SKSE/Plugins/MagicMenuRewrite_SpellResearch/lang";
         // SR Prisma's tables (its docs/settings-tab.md "Language files" / "Other plugins": the folder, the files and the
         // archetype.* keys are fixed for other plugins)
         constexpr const char* kSrDir = "Data/PrismaUI/views/SpellResearch/lang";

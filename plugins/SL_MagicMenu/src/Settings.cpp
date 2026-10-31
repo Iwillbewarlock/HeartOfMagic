@@ -21,8 +21,8 @@ namespace Settings
 {
     namespace
     {
-        constexpr const wchar_t* kIniRelative = L"Data/SKSE/Plugins/SL_MagicMenu.ini";
-        constexpr const wchar_t* kLayoutRelative = L"Data/SKSE/Plugins/SL_MagicMenu_Layout.json";
+        constexpr const wchar_t* kIniRelative = L"Data/SKSE/Plugins/MagicMenuRewrite.ini";
+        constexpr const wchar_t* kLayoutRelative = L"Data/SKSE/Plugins/MagicMenuRewrite_Layout.json";
         // a layout file is a few hundred bytes; anything far bigger is not one (read no further)
         constexpr std::uintmax_t kMaxLayoutBytes = 64 * 1024;
         constexpr std::uint32_t kValueChars = 64;
@@ -509,7 +509,7 @@ namespace Settings
             logger::info("Settings: layout save - the file that failed to read at load kept as {}", Shown(bad));
         }
         const auto tmp = WithSuffix(path, L".tmp");
-        // the file keeps the retired ids (design G-e): an older SL_MagicMenu reads it as before
+        // the file keeps the retired ids (design G-e): an older MagicMenuRewrite reads it as before
         const bool tmpWritten = WriteTemp(tmp, Layout::ToJson(Layout::ToLegacy(a_state, g_legacyAliases)), &why);
         const bool written = tmpWritten && PutInPlace(path, tmp, plan.keepBak, &why);
         const bool fileGood = g_fileState != Layout::FileState::kBroken;  // a failed put leaves the file as it was

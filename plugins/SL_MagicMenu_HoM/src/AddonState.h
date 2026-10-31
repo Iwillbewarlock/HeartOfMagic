@@ -25,7 +25,7 @@
 // Task 6): its three blocks, the session's centre and school (kept across menu
 // opens, as the core's g_session at f83dc6f3), the per-menu state (the HoM part
 // of the core's g_menu), the school's numbers, the self-test log, and the
-// requests to SL_MagicMenu (Main.cpp sends them). Every callback runs on the UI
+// requests to MagicMenuRewrite (Main.cpp sends them). Every callback runs on the UI
 // thread from the host's frame handler, one at a time; the menu sink only bumps
 // the open generation (EnsureMenu resets the state at the next callback).
 // =============================================================================
@@ -42,11 +42,11 @@ namespace HomAddon
 
     inline constexpr std::size_t Index(BlockKind a_kind) { return static_cast<std::size_t>(a_kind); }
 
-    // The blocks' final ids (in SL_MagicMenu_Layout.json under their retired built-in ids: legacyId) - registration order
-    inline constexpr std::array<const char*, kBlockCount> kBlockIds{ "SL_MagicMenu_HoM.tree", "SL_MagicMenu_HoM.progress",
-        "SL_MagicMenu_HoM.nodecard" };
+    // The blocks' final ids (in MagicMenuRewrite_Layout.json under their retired built-in ids: legacyId) - registration order
+    inline constexpr std::array<const char*, kBlockCount> kBlockIds{ "MagicMenuRewrite_HoM.tree", "MagicMenuRewrite_HoM.progress",
+        "MagicMenuRewrite_HoM.nodecard" };
     inline constexpr std::array<const char*, kBlockCount> kLegacyIds{ "tree", "progress", "nodecard" };
-    inline constexpr const char* kLogPrefix = "SL_MagicMenu_HoM";  // TextFit's Q4 lines
+    inline constexpr const char* kLogPrefix = "MagicMenuRewrite_HoM";  // TextFit's Q4 lines
 
     // Panels and cards (the core's W:173-218 at f83dc6f3): the colours, the panel padding, the cards' top and bottom room
     inline constexpr double kEdgeWidth = 1.0, kPad = Settings::kPanelPad;  // the panels' padding (the cards' and the tree's drawing)

@@ -13,7 +13,7 @@ namespace Layout
 }
 
 // =============================================================================
-// SETTINGS - Data/SKSE/Plugins/SL_MagicMenu.ini, read once at plugin load.
+// SETTINGS - Data/SKSE/Plugins/MagicMenuRewrite.ini, read once at plugin load.
 // Every value has a default here; a missing or bad key keeps the default and
 // logs a warning. Rects are in the magic menu movie's stage units (1280x720).
 // =============================================================================
@@ -55,7 +55,7 @@ namespace Settings
         bool hidePowers3D = false;
 
         // [Keys] DirectInput scan codes. HoM add-on plan Task 5: iNext / iSetTarget (U, G) are read by the Heart of Magic block
-        // (SL_MagicMenu_HoM) from this ini. Blocks plan Task 4 (spec "Input boundary", Defaults): the layout mode's toggle. K (37) is in no controlmap line and was
+        // (MagicMenuRewrite_HoM) from this ini. Blocks plan Task 4 (spec "Input boundary", Defaults): the layout mode's toggle. K (37) is in no controlmap line and was
         // free in the build-5 key scan; the gamepad's RS click (SKSE code 273, the game's Item Zoom here: every pad button is
         // taken in this menu, Task 0) - -1 = no gamepad toggle
         std::uint32_t keyLayout = 37;
@@ -66,13 +66,13 @@ namespace Settings
         // is the spell card block's (width-limited: 321 / 468 = 0.686 of SkyUI's 468 x 300 card background); its bottom ends
         // the columns. HoM add-on plan Task 5: the tree window's, progress card's and node card's rects (fTree*, fProgress*,
         // fNodeCard*), fTreeScale, fTreeMarkScale, iMaxSteps, iMaxNodes and [Debug] fDebugExtraHeight are the Heart of Magic
-        // block's (SL_MagicMenu_HoM reads them from this ini); the core reads fTreeRight alone - the right column's right edge
+        // block's (MagicMenuRewrite_HoM reads them from this ini); the core reads fTreeRight alone - the right column's right edge
         Rect preview{ 648, 67, 969, 297 };
         Rect itemCard{ 648, 417, 969, 623 };
         double treeRight = 1238.0;  // [Layout] fTreeRight: where the two columns end on the right (Layout::DefaultFrames)
         double panelGap = 9.0;  // between the blocks of a column (306 - 297) and between the columns (978 - 969)
 
-        // [Debug] blocks plan Task 6: the plugin registers its own tall add-on block "SL_MagicMenu.filler" (300 high) through
+        // [Debug] blocks plan Task 6: the plugin registers its own tall add-on block "MagicMenuRewrite.filler" (300 high) through
         // the add-on path, to test the add-on API and the column scroll in game; without a saved place it joins the left column
         // after the spell card, so the preview's column scrolls (Layout::kDebugFillerId)
         bool debugFillerBlock = false;
@@ -96,7 +96,7 @@ namespace Settings
     /// The values read by Load() (defaults before it).
     const Values& Get();
 
-    /// The block layout read by Load() from Data/SKSE/Plugins/SL_MagicMenu_Layout.json (blocks plan Task 2): repaired
+    /// The block layout read by Load() from Data/SKSE/Plugins/MagicMenuRewrite_Layout.json (blocks plan Task 2): repaired
     /// (Layout::Repair), Layout::Default(Get()) when the file is missing, broken or from a newer build; since Task 4 the layout
     /// last saved by the layout mode (SaveLayout, or SetSavedLayout when the file may not be written).
     const Layout::State& SavedLayout();
@@ -112,7 +112,7 @@ namespace Settings
     };
 
     /// Writes the layout file (plan D10): a .tmp in the same folder (every write, flush and close checked), then the old file
-    /// copied to SL_MagicMenu_Layout.json.bak and the .tmp moved over it (MoveFileExW REPLACE_EXISTING; not ReplaceFileW, which
+    /// copied to MagicMenuRewrite_Layout.json.bak and the .tmp moved over it (MoveFileExW REPLACE_EXISTING; not ReplaceFileW, which
     /// made the file vanish under MO2's usvfs, game run 2026-10-31), or a plain move when there is no file yet. A file that
     /// failed to read is not copied over the .bak (kept as .bad instead), and a failed move over it keeps the .tmp. A file that failed to read at load is copied to .bad first; a newer build's file
     /// is never written. Called from the menu's frame handler (the layout mode); not thread-safe.

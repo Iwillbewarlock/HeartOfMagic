@@ -36,7 +36,7 @@ namespace BlockDraw
         static_assert(SrBlock::kResultBadMessage == static_cast<std::uint32_t>(SRPrismaAPI::Result::kBadMessage));
         static_assert(SrBlock::kResultOpened == static_cast<std::uint32_t>(SRPrismaAPI::Result::kOpened));
 
-        // SL_MagicMenu Widget.cpp's colours: names, dim text (group labels, "?", separators, the reason line), the icons, the
+        // plugins/SL_MagicMenu Widget.cpp's colours: names, dim text (group labels, "?", separators, the reason line), the icons, the
         // links' text and underline
         constexpr std::uint32_t kWhite = 0xF0F0F0, kDimText = 0x8A8A8A, kTitleColor = 0xC8C0B0, kLabelColor = 0xD8D8D8,
                                 kPanelEdge = 0x8A7A5A;
@@ -53,7 +53,7 @@ namespace BlockDraw
         constexpr int kMaxDrawnLogs = 16;  // "[selftest-sr] drawn" lines per menu
         constexpr const char* kListSelectionFormId = "_root.Menu_mc.inventoryLists.itemList.selectedEntry.formId";  // SkyUI
 
-        // The links drawn last: written by Draw, read by Click - both on the UI thread (SL_MagicMenu's frame handler), so no lock
+        // The links drawn last: written by Draw, read by Click - both on the UI thread (MagicMenuRewrite's frame handler), so no lock
         std::vector<SrBlock::Rect> g_linkRects;
         std::atomic<bool> g_noResponse{ false };  // the last open request was not delivered: the reason line says so
         std::atomic<int> g_drawnLogs{ 0 };

@@ -17,7 +17,7 @@
 // the five school names (the core keeps its own copy for its card) and the
 // tree's empty line. Each row's text is the built-in English, the last
 // fallback; the shown text comes from
-// Data/SKSE/Plugins/SL_MagicMenu_HoM/lang/<code>.json, then en.json (the core's
+// Data/SKSE/Plugins/MagicMenuRewrite_HoM/lang/<code>.json, then en.json (the core's
 // LangFiles.h, loaded once at kDataLoaded by Main.cpp). Wording: the reviewed
 // drafts of 2026-10-31 (en.json / ko.json); the Korean, Gemini Argon's draft
 // 2026-10-25 and the rows after it, lives in ko.json. Placeholders in braces
@@ -178,7 +178,7 @@ namespace HomStrings
     inline LangFiles::Catalog<StrEntry, kStrings.size()> g_catalog{ kStrings };
 
     /// The language folder under the game folder
-    inline constexpr const char* kLangDir = "Data/SKSE/Plugins/SL_MagicMenu_HoM/lang";
+    inline constexpr const char* kLangDir = "Data/SKSE/Plugins/MagicMenuRewrite_HoM/lang";
 
     inline const char* Text(Str a_id)
     {

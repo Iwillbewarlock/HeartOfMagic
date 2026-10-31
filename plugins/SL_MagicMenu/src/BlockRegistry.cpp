@@ -90,8 +90,8 @@ namespace BlockRegistry
             return Refused({}, std::format("no Registration in the message (data {}, {} byte(s))", a_data ? "set" : "null", a_dataLen));
         }
         if (!known) {
-            return Refused({}, std::format("apiVersion {} is not one this SL_MagicMenu reads ({} to {}){}", version, BlockApi::kVersionV1,
-                                   BlockApi::kVersion, version > BlockApi::kVersion ? ": update SL_MagicMenu" : ""));
+            return Refused({}, std::format("apiVersion {} is not one this MagicMenuRewrite reads ({} to {}){}", version, BlockApi::kVersionV1,
+                                   BlockApi::kVersion, version > BlockApi::kVersion ? ": update MagicMenuRewrite" : ""));
         }
         if (size < BlockApi::kRegistrationV1Size || a_dataLen < BlockApi::kRegistrationV1Size) {
             return Refused({}, std::format("structSize {} / message size {} is smaller than the v1 Registration ({})", size, a_dataLen,
@@ -111,11 +111,11 @@ namespace BlockRegistry
             return Refused(id, std::format("no draw callback (v{}: neither draw nor drawSelection)", version), version);
         }
         if ((reg.tabs & ~BlockApi::kTabsKnown) != 0) {
-            return Refused(id, std::format("tabs 0x{:X} has bits this SL_MagicMenu does not know (known: 0x{:X}): update SL_MagicMenu", reg.tabs,
+            return Refused(id, std::format("tabs 0x{:X} has bits this MagicMenuRewrite does not know (known: 0x{:X}): update MagicMenuRewrite", reg.tabs,
                                    BlockApi::kTabsKnown), version);
         }
         if ((reg.flags & ~BlockApi::kFlagsKnown) != 0) {
-            return Refused(id, std::format("flags 0x{:X} has bits this SL_MagicMenu does not know (known: 0x{:X}): update SL_MagicMenu", reg.flags,
+            return Refused(id, std::format("flags 0x{:X} has bits this MagicMenuRewrite does not know (known: 0x{:X}): update MagicMenuRewrite", reg.flags,
                                    BlockApi::kFlagsKnown), version);
         }
         if (!std::isfinite(reg.pad) || reg.pad > BlockApi::kMaxHeight) {
@@ -129,7 +129,7 @@ namespace BlockRegistry
         if (auto why = BlockRules::JudgeLegacy(*legacyId, legacyTaken)) return Refused(id, std::move(*why), version);
         // HoM add-on plan Task 2 ruling: a retired id that is still a built-in block here is not free to take over
         if (!legacyId->empty() && _reserved.contains(*legacyId)) {
-            return Refused(id, std::format("the built-in block '{}' is still in this SL_MagicMenu", *legacyId), version);
+            return Refused(id, std::format("the built-in block '{}' is still in this MagicMenuRewrite", *legacyId), version);
         }
 
         std::string title = reg.title ? std::string(reg.title, strnlen(reg.title, BlockApi::kMaxTitleLength)) : std::string{};

@@ -5,7 +5,7 @@
 #include <string>
 
 // =============================================================================
-// SETTINGS - the add-on's own ini (Data/SKSE/Plugins/SL_MagicMenu_SpellResearch.ini,
+// SETTINGS - the add-on's own ini (Data/SKSE/Plugins/MagicMenuRewrite_SpellResearch.ini,
 // read once at plugin load), the block layout SR Prisma's settings choose
 // (ResolveLayout, read once per magic menu open) and the block's language
 // (ResolveLanguage, from SR Prisma's [Display] sLanguage or the game's).
@@ -13,7 +13,7 @@
 
 namespace Settings
 {
-    /// Reads SL_MagicMenu_SpellResearch.ini (call once, at plugin load). Logs the values used
+    /// Reads MagicMenuRewrite_SpellResearch.ini (call once, at plugin load). Logs the values used
     void Load();
 
     /// [General] bSelfTest: the "[selftest-sr]" log lines (spec "Self-test")

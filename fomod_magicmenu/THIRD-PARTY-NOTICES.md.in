@@ -1,9 +1,9 @@
-# Third-party notices - Magic Menu Note @MAGIC_MENU_VERSION@
+# Third-party notices - Magic Menu Rewrite @MAGIC_MENU_VERSION@
 
 ## Licenses
 
-- **The plugin DLLs are a GPL-3.0-or-later combined work.** `00 Core/SKSE/Plugins/SL_MagicMenu.dll` and
-  `10 Heart of Magic Block/SKSE/Plugins/SL_MagicMenu_HoM.dll` statically link **CommonLibSSE-NG 10.0.0**, which is
+- **The plugin DLLs are a GPL-3.0-or-later combined work.** `00 Core/SKSE/Plugins/MagicMenuRewrite.dll` and
+  `10 Heart of Magic Block/SKSE/Plugins/MagicMenuRewrite_HoM.dll` statically link **CommonLibSSE-NG 10.0.0**, which is
   licensed GPL-3.0-or-later with the **Modding Exception** and the **GPL-3.0 Linking Exception**. The DLLs are
   distributed under those terms: `licenses/CommonLibSSE-NG/COPYING.txt` (GNU GPL version 3) and
   `licenses/CommonLibSSE-NG/EXCEPTIONS.md` (the two exceptions).
@@ -42,13 +42,13 @@ texts are in `licenses/`.
 | Xbyak | 7.28 | BSD-3-Clause | `licenses/xbyak.txt` |
 | DirectXMath | 2025-04-03 | MIT | `licenses/directxmath.txt` |
 | DirectX Tool Kit (DirectXTK) | 2025-10-27 | MIT | `licenses/directxtk.txt` |
-| SKSE Menu Framework 2 API header (`plugins/SL_MagicMenu/src/SKSEMenuFramework.h`, from <https://github.com/Thiago099/SKSE-Menu-Framework-2-Example>, commit `cd1f277`; one header compiled into `SL_MagicMenu.dll`, no library linked) | cd1f277 | MIT | its notice below |
+| SKSE Menu Framework 2 API header (`plugins/SL_MagicMenu/src/SKSEMenuFramework.h`, from <https://github.com/Thiago099/SKSE-Menu-Framework-2-Example>, commit `cd1f277`; one header compiled into `MagicMenuRewrite.dll`, no library linked) | cd1f277 | MIT | its notice below |
 
 The Microsoft C/C++ runtime (CRT) is linked statically under the Visual Studio redistribution terms.
 
 ## SKSE Menu Framework header
 
-`SL_MagicMenu.dll` compiles in the API header of SKSE Menu Framework 2 (Thiago099/SKSE-Menu-Framework-2-Example @ `cd1f277`,
+`MagicMenuRewrite.dll` compiles in the API header of SKSE Menu Framework 2 (Thiago099/SKSE-Menu-Framework-2-Example @ `cd1f277`,
 changed to look the framework's DLL up when a function is first used). It resolves every call from `SKSEMenuFramework.dll` at run
 time; SKSE Menu Framework itself is not included and stays optional (without it there is no settings tab; the ini keys work as
 before). The header's license:

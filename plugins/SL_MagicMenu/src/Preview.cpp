@@ -2434,7 +2434,7 @@ float4 PSMain(float4 position : SV_Position) : SV_Target
         {
             using namespace REX::W32;
             ComPtr<ID3DBlob> errors;
-            const auto result = a_compile(kAlphaHlsl, sizeof(kAlphaHlsl) - 1, "SL_MagicMenu alpha restore", nullptr, nullptr, a_entry, a_profile,
+            const auto result = a_compile(kAlphaHlsl, sizeof(kAlphaHlsl) - 1, "MagicMenuRewrite alpha restore", nullptr, nullptr, a_entry, a_profile,
                 D3DCOMPILE_ENABLE_STRICTNESS | D3DCOMPILE_OPTIMIZATION_LEVEL3, 0, a_code.GetAddressOf(), errors.GetAddressOf());
             if (SUCCESS(result) && a_code.Get()) return {};
             std::string message = errors.Get() && errors->GetBufferPointer() ?

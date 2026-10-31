@@ -1,5 +1,9 @@
 # Spell Research add-on block - design
 
+Names (2026-10-31, before the first Nexus release): the public name is Magic Menu Rewrite and the shipped files and SKSE
+plugin names are `MagicMenuRewrite*` (was the working name `SL_MagicMenu*`); the repo folders `plugins/SL_MagicMenu*` and the
+CMake targets keep the working name. The text below uses the new product names where it says what ships.
+
 Date 2026-10-27, revised 2026-10-29 for the Spell Research Prisma UI revamp (D:/DEV/SpellResearchPrismaUI, 0.2.1,
 not released). Goal: the first add-on block of SL_MagicMenu, shipped as its own DLL that a later SL_MagicMenu FOMOD
 offers as an option (user, 2026-10-29: "포모드로해서 homl용 블록이랑 스펠리서치 프리즈마용 블록을 선택해서 설치가능하게
@@ -72,7 +76,7 @@ the block ships en.json and ko.json; the tier names were dropped with the tier l
 at each menu open.)
 
 - Every player-visible string of the block (archetype names, group labels, 3 links, title, reason lines,
-  notifications) comes from a per-language JSON file, `SKSE/Plugins/SL_MagicMenu_SpellResearch/lang/<code>.json`
+  notifications) comes from a per-language JSON file, `SKSE/Plugins/MagicMenuRewrite_SpellResearch/lang/<code>.json`
   (archetype names and group labels from SR Prisma's tables first - 2d); a missing key falls back to the English
   file, a missing English key to the key itself (and a log line).
 - Archetype names: the block shows SHORT names, without the
@@ -95,7 +99,7 @@ at each menu open.)
 
 ## Changes
 
-### 1. SL_MagicMenu: Block API v2
+### 1. MagicMenuRewrite: Block API v2
 
 v1 stays as it is for v1 add-ons. v2 adds, after the v1 fields of `Registration`:
 
@@ -112,12 +116,12 @@ std::uint32_t tabs = 0;                   // v2: bitmask of tabs to show on, 0 =
   accepted; the fields `min(structSize, dataLen)` covers are copied into a zero-initialised v2 struct; v1 needs
   `draw`, v2 needs `draw` or `drawSelection`. `Result` stays v1-shaped. Version 3+ refused with a reason.
 - Which form: the one the menu's own card shows (the tree card when a tree click picked a spell not in the list,
-  Widget.cpp:2434/3625-3633, else the committed list selection, else 0). SL_MagicMenu compares it once per UI frame
+  Widget.cpp:2434/3625-3633, else the committed list selection, else 0). MagicMenuRewrite compares it once per UI frame
   after its own selection and tree-click handling and redraws v2 blocks when it changed (never from inside a draw).
-- Redraw request: message add-on -> SL_MagicMenu `kMessageRedraw` 'SLMD', data = the block's final id; the redraw
+- Redraw request: message add-on -> MagicMenuRewrite `kMessageRedraw` 'SLMD', data = the block's final id; the redraw
   happens on the next UI frame (ignored while the menu is closed). Used when the add-on's snapshot lands and after an
   SRPO reply.
-- Click: SL_MagicMenu puts one transparent hit clip over each v2 block that has `click`, with its own existing
+- Click: MagicMenuRewrite puts one transparent hit clip over each v2 block that has `click`, with its own existing
   handler mechanism (the one the tree's marks use, SetHandler Widget.cpp:2731; onPress and onRelease), and on release
   calls `click(pressX, pressY, releaseX, releaseY, user)` with both points inside the content clip. The host cancels a
   press (no call) when the release is outside the block or outside the column's visible viewport, when the column
@@ -137,9 +141,9 @@ Reserved for the HoML block (not built here, listed so v2 is not mistaken for en
 (select a spell in the list, load its 3D), hover and tooltips outside the block, key and pad input,
 shared text-fitting helpers, and keeping a player's place for the old built-in ids `tree`/`progress`/`nodecard`.
 
-### 2. New plugin SL_MagicMenu_SpellResearch (plugins/SL_MagicMenu_SpellResearch)
+### 2. New plugin MagicMenuRewrite_SpellResearch (plugins/SL_MagicMenu_SpellResearch)
 
-- kPostLoad: listen for SL_MagicMenu's result and for SR Prisma's replies ('SRPR', sender "SpellResearchPrismaUI");
+- kPostLoad: listen for MagicMenuRewrite's result and for SR Prisma's replies ('SRPR', sender "SpellResearchPrismaUI");
   SR Prisma usable = that RegisterListener succeeded (SR Prisma is loaded). Superseded (final review R1): the design's
   `GetPluginInfo` version gate (0.2.1+) is not used - it calls a slot of the SKSE interface that older SKSE builds may
   not have, and the SKSE release that added it could not be established; an SR Prisma before 0.2.1 never answers
@@ -170,7 +174,7 @@ shared text-fitting helpers, and keeping a player's place for the old built-in i
   a v2 message cut short, version 3 refused, v2 without either draw refused, the tabs mask), the host's press/release
   cancel rules as a pure function, and the add-on's pure parts (archetype grouping order, list and line layout and wrapping to a width, icon data bounds,
   press+release -> button (same rect only), reply -> notification text, requestId matching and the 5 s drop).
-- dist: dist/SL_MagicMenu_SpellResearch/ (DLL, PDB, ini, lang/en.json and ko.json), made by every build (2a, 2d) until
+- dist: dist/MagicMenuRewrite_SpellResearch/ (DLL, PDB, ini, lang/en.json and ko.json), made by every build (2a, 2d) until
   the FOMOD task.
 
 ### 2a. As built (Task 2, 2026-10-29)
@@ -199,7 +203,7 @@ checks, the snapshot, the first-open self-test), `BlockDraw.cpp` (draw, click, S
 - Icons: `ArchetypeIcons.h` now carries `Icon::frame` (tools/sr-icons/convert.mjs: the glyph converted alone is the rest of
   the subpaths; one frame per group); a dot subpath (two equal points) is drawn as a small filled polygon as wide as the
   stroke (a zero-length AS2 line draws nothing); strokes use Flash 8 `lineStyle(..., "round", "round")`.
-- dist: `dist/SL_MagicMenu_SpellResearch/SKSE/Plugins/` (DLL, PDB, ini, `SL_MagicMenu_SpellResearch/lang/en.json`) is
+- dist: `dist/MagicMenuRewrite_SpellResearch/SKSE/Plugins/` (DLL, PDB, ini, `MagicMenuRewrite_SpellResearch/lang/en.json`) is
   rebuilt by every build (custom target `SL_MagicMenu_SpellResearch_dist`), from `plugins/SL_MagicMenu_SpellResearch/dist/`.
 - Self-test: `[selftest-sr] lists|snapshot|flames|outside|not-filed PASS|FAIL|SKIP` and `DONE` at the first open.
   `lists` counts the three lists' entries and each knowledge list's globals at that moment (and is written as FAIL, with
@@ -221,7 +225,7 @@ under it moving by a line when the spell changes). The list layout keeps its fix
   applied on the next UI frame: the columns are arranged again (`Rearrange` - the blocks below move, the scroll is
   clamped, the block is drawn again at its size with its hit clip). Refused over the registered height (the maximum);
   every menu opens at the registered heights; the layout mode lays every add-on out at its registered height (it
-  rearranges on entering and leaving when an add-on asked for another); SL_MagicMenu_Layout.json is not touched. Pure
+  rearranges on entering and leaving when an add-on asked for another); MagicMenuRewrite_Layout.json is not touched. Pure
   parts in BlockRules.h (`ReadHeight`, `JudgeHeight`, `LaidOutHeight`, `Enqueue`), checked by magic-menu-block-api-check;
   the column restacking by magic-menu-layout-check (`AddonHeightChange`).
 - Add-on: `SrBlock::ContentHeight(kind, lines, hasLinks, hasReason)` - list: kContentH (96); line: the archetype lines

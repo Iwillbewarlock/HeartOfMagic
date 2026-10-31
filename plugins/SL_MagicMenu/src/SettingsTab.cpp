@@ -42,7 +42,7 @@ namespace SettingsTab
         using WidgetText::Str;
         using WidgetText::Text;
 
-        constexpr const char* kSection = "Magic Menu Note";  // the mod's name: not translated
+        constexpr const char* kSection = "Magic Menu Rewrite";  // the mod's name: not translated
         constexpr ImVec4 kWarnColor{ 1.0f, 0.4f, 0.35f, 1.0f };
         constexpr float kWrapAtWindowEdge = 0.0f;  // PushTextWrapPos(0): wrap at the window's right edge
         // English on purpose (Spell Research Prisma's line): it has to be readable exactly when the Korean glyphs are missing
@@ -65,7 +65,7 @@ namespace SettingsTab
         // Taken at Register and again at each magic menu open when the ini changed (game thread), copied by the page (render thread)
         struct Setup
         {
-            std::wstring iniPath;              // SL_MagicMenu_User.ini (fix round 1 I2: the tab writes only the player's file)
+            std::wstring iniPath;              // MagicMenuRewrite_User.ini (fix round 1 I2: the tab writes only the player's file)
             std::string autoCode;
             std::string language;              // [Display] sLanguage as last read (LangGame::IniLanguage)
             std::vector<std::string> hidden;   // [Blocks] sHidden as last read (BlockHiding::Setting)
@@ -103,17 +103,17 @@ namespace SettingsTab
             ImGui::PopTextWrapPos();
         }
 
-        /// One key of SL_MagicMenu_User.ini written by the Win32 call (the readers' absolute path; the file is made when missing): the
+        /// One key of MagicMenuRewrite_User.ini written by the Win32 call (the readers' absolute path; the file is made when missing): the
         /// other lines stay as they are. True when written; a failure is logged and the page keeps the old value
         bool WriteIni(std::string_view a_section, std::string_view a_key, const std::string& a_value)
         {
             const std::wstring section(a_section.begin(), a_section.end()), key(a_key.begin(), a_key.end());
             const auto value = SKSE::stl::utf8_to_utf16(a_value).value_or(std::wstring{});
             if (::WritePrivateProfileStringW(section.c_str(), key.c_str(), value.c_str(), g_page.values.iniPath.c_str())) {
-                logger::info("Settings tab: [{}] {} = '{}' written to SL_MagicMenu_User.ini - applied at the next magic menu open", a_section, a_key, a_value);
+                logger::info("Settings tab: [{}] {} = '{}' written to MagicMenuRewrite_User.ini - applied at the next magic menu open", a_section, a_key, a_value);
                 return true;
             }
-            logger::warn("Settings tab: [{}] {} = '{}' could NOT be written to SL_MagicMenu_User.ini (Windows error {}) - the file is unchanged; is it read-only?",
+            logger::warn("Settings tab: [{}] {} = '{}' could NOT be written to MagicMenuRewrite_User.ini (Windows error {}) - the file is unchanged; is it read-only?",
                 a_section, a_key, a_value, ::GetLastError());
             return false;
         }
@@ -217,7 +217,7 @@ namespace SettingsTab
         const std::string item = Text(Str::kSetItem);
         SKSEMenuFramework::SetSection(kSection);
         SKSEMenuFramework::AddSectionItem(item, RenderSettings);
-        logger::info("Settings tab: \"{}/{}\" added to SKSE Menu Framework (language and blocks, written to SL_MagicMenu_User.ini; auto is '{}' on "
+        logger::info("Settings tab: \"{}/{}\" added to SKSE Menu Framework (language and blocks, written to MagicMenuRewrite_User.ini; auto is '{}' on "
                      "this game)",
             kSection, item, a_autoCode);
     }

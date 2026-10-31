@@ -1,5 +1,5 @@
 // magic-menu-hom-block-check - offline check of the Heart of Magic add-on block's pure parts (HoM add-on plan Tasks 6/7):
-// plugins/SL_MagicMenu_HoM/src as the plugin runs it - HomSettings.h's reading of the block's keys from SL_MagicMenu.ini (the
+// plugins/SL_MagicMenu_HoM/src as the plugin runs it - HomSettings.h's reading of the block's keys from MagicMenuRewrite.ini (the
 // shipped dist ini and made-up ones: defaults, accepted ranges, comments, rects with no area), the blocks' registered heights,
 // Selection.h's pick rules (bug G1: a U key pick counts as chosen; G acts only when chosen; a list change drops the pick
 // unless it was the add-on's own served show request), Strings.h's fill and key labels, the cards' height requests
@@ -38,7 +38,7 @@
 #include <vector>
 
 #ifndef HOM_BLOCK_DIST_INI
-#    error "HOM_BLOCK_DIST_INI (the shipped SL_MagicMenu.ini) must be defined by CMake"
+#    error "HOM_BLOCK_DIST_INI (the shipped MagicMenuRewrite.ini) must be defined by CMake"
 #endif
 
 namespace
@@ -157,7 +157,7 @@ namespace
 
     void SettingsDistIni()
     {
-        std::printf("settings: the shipped SL_MagicMenu.ini\n");
+        std::printf("settings: the shipped MagicMenuRewrite.ini\n");
         std::ifstream file(HOM_BLOCK_DIST_INI, std::ios::binary);
         std::stringstream text;
         text << file.rdbuf();

@@ -1,5 +1,5 @@
 {
-  "_about": "SL_MagicMenu_HoM strings, Korean. Keys missing here fall back to en.json, then to the plugin's built-in English. Keep the {placeholders} and the ' · ' separators as they are.",
+  "_about": "MagicMenuRewrite_HoM strings, Korean. Keys missing here fall back to en.json, then to the plugin's built-in English. Keep the {placeholders} and the ' · ' separators as they are.",
   "progress_title": "{school} 학습",
   "progress_target": "학습 목표: {spell} ({pct}%)",
   "progress_none_candidates": "학습 목표 없음 · 배울 수 있는 주문 {n}개 · {key} 다음 주문",

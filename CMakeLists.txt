@@ -61,10 +61,11 @@ set(DIST_DIR "${CMAKE_SOURCE_DIR}/dist")
 # The release's folder and zip: HeartOfMagic-Librarian_<version> (the DLLs keep their names)
 set(DIST_NAME "HeartOfMagic-Librarian")
 set(DIST_VERSION_DIR "${DIST_DIR}/${DIST_NAME}_${PROJECT_VERSION}")
-# The magic menu (SL_MagicMenu and its add-on blocks) ships apart, with its own version:
-# the three plugins' DLL version, fomod_magicmenu's info.xml and dist/SL_MagicMenu_<version>
+# The magic menu (plugins/SL_MagicMenu and its add-on blocks, shipped as Magic Menu Rewrite:
+# MagicMenuRewrite*.dll) ships apart, with its own version: the three plugins' DLL version,
+# fomod_magicmenu's info.xml and dist/MagicMenuRewrite_<version>
 set(MAGIC_MENU_VERSION "1.0.0")
-set(MAGIC_MENU_DIST_VERSION_DIR "${DIST_DIR}/SL_MagicMenu_${MAGIC_MENU_VERSION}")
+set(MAGIC_MENU_DIST_VERSION_DIR "${DIST_DIR}/MagicMenuRewrite_${MAGIC_MENU_VERSION}")
 
 add_subdirectory(plugins/spelllearning)
 add_subdirectory(plugins/DummyDEST)

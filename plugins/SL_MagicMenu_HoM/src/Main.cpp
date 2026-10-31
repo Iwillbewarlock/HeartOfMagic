@@ -1,12 +1,12 @@
 // =============================================================================
-// SL_MagicMenu_HoM - the Heart of Magic blocks of SL_MagicMenu's magic menu
+// MagicMenuRewrite_HoM - the Heart of Magic blocks of MagicMenuRewrite's magic menu
 // =============================================================================
 // The spell tree window, the learning progress card and the node card, which the
 // magic menu drew itself until HoM add-on plan Task 5, as three add-on blocks
-// registered through SL_MagicMenu's Block API v3 (BlockApi.h, the host's own
+// registered through MagicMenuRewrite's Block API v3 (BlockApi.h, the host's own
 // header from plugins/SL_MagicMenu/src). They read Heart of Magic through its
 // public API v2 (SpellLearningAPI.h) and the saved spell_tree.json, and their
-// keys from SL_MagicMenu.ini (HomSettings). Without Heart of Magic's API by
+// keys from MagicMenuRewrite.ini (HomSettings). Without Heart of Magic's API by
 // kDataLoaded no block is registered (user 2026-10-30, design Q3), one log line.
 // Design: docs/superpowers/specs/2026-10-30-magic-menu-hom-addon-design.md
 // =============================================================================
@@ -35,7 +35,7 @@ namespace
 {
     constexpr const char* kHomPluginName = "SpellLearning";
 
-    // The blocks' final ids as SL_MagicMenu accepted them (the payload of 'SLMD' / 'SLMH' / 'SLMV'); set during the
+    // The blocks' final ids as MagicMenuRewrite accepted them (the payload of 'SLMD' / 'SLMH' / 'SLMV'); set during the
     // registrations at kDataLoaded, read by the UI thread from the first menu open on (registration closes there)
     std::mutex g_idLock;
     std::array<std::string, HomAddon::kBlockCount> g_finalIds;
@@ -49,24 +49,24 @@ namespace
         return g_finalIds[HomAddon::Index(a_kind)];
     }
 
-    // SL_MagicMenu's answer to a registration (BlockApi::Result), during our Dispatch; matched to a block by its id
+    // MagicMenuRewrite's answer to a registration (BlockApi::Result), during our Dispatch; matched to a block by its id
     void OnBlockMessage(SKSE::MessagingInterface::Message* a_msg)
     {
         if (!a_msg || a_msg->type != BlockApi::kMessageResult) return;
         if (!a_msg->data || a_msg->dataLen < sizeof(BlockApi::Result)) {
-            logger::warn("SL_MagicMenu_HoM: a registration answer of {} bytes - ignored", a_msg->dataLen);
+            logger::warn("MagicMenuRewrite_HoM: a registration answer of {} bytes - ignored", a_msg->dataLen);
             return;
         }
         const auto* result = static_cast<const BlockApi::Result*>(a_msg->data);
         const std::string id = result->id ? result->id : "";
         const auto it = std::ranges::find(HomAddon::kBlockIds, std::string_view(id));
         if (it == HomAddon::kBlockIds.end()) {
-            logger::warn("SL_MagicMenu_HoM: an answer for '{}', not one of our blocks - ignored", id);
+            logger::warn("MagicMenuRewrite_HoM: an answer for '{}', not one of our blocks - ignored", id);
             return;
         }
         const auto index = static_cast<std::size_t>(it - HomAddon::kBlockIds.begin());
         if (result->status != BlockApi::Status::kAccepted) {
-            logger::error("SL_MagicMenu_HoM: SL_MagicMenu refused the block '{}' (API v{}): {}", id, result->apiVersion, result->reason ? result->reason : "");
+            logger::error("MagicMenuRewrite_HoM: MagicMenuRewrite refused the block '{}' (API v{}): {}", id, result->apiVersion, result->reason ? result->reason : "");
             return;
         }
         {
@@ -74,7 +74,7 @@ namespace
             g_finalIds[index] = id;
         }
         g_accepted[index] = true;
-        logger::info("SL_MagicMenu_HoM: block '{}' accepted (API v{})", id, result->apiVersion);
+        logger::info("MagicMenuRewrite_HoM: block '{}' accepted (API v{})", id, result->apiVersion);
     }
 
     // HoM broadcasts its API at kPostPostLoad
@@ -82,12 +82,12 @@ namespace
     {
         if (!a_msg) return;
         if (a_msg->type != SpellLearning::kMessageType_APIReady || !a_msg->data) {
-            logger::info("SL_MagicMenu_HoM: SpellLearning message type 0x{:X} ignored", a_msg->type);
+            logger::info("MagicMenuRewrite_HoM: SpellLearning message type 0x{:X} ignored", a_msg->type);
             return;
         }
         auto* api = static_cast<SpellLearning::ISpellLearningAPI*>(a_msg->data);
         Hom::SetApi(api);
-        logger::info("SL_MagicMenu_HoM: Heart of Magic API v{} received", api->GetAPIVersion());
+        logger::info("MagicMenuRewrite_HoM: Heart of Magic API v{} received", api->GetAPIVersion());
     }
 
     void SendKeyHints(const SKSE::MessagingInterface* a_messaging);  // below, with the registrations
@@ -107,7 +107,7 @@ namespace
             // the per-menu state is reset by the next callback (EnsureMenu); the style is read for this open
             if (a_event->opening) {
                 // 2026-10-31 (the settings tab): [Display] sLanguage read again; a new language gets new texts from this menu on,
-                // and the key hints SL_MagicMenu keeps are sent again with the new labels (relabelled in place). The tree's title
+                // and the key hints MagicMenuRewrite keeps are sent again with the new labels (relabelled in place). The tree's title
                 // strip keeps the start language: the host copied it at the registration (Block API v3 has no title update)
                 if (LangGame::Refresh(HomStrings::g_catalog, HomStrings::kLangDir)) {
                     if (const auto* messaging = SKSE::GetMessagingInterface()) SendKeyHints(messaging);
@@ -123,7 +123,7 @@ namespace
         MenuSink() = default;
     };
 
-    // One registration (the struct lives for the Dispatch only; SL_MagicMenu copies id, title and legacyId)
+    // One registration (the struct lives for the Dispatch only; MagicMenuRewrite copies id, title and legacyId)
     bool RegisterOne(const SKSE::MessagingInterface* a_messaging, HomAddon::BlockKind a_kind)
     {
         using BlockApi::kFlagKeepWhenEmpty;
@@ -156,10 +156,10 @@ namespace
             break;
         }
         if (!a_messaging->Dispatch(BlockApi::kMessageRegister, &reg, sizeof(reg), BlockApi::kPluginName)) {
-            logger::error("SL_MagicMenu_HoM: SL_MagicMenu did not listen (not installed, or bEnabled=0) - no block {}", reg.id);
+            logger::error("MagicMenuRewrite_HoM: MagicMenuRewrite did not listen (not installed, or bEnabled=0) - no block {}", reg.id);
             return false;
         }
-        if (!g_accepted[index]) logger::error("SL_MagicMenu_HoM: SL_MagicMenu sent no accepted answer for {} - that block is off", reg.id);
+        if (!g_accepted[index]) logger::error("MagicMenuRewrite_HoM: MagicMenuRewrite sent no accepted answer for {} - that block is off", reg.id);
         return g_accepted[index].load();
     }
 
@@ -174,15 +174,15 @@ namespace
             { keys.keySetTarget, HomStrings::Str::kHintSetTarget } } };
         for (const auto& [key, text] : hints) {
             if (key == 0 || key > BlockApi::kMaxHintScanCode) {
-                logger::info("SL_MagicMenu_HoM: \"{}\" key unbound - no hint", HomStrings::Text(text));
+                logger::info("MagicMenuRewrite_HoM: \"{}\" key unbound - no hint", HomStrings::Text(text));
                 continue;
             }
             BlockApi::KeyHint hint{ .id = id.c_str(), .scanCode = key, .label = HomStrings::Text(text) };  // Dispatch takes a non-const pointer
             if (!a_messaging->Dispatch(BlockApi::kMessageKeyHint, &hint, sizeof(hint), BlockApi::kPluginName)) {
-                logger::warn("SL_MagicMenu_HoM: the key hint {} was not delivered (SL_MagicMenu did not listen)", key);
+                logger::warn("MagicMenuRewrite_HoM: the key hint {} was not delivered (MagicMenuRewrite did not listen)", key);
             }
         }
-        logger::info("SL_MagicMenu_HoM: key hints for {} done (keys {} and {}; an unbound one is logged above)", id, keys.keyNext, keys.keySetTarget);
+        logger::info("MagicMenuRewrite_HoM: key hints for {} done (keys {} and {}; an unbound one is logged above)", id, keys.keyNext, keys.keySetTarget);
     }
 
     // True when the tree block (the driver) was accepted
@@ -195,7 +195,7 @@ namespace
         g_treeTitle = HomStrings::Text(HomStrings::Str::kTreeTitle);
         // the tree block carries the keys and their hints (and is the first to do the shared frame work): without it no card is registered
         if (!RegisterOne(messaging, HomAddon::BlockKind::kTree)) {
-            logger::error("SL_MagicMenu_HoM: the tree block was not accepted - the progress and node cards are not registered either");
+            logger::error("MagicMenuRewrite_HoM: the tree block was not accepted - the progress and node cards are not registered either");
             return false;
         }
         RegisterOne(messaging, HomAddon::BlockKind::kProgress);
@@ -212,19 +212,19 @@ namespace
             auto* messaging = SKSE::GetMessagingInterface();
             const bool host = messaging->RegisterListener(BlockApi::kPluginName, OnBlockMessage);
             const bool hom = messaging->RegisterListener(kHomPluginName, OnSpellLearningMessage);
-            logger::info("SL_MagicMenu_HoM: listening to SL_MagicMenu {}, to {} {}", host ? "yes" : "NO (not loaded?)", kHomPluginName,
+            logger::info("MagicMenuRewrite_HoM: listening to MagicMenuRewrite {}, to {} {}", host ? "yes" : "NO (not loaded?)", kHomPluginName,
                 hom ? "yes" : "no (not loaded?)");
             break;
         }
         case SKSE::MessagingInterface::kDataLoaded: {
             // user 2026-10-30 (design Q3): without Heart of Magic's API there is no block at all
             if (!Hom::Ready()) {
-                logger::warn("SL_MagicMenu_HoM: Heart of Magic's API did not arrive by kDataLoaded (SpellLearning.dll not loaded, or too old) - "
+                logger::warn("MagicMenuRewrite_HoM: Heart of Magic's API did not arrive by kDataLoaded (SpellLearning.dll not loaded, or too old) - "
                              "no block registered");
                 FlushLog();
                 return;
             }
-            logger::info("SL_MagicMenu_HoM: kDataLoaded on thread {}, main thread {}", REX::W32::GetCurrentThreadId(), GameThread::Id());
+            logger::info("MagicMenuRewrite_HoM: kDataLoaded on thread {}, main thread {}", REX::W32::GetCurrentThreadId(), GameThread::Id());
             // the texts in [Display] sLanguage's language (refreshed at each menu open, MenuSink); before Register, which copies the tree title
             LangGame::Load(HomStrings::g_catalog, HomStrings::kLangDir);
             Spells::Load();
@@ -232,7 +232,7 @@ namespace
                 if (auto* ui = RE::UI::GetSingleton()) {
                     ui->AddEventSink<RE::MenuOpenCloseEvent>(MenuSink::Get());
                 } else {
-                    logger::error("SL_MagicMenu_HoM: no UI singleton - HoM's style is not read at menu opens (its defaults are used)");
+                    logger::error("MagicMenuRewrite_HoM: no UI singleton - HoM's style is not read at menu opens (its defaults are used)");
                 }
             }
             FlushLog();
@@ -293,15 +293,15 @@ namespace HomAddon
 SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
 {
     SKSE::Init(a_skse, SKSE::InitInfo{ .log = false });
-    SetupLog("Heart of Magic blocks for SL_MagicMenu (tree window, progress card, node card)");
+    SetupLog("Heart of Magic blocks for MagicMenuRewrite (tree window, progress card, node card)");
     // The main thread: HoM's API is used on it only. kDataLoaded ran on another thread in the game run of 2026-10-25, so it is
     // taken here, where SKSE loads plugins
     GameThread::Set();
-    logger::info("SL_MagicMenu_HoM: main thread {}", REX::W32::GetCurrentThreadId());
+    logger::info("MagicMenuRewrite_HoM: main thread {}", REX::W32::GetCurrentThreadId());
     HomSettings::Load();
     auto* messaging = SKSE::GetMessagingInterface();
     if (!messaging) {
-        logger::error("SL_MagicMenu_HoM: no SKSE messaging interface - nothing installed");
+        logger::error("MagicMenuRewrite_HoM: no SKSE messaging interface - nothing installed");
         return true;
     }
     messaging->RegisterListener(OnSKSEMessage);

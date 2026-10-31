@@ -4,7 +4,7 @@
 // SL_Combat.dll before SKSEMenuFramework.dll, and every call would then do nothing. The handle is
 // looked up when a function is first resolved instead (CIGAR, github.com/kkw1010-dev/HKT, found
 // and fixed the same).
-// SL_MagicMenu (2026-10-31): copied unchanged from SpellResearchPrismaUI plugin/src/SKSEMenuFramework.h, which carries the
+// MagicMenuRewrite (2026-10-31): copied unchanged from SpellResearchPrismaUI plugin/src/SKSEMenuFramework.h, which carries the
 // change above; only SettingsTab.cpp includes it (THIRD-PARTY-NOTICES.md lists it).
 #include <windows.h>
 

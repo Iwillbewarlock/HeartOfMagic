@@ -1,7 +1,7 @@
 #pragma once
 
 // =============================================================================
-// BLOCK API v2 - how another SKSE plugin adds its own block to SL_MagicMenu's
+// BLOCK API v2 - how another SKSE plugin adds its own block to MagicMenuRewrite's
 // magic menu panels (blocks plan Task 6, design review D9; v2: Spell Research
 // add-on design 2026-10-27, "Changes / 1"). Copy this header into your plugin;
 // it needs nothing but <cstddef> and <cstdint> (the two RE classes are only
@@ -12,32 +12,32 @@
 // your plugin with CommonLibSSE-NG (any build whose GFxValue is the game's
 // 0x18-byte value) and the MSVC x64 calling convention.
 //
-// Versions: an SL_MagicMenu with this header reads apiVersion 1 (RegistrationV1, frozen: the v1 header's Registration) and
+// Versions: a MagicMenuRewrite with this header reads apiVersion 1 (RegistrationV1, frozen: the v1 header's Registration) and
 // 2 (Registration). A v1 add-on built against the v1 header keeps working unchanged. Version 3 or later is refused with a
-// reason ("update SL_MagicMenu").
+// reason ("update MagicMenuRewrite").
 //
 // Registering:
-//   1. At SKSE load, listen for SL_MagicMenu's answer:
+//   1. At SKSE load, listen for MagicMenuRewrite's answer:
 //        SKSE::GetMessagingInterface()->RegisterListener(BlockApi::kPluginName, OnBlockResult);
-//   2. At kPostPostLoad, kInputLoaded or kDataLoaded (SL_MagicMenu starts listening at kPostLoad; registration closes at
+//   2. At kPostPostLoad, kInputLoaded or kDataLoaded (MagicMenuRewrite starts listening at kPostLoad; registration closes at
 //      the first magic menu open after kDataLoaded - later ones are refused with a reason), send one message per block:
 //        BlockApi::Registration reg{ .id = "MyMod.stats", .title = "STATS", .height = 120.0f, .drawSelection = DrawStats,
 //                                    .tabs = BlockApi::kTabSpells };
 //        SKSE::GetMessagingInterface()->Dispatch(BlockApi::kMessageRegister, &reg, sizeof(reg), BlockApi::kPluginName);
-//      Dispatch returns false when no SL_MagicMenu listened (not installed, or bEnabled=0). The struct only needs to live
-//      for the Dispatch call: SL_MagicMenu copies id and title. Only the fields structSize and the message size both cover
+//      Dispatch returns false when no MagicMenuRewrite listened (not installed, or bEnabled=0). The struct only needs to live
+//      for the Dispatch call: MagicMenuRewrite copies id and title. Only the fields structSize and the message size both cover
 //      are read (an older v2 struct cut short reads its missing fields as null / 0).
 //   3. The answer comes back, during that Dispatch, as a kMessageResult message to the sender (BlockApi::Result: accepted
 //      or refused, the block's final id and the reason; its apiVersion is the version your registration was read as, or
-//      this SL_MagicMenu's kVersion when it was refused before that). Its strings live only for that call.
+//      this MagicMenuRewrite's kVersion when it was refused before that). Its strings live only for that call.
 //
 // The id: unique, 1..kMaxIdLength characters. An id with no '.' is made "<your plugin name>.<id>" (the result says the
-// final id). It is the block's key in SL_MagicMenu_Layout.json: keep it the same across versions or the player's place
+// final id). It is the block's key in MagicMenuRewrite_Layout.json: keep it the same across versions or the player's place
 // for your block is lost. A block without a saved place goes to the end of the right column; when your plugin is not
 // installed any more, its saved place is kept (the block is skipped while absent).
 //
 // The block: fixed height (stage units, 1280 x 720 stage; finite, > 0, <= kMaxHeight); the width is the column's, which
-// the player can change. SL_MagicMenu draws the block's box and its title strip (no strip when title is null or empty)
+// the player can change. MagicMenuRewrite draws the block's box and its title strip (no strip when title is null or empty)
 // and lends you a fresh, empty clip below the title strip, inside the padding (the "content clip"): draw there with the
 // AS2 drawing API (beginFill / lineTo / createTextField ...). a_width / a_height are that clip's drawable size.
 //
@@ -45,7 +45,7 @@
 // handler, never from inside another of your callbacks. The clip is lent for the draw call only: do not keep the GFxValue,
 // the movie or anything made in it past the return (the movie dies when the menu closes), and do not put AS2 handlers
 // (onPress ...) on it - use click. Do not throw out of a callback (an exception is caught and logged, and the block is not
-// drawn or clicked again in that menu). Messages to SL_MagicMenu (registration, kMessageRedraw, kMessageHeight) may come from
+// drawn or clicked again in that menu). Messages to MagicMenuRewrite (registration, kMessageRedraw, kMessageHeight) may come from
 // any thread.
 //
 // When the block is drawn (draw, or drawSelection when it is set - then draw is never called): once after the menu opens,
@@ -57,12 +57,12 @@
 // Effects entry gives (it may be 0 or another form). Look a_shown up and check its form type yourself. There is no
 // per-frame update.
 //
-// kMessageRedraw ('SLMD'): add-on -> SL_MagicMenu, data = the block's final id (NUL-terminated, as the result gave it),
+// kMessageRedraw ('SLMD'): add-on -> MagicMenuRewrite, data = the block's final id (NUL-terminated, as the result gave it),
 // dataLen its size. The block is drawn again on the next UI frame - so do not send it from that draw (or any draw of your
 // block), or the block is drawn again every frame. Ignored while the magic menu is closed (it is drawn at the next open
 // anyway) and for an id that is not a registered block. Not answered.
 //
-// kMessageHeight ('SLMH'): add-on -> SL_MagicMenu, data = a HeightRequest (below), dataLen its size: the block's height for
+// kMessageHeight ('SLMH'): add-on -> MagicMenuRewrite, data = a HeightRequest (below), dataLen its size: the block's height for
 // this menu, for content that needs less room than the block registered with. The registered height is the block's maximum
 // and its size in the layout mode; every magic menu opens at it. On the next UI frame the columns are laid out again with the
 // new height (the blocks below move up or down, the column's scroll follows) and the block is drawn again into its new size
@@ -70,10 +70,10 @@
 // changed, or the block resizes every frame. Several requests for one block before that frame: the last one counts. The
 // struct only needs to live for the Dispatch call (the id is copied). Ignored while the magic menu is closed and for an id
 // that is not a registered block; refused (logged) when height is not finite, <= 0 or more than the registered height. The
-// saved layout (SL_MagicMenu_Layout.json) is not changed. Not answered. 'SLMH' needs an SL_MagicMenu that knows it (the same
+// saved layout (MagicMenuRewrite_Layout.json) is not changed. Not answered. 'SLMH' needs a MagicMenuRewrite that knows it (the same
 // kVersion 2 header with this message): an older one ignores the message, and the block keeps its registered height.
 //
-// click (optional): SL_MagicMenu lays one transparent hit area over the block's content clip. A mouse press there and its
+// click (optional): MagicMenuRewrite lays one transparent hit area over the block's content clip. A mouse press there and its
 // release are handed to click as two points in content clip coordinates (0,0 = the clip's top-left, the same space your
 // draw used), once, on the frame after the release. No call (the press is cancelled) when the release is outside the
 // content area or outside the column's visible part, when between press and release the column scrolled, the block was
@@ -83,7 +83,7 @@
 //
 // tabs: the SkyUI magic menu category tabs the block shows on (kTab* bits; kTabsAll = 0 = every tab, the v1 behaviour).
 // On the other tabs the block is hidden and the blocks below it in its column close up, as the built-in tree, progress
-// and node card blocks do on Powers / Shouts / Active Effects. kTabSpells is every tab SL_MagicMenu draws its spell tree
+// and node card blocks do on Powers / Shouts / Active Effects. kTabSpells is every tab MagicMenuRewrite draws its spell tree
 // on: All, Favorites, the five school tabs (Alteration .. Restoration) and any category it does not know (a menu mod's
 // own) - All and Favorites can still hold a power or a shout, which a_shown shows. kTabPowers, kTabShouts and
 // kTabActiveEffects are those three tabs alone. A bit outside kTabsKnown is refused.
@@ -100,7 +100,7 @@ namespace RE
 
 namespace BlockApi
 {
-    inline constexpr const char* kPluginName = "SL_MagicMenu";
+    inline constexpr const char* kPluginName = "MagicMenuRewrite";
 
     /// The message types, as four characters ('SLMB' ...; built from the characters: no multi-character literal)
     inline constexpr std::uint32_t FourCC(char a_a, char a_b, char a_c, char a_d)
@@ -108,10 +108,10 @@ namespace BlockApi
         return (static_cast<std::uint32_t>(static_cast<unsigned char>(a_a)) << 24) | (static_cast<std::uint32_t>(static_cast<unsigned char>(a_b)) << 16) |
                (static_cast<std::uint32_t>(static_cast<unsigned char>(a_c)) << 8) | static_cast<std::uint32_t>(static_cast<unsigned char>(a_d));
     }
-    inline constexpr std::uint32_t kMessageRegister = FourCC('S', 'L', 'M', 'B');  // add-on -> SL_MagicMenu: data = Registration*
-    inline constexpr std::uint32_t kMessageResult = FourCC('S', 'L', 'M', 'R');    // SL_MagicMenu -> add-on: data = Result*
-    inline constexpr std::uint32_t kMessageRedraw = FourCC('S', 'L', 'M', 'D');    // add-on -> SL_MagicMenu: data = the final id (v2)
-    inline constexpr std::uint32_t kMessageHeight = FourCC('S', 'L', 'M', 'H');    // add-on -> SL_MagicMenu: data = HeightRequest* (v2)
+    inline constexpr std::uint32_t kMessageRegister = FourCC('S', 'L', 'M', 'B');  // add-on -> MagicMenuRewrite: data = Registration*
+    inline constexpr std::uint32_t kMessageResult = FourCC('S', 'L', 'M', 'R');    // MagicMenuRewrite -> add-on: data = Result*
+    inline constexpr std::uint32_t kMessageRedraw = FourCC('S', 'L', 'M', 'D');    // add-on -> MagicMenuRewrite: data = the final id (v2)
+    inline constexpr std::uint32_t kMessageHeight = FourCC('S', 'L', 'M', 'H');    // add-on -> MagicMenuRewrite: data = HeightRequest* (v2)
 
     inline constexpr std::uint32_t kVersionV1 = 1;
     inline constexpr std::uint32_t kVersion = 2;

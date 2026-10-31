@@ -149,7 +149,7 @@ namespace SrBlock
     }
 
     // ---------------------------------------------------------------------
-    // Fixed block height (the same for both layouts): the host's title strip and padding (SL_MagicMenu Settings.h
+    // Fixed block height (the same for both layouts): the host's title strip and padding (plugins/SL_MagicMenu Settings.h
     // kPanelTitleH 22, kPanelPad 8; Widget.cpp DrawAddons lends a clip from kTitleH + kPad down to the bottom padding) plus
     // three archetype lines, the link row and the reason line
     // ---------------------------------------------------------------------
@@ -172,7 +172,7 @@ namespace SrBlock
     /// Where the link row starts. List: under the three reserved lines (kLinksTop). Line: under the lines it used, with
     /// half the room the unused lines and kLinksGap would leave (user, 2026-10-30: the gap between the archetypes and the
     /// links halved), so a one-line spell has its links 22 units under it, not 44; the rest of the fixed height stays
-    /// empty at the bottom - or, with SL_MagicMenu's kMessageHeight, the block shrinks to ContentHeight. The reason line
+    /// empty at the bottom - or, with MagicMenuRewrite's kMessageHeight, the block shrinks to ContentHeight. The reason line
     /// follows the links (ReasonTop); in the line layout without links it takes their place.
     constexpr double LinksTop(LayoutKind a_kind, int a_linesUsed);
     constexpr double ReasonTop(LayoutKind a_kind, int a_linesUsed, bool a_hasLinks = true);
@@ -222,7 +222,7 @@ namespace SrBlock
         return ContentHeight(a_kind, a_linesUsed, a_hasLinks, a_hasReason) + kHostTitleH + 2 * kHostPad;
     }
 
-    /// When draw asks SL_MagicMenu for a new height ('SLMH', the brief's rule): the content height it needs differs from the
+    /// When draw asks MagicMenuRewrite for a new height ('SLMH', the brief's rule): the content height it needs differs from the
     /// last one it asked for, or it asked for none since the last Reset. Reset at each menu open (the host opens every menu at
     /// the registered height) and when the layout kind changes. So the host's redraw at the asked size sends nothing (no
     /// loop), and neither does the layout mode's redraw at the registered size. UI thread only

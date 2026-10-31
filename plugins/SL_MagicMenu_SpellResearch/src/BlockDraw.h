@@ -5,7 +5,7 @@
 // =============================================================================
 // BLOCK DRAW - the block "Research Archetypes" (BlockApi v2 drawSelection and
 // click), the three links' open requests to SR Prisma ('SRPO') and their replies
-// ('SRPR'). Draw and click run on the UI thread (SL_MagicMenu's frame handler).
+// ('SRPR'). Draw and click run on the UI thread (MagicMenuRewrite's frame handler).
 // Include after Common.h (RE and SKSE types).
 // =============================================================================
 
