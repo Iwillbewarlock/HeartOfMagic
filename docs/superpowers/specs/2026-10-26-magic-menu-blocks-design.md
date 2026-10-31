@@ -370,6 +370,9 @@ block) messages. v1 and v2 add-ons are read as before. The contract is the heade
 
 ## Blocks fit their content, the gear button (user 2026-10-30)
 
+2026-10-31: the gear and its reset button are gone (see "Gear removed, reset key (2026-10-31)" below); the gear notes in
+this section are history.
+
 - Every built-in block but the 3D preview box fits its content: the progress card, the node card, our spell card and the
   tree window. One per-block height map (`g_menu.fitHeight`) holds both an add-on's 'SLMH' height and a built-in block's
   fit; `BlockRules::ApplyFits` puts it into Arrange's heights (and takes a fitted block out of the fill set, so our card
@@ -516,6 +519,36 @@ block) messages. v1 and v2 add-ons are read as before. The contract is the heade
 - GPT re-review of 0420eed9: whether SkyUI placed the strip again is read from the panel's own origin (its _x/_y in its
   parent, what the host sets), not from its visible children. A button hidden inside it moves the children but is not a
   new layout. (The per-group homes and the STB / Keycap clip search of round 1 went with the one-clip redesign above.)
+
+## Gear removed, reset key (2026-10-31)
+
+User: "톱니바퀴 없애자. 단축키 표시 만들어놨으니까. 대신 편집모드일때 단축키 표시에 원래배치로 돌리는 단축키가 표시되게 만들어".
+
+- The gear (`layoutGear`) and the reset button that unfolded from it (`layoutReset`) are removed with all their code:
+  drawing, hover hint, placement, the unfold / fold animation, the L9 gear and L9 reset read-backs, and the pure rules
+  (`GearOutline`, `GearHintX`, `ResetButtonRect`, `ResetClickable`, `AnimWidth`, `kResetOpenMs` / `kResetCloseMs`,
+  `HintRowRects`, `RowStripSize` (R2), `GearProblem`, `ResetProblem`) with their check cases. The strip is placed alone
+  (`BlockRules::StripRect`: 8 under the board from the left column's left edge, kept on the stage by its own size); nothing
+  takes the gear's row. No ini key was the gear's alone, so none is left unused.
+- The layout mode is toggled by K (`[Keys] iLayout`) or the gamepad button (`iGamepadLayout`), as before.
+- The reset is a key: `[Keys] iLayoutReset`, default 14 (Backspace, "back to the first layout"; 0 = none; one equal to
+  `iLayout` falls back to 14, or none). Key scan of the installed mods (2026-10-31, the v5 scan's method, `D:/TAKEALOOK/mods`):
+  R 19 is Spell Organizer's (live in the magic menu), O 24 Open Animation Replacer's UI key and OBody's preset key, Home 199
+  dMenu's toggle, L 38 Kudasai's; Backspace's only hit is Immersive Equipment Displays, whose UI key is Shift+Backspace
+  (its saved setting) and which does not open in menus (`EnableInMenus=false`); the controlmap binds 0x0E only in the debug
+  overlay. It works only in the layout mode: Input.cpp hands its down to the widget (`Widget::LayoutResetKey`, a queued
+  `kReset` request done in order with the frame's other requests), which does what the reset button did - the default
+  layout (`Settings::DefaultLayout`) applied to the working layout, saved when the mode is left with the toggle, gone with
+  Esc ("Layout: reset to the default layout ..."). Like every key in the mode it is owned by the input boundary, so SkyUI
+  does not see it; with the mode off it passes untouched (L5 passthrough counts it with the other keys). A reset key set to
+  one of the mode's fixed keys (arrows, Enter, [ ], PageUp / PageDown, Esc) keeps that key's action (warned at load).
+- Key hints: in the layout mode the strip shows K "View mode" and then the reset key "Reset layout" / "처음 배치로"
+  (`layout_reset`, the reset button's reviewed text; `BlockRules::HostHints`); outside it only K "Edit mode". The gear's
+  `layout_gear_enter` / `layout_gear_leave` texts are gone from the table and the language files. SelfTest L10 reads each
+  set (view mode, layout mode) up to 4 times a menu and names the set and its shown keys. A new "L9 reset key" line at the
+  close counts the presses in the mode and FAILs a reset that did not leave the default layout.
+- Gamepad: the layout mode's gamepad toggle is unchanged; there is no gamepad reset, and with SkyUI's gamepad buttons up
+  our hints are hidden (keyboard keys only), so a gamepad player has no on-screen hint for the mode now.
 
 ## Settings tab and hidden blocks (2026-10-31)
 

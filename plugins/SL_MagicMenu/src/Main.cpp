@@ -2,7 +2,8 @@
 // MagicMenuRewrite - the magic menu
 // =============================================================================
 // Draws a 3D preview box and a spell card into SkyUI's magic menu, on a board
-// with the layout mode's gear and the key-hint strip, and hosts other plugins'
+// with the key-hint strip under it (the layout mode's keys among the hints),
+// and hosts other plugins'
 // blocks (BlockApi.h). Since HoM add-on plan Task 5 it knows no Heart of Magic:
 // the spell tree, the learning progress and the node card are the HoM add-on's
 // blocks (MagicMenuRewrite_HoM). Spec: docs/superpowers/specs/2026-10-24-magic-menu-proto.md,

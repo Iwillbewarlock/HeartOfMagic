@@ -40,7 +40,7 @@ namespace KeyHints
         constexpr int kMaxLogs = 8;                  // per menu: change and drop lines
         constexpr int kMaxSetLogs = 16;              // per session: accepted 'SLMK' lines
         constexpr int kMaxRefusedLogs = 8;           // per session: refused ones (a block's keys full), apart from the accepted
-        constexpr int kMaxChecks = 4;                // per menu: SelfTest L10 read-backs
+        constexpr int kMaxChecks = 4;                // per menu and hint set (view mode, layout mode): SelfTest L10 read-backs
 
         // the add-ons' hints (any thread sets them, the UI thread reads them)
         std::mutex g_hintLock;
@@ -67,7 +67,9 @@ namespace KeyHints
             bool relayout = false;                     // lay the panel out again next frame (a button made this frame loads late)
             int repairs = 0, logs = 0;
             bool checkDue = false;                     // SelfTest L10: read our buttons back next frame
-            int checks = 0;
+            bool wantLayout = false;                   // the mode the want was made for (Frame)
+            bool checkLayout = false;                  // the mode of the buttons L10 reads next (set with checkDue)
+            std::array<int, 2> checks{};               // L10 read-backs per set (the view mode's, the layout mode's)
             bool gamepadLogged = false, platformWarned = false;
         };
         MenuState g_menu;
@@ -193,6 +195,18 @@ namespace KeyHints
             }
             a_panel.Invoke("updateButtons", std::array<RE::GFxValue, 1>{ RE::GFxValue{ true } });
             g_menu.checkDue = !g_menu.ours.empty();
+            g_menu.checkLayout = g_menu.wantLayout;
+        }
+
+        // Our shown buttons as "<scan code> <label>", in strip order (the L10 line names the set it read: K and, in the layout mode,
+        // the reset key)
+        std::string ShownLabels()
+        {
+            std::string text;
+            for (const auto& button : g_menu.ours) {
+                if (button.shown) text += std::format("{}{} \"{}\"", text.empty() ? "" : ", ", button.scanCode, button.label);
+            }
+            return text.empty() ? std::string("none") : text;
         }
 
         // SelfTest L10 (bSelfTest), the frame after our buttons were added or shown / hidden: each at its index with its label,
@@ -202,8 +216,9 @@ namespace KeyHints
         // row at button index 4, which x alone read as 8 FAILs. Our shown buttons' places are logged (the rows show)
         void Check(RE::GFxValue& a_panel)
         {
-            if (!Settings::Get().selfTest || !std::exchange(g_menu.checkDue, false) || g_menu.checks >= kMaxChecks) return;
-            ++g_menu.checks;
+            auto& checks = g_menu.checks[g_menu.checkLayout ? 1 : 0];
+            if (!Settings::Get().selfTest || !std::exchange(g_menu.checkDue, false) || checks >= kMaxChecks) return;
+            ++checks;
             RE::GFxValue buttons, button, visible;
             const auto used = InUse(a_panel, buttons);
             std::string why, spots;
@@ -232,8 +247,9 @@ namespace KeyHints
                 if (shown && spot) last = spot;
             }
             if (!used) why = "the panel's _buttonCount / buttons do not read";
-            logger::info("SelfTest: L10 key hints {} - {} of ours ({} shown) from button {}{}{}{}", why.empty() ? "PASS" : "FAIL", g_menu.ours.size(), shownCount,
-                g_menu.first, g_menu.grown ? std::format(", {} button(s) made by us", g_menu.grown) : "", spots.empty() ? "" : " (" + spots + ")",
+            logger::info("SelfTest: L10 key hints {} - {} set: {} of ours ({} shown: {}) from button {}{}{}{}", why.empty() ? "PASS" : "FAIL",
+                g_menu.checkLayout ? "layout mode" : "view mode", g_menu.ours.size(), shownCount, ShownLabels(), g_menu.first,
+                g_menu.grown ? std::format(", {} button(s) made by us", g_menu.grown) : "", spots.empty() ? "" : " (" + spots + ")",
                 why.empty() ? "" : " - " + why);
             FlushLog();
         }
@@ -394,14 +410,17 @@ namespace KeyHints
         const bool gamepad = found && Gamepad(menu);
         if (gamepad && !std::exchange(g_menu.gamepadLogged, true)) logger::info("KeyHints: SkyUI shows gamepad buttons - our keyboard hints are hidden");
         const auto& settings = Settings::Get();
-        // the layout key reads as the gear's hint does: "Edit mode" in the view mode, "View mode" in the layout mode (its press there
-        // leaves it; the label change makes our buttons again, once per toggle)
-        const BlockRules::HintButton host{ settings.keyLayout <= BlockApi::kMaxHintScanCode ? settings.keyLayout : 0u,
-            WidgetText::Text(a_layoutMode ? WidgetText::Str::kHintLayoutLeave : WidgetText::Str::kHintLayout), false };
+        // the layout key: "Edit mode" in the view mode, "View mode" in the layout mode (its press there leaves it); in the layout
+        // mode also the reset key, "Reset layout" (user 2026-10-31: it replaced the gear's reset button). The set changes with the
+        // mode, which makes our buttons again, once per toggle
+        using WidgetText::Str;
+        const auto hosts = BlockRules::HostHints(settings.keyLayout, settings.keyLayoutReset, a_layoutMode, WidgetText::Text(Str::kHintLayout),
+            WidgetText::Text(Str::kHintLayoutLeave), WidgetText::Text(Str::kLayoutReset));
         {
             const std::scoped_lock lock(g_hintLock);
-            g_menu.want = BlockRules::HintButtons(host, a_blocks, g_hints, a_layoutMode, gamepad);
+            g_menu.want = BlockRules::HintButtons(hosts, a_blocks, g_hints, a_layoutMode, gamepad);
         }
+        g_menu.wantLayout = a_layoutMode;
         Install(a_movie);
         if (!g_menu.installed || g_menu.broken || !found) return;
         Check(panel);
@@ -432,5 +451,6 @@ namespace KeyHints
         if (!changed) return;
         panel.Invoke("updateButtons", std::array<RE::GFxValue, 1>{ RE::GFxValue{ true } });
         g_menu.checkDue = true;
+        g_menu.checkLayout = g_menu.wantLayout;
     }
 }

@@ -11,7 +11,6 @@
 #include <cstdint>
 #include <cstring>
 #include <map>
-#include <numbers>
 #include <optional>
 #include <set>
 #include <string>
@@ -168,84 +167,21 @@ namespace BlockRules
     }
 
     // ---------------------------------------------------------------------
-    // The layout mode's controls (user 2026-10-30): the gear toggles the mode (view <-> edit, as the K key); in the edit mode
-    // one button, "처음 배치로" (reset), slides out right of the gear on its row. No control row under the columns
+    // The key-hint strip under our columns (user 2026-10-30, sketch on the layout map): SkyUI's bottom-bar button hints move to
+    // one row right under the board, from the left column's left edge. 2026-10-31: the gear under it is gone (the strip's key
+    // hints show the layout keys), so the strip is placed on its own
     // ---------------------------------------------------------------------
 
-    inline constexpr double kResetOpenMs = 180.0, kResetCloseMs = 140.0;  // the reset button's unfold and fold (steady clock)
-
-    /// Ease-out (cubic) of a_t in 0..1: fast at first, slowing to the end
-    constexpr double EaseOut(double a_t)
-    {
-        const double t = a_t < 0.0 ? 0.0 : a_t > 1.0 ? 1.0 : a_t;
-        const double rest = 1.0 - t;
-        return 1.0 - rest * rest * rest;
-    }
-
-    /// An eased value from a_from to a_to, started at a_startMs and lasting a_durationMs, at a_nowMs (a_to from the end on)
-    constexpr double AnimWidth(double a_from, double a_to, double a_startMs, double a_nowMs, double a_durationMs)
-    {
-        if (!(a_durationMs > 0.0)) return a_to;
-        return a_from + (a_to - a_from) * EaseOut((a_nowMs - a_startMs) / a_durationMs);
-    }
-
-    /// The reset button's rect (stage): a_gap right of the gear, centred on the gear's height, a_w x a_h; kept inside a_visible
-    inline Settings::Rect ResetButtonRect(const Settings::Rect& a_gear, double a_w, double a_h, double a_gap, const Settings::Rect& a_visible)
-    {
-        double left = a_gear.right + a_gap, top = a_gear.CenterY() - a_h / 2;
-        left = std::clamp(left, a_visible.left, std::max(a_visible.left, a_visible.right - a_w));
-        top = std::clamp(top, a_visible.top, std::max(a_visible.top, a_visible.bottom - a_h));
-        return { left, top, left + a_w, top + a_h };
-    }
-
-    /// The reset button takes a click only in the edit mode and only once fully out (a_shownW at its full width a_fullW)
-    constexpr bool ResetClickable(double a_shownW, double a_fullW, bool a_layoutMode)
-    {
-        return a_layoutMode && a_fullW > 0.0 && a_shownW >= a_fullW - kHeightTolerance;
-    }
-
-    /// The gear's hover hint beside the gear (stage rect a_gear): right of it when a hint a_w wide fits on screen there, else left
-    /// of it; vertically centred on it. Returns its left edge in the gear's own coordinates (the gear's left = 0)
-    /// a_preferLeft (the edit mode: the reset button sits right of the gear): left of it when it fits there
-    inline double GearHintX(const Settings::Rect& a_gear, double a_w, double a_gap, const Settings::Rect& a_visible, bool a_preferLeft = false)
-    {
-        const bool leftFits = a_gear.left - a_gap - a_w >= a_visible.left;
-        const bool rightFits = a_gear.right + a_gap + a_w <= a_visible.right;
-        const bool left = a_preferLeft ? leftFits || !rightFits : !rightFits;
-        return left ? -a_gap - a_w : a_gear.Width() + a_gap;
-    }
-
-    // ---------------------------------------------------------------------
-    // The key-hint strip and the gear under our columns (user 2026-10-30, sketch on the layout map): SkyUI's bottom-bar button
-    // hints move to one row right under the lower of our two columns, from the left column's left edge; the gear goes under
-    // that row at the left column's left edge
-    // ---------------------------------------------------------------------
-
-    // Under the columns (user 2026-10-30: "단축키 시작이랑 톱니바퀴랑 Y축이 같게" - one vertical line, and "톱니바퀴가 한칸 아래로"): the
-    // key-hint strip's row, then the gear one row below it, the gear's left edge on the strip's start. The gear's row keeps
-    // the room right of it free (the gear's flyout will open there)
-    struct HintRow
-    {
-        Settings::Rect strip, gear;  // the strip's rect is empty (0 x 0 at the columns' bottom + a_stripGap) when there is no strip
-    };
-
-    /// The strip (a_w x a_h, its own size) from the left column's left edge a_left, a_stripGap under the columns' bottom
-    /// a_columnsBottom; the gear (a_gearSize) a_gearGap under the strip with its left edge on the strip's left edge (no strip:
-    /// a_stripGap under the columns). Strip and gear are kept inside a_visible together: the pair moves up from the stage's
-    /// bottom, and a strip wider than the room right of a_left moves left (the gear with it, so the two keep one line)
-    inline HintRow HintRowRects(double a_left, double a_columnsBottom, double a_w, double a_h, double a_gearSize, double a_stripGap, double a_gearGap,
-        const Settings::Rect& a_visible)
+    /// The strip (a_w x a_h, its own size) from the left column's left edge a_left, a_stripGap under a_boardBottom; kept inside
+    /// a_visible: it moves up from the stage's bottom, and a strip wider than the room right of a_left moves left. No strip
+    /// (a_w or a_h 0): an empty rect (0 x 0) there
+    inline Settings::Rect StripRect(double a_left, double a_boardBottom, double a_w, double a_h, double a_stripGap, const Settings::Rect& a_visible)
     {
         const bool hasStrip = a_w > 0.0 && a_h > 0.0;
-        const double gapBelow = hasStrip ? a_gearGap : 0.0, stripH = hasStrip ? a_h : 0.0;
-        const double pairH = stripH + gapBelow + a_gearSize;
-        const double top = std::clamp(a_columnsBottom + a_stripGap, a_visible.top, std::max(a_visible.top, a_visible.bottom - pairH));
-        const double left = std::clamp(a_left, a_visible.left, std::max(a_visible.left, a_visible.right - std::max(a_w, a_gearSize)));
-        HintRow row;
-        row.strip = { left, top, left + (hasStrip ? a_w : 0.0), top + stripH };
-        const double gearTop = row.strip.bottom + gapBelow;
-        row.gear = { left, gearTop, left + a_gearSize, gearTop + a_gearSize };
-        return row;
+        const double w = hasStrip ? a_w : 0.0, h = hasStrip ? a_h : 0.0;
+        const double top = std::clamp(a_boardBottom + a_stripGap, a_visible.top, std::max(a_visible.top, a_visible.bottom - h));
+        const double left = std::clamp(a_left, a_visible.left, std::max(a_visible.left, a_visible.right - w));
+        return { left, top, left + w, top + h };
     }
 
     enum class Queued
@@ -361,45 +297,6 @@ namespace BlockRules
     constexpr Point ToContent(const Point& a_stage, const Settings::Rect& a_content)
     {
         return { a_stage.x - a_content.left, a_stage.y - a_content.top };
-    }
-
-    // The gear's outline (user 2026-10-30 picked shape "B", scratchpad gear/gear2.py flat()): kGearTeeth square teeth with flat
-    // tops on a root circle, a little wider at the root, flat valleys along the root circle between them, and a round hole.
-    // Both outlines are closed: the last point is the first again, so the line has no start tick
-    inline constexpr int kGearTeeth = 6;
-    inline constexpr double kGearRootShare = 0.72;   // the root circle, of the outer radius
-    inline constexpr double kGearTipShare = 0.42;    // a tooth's flat top, of its angular step
-    inline constexpr double kGearRootWiden = 1.25;   // a tooth at the root, of its top's width
-    inline constexpr int kGearValleySteps = 4;       // a valley in this many pieces along the root circle
-    inline constexpr double kGearHoleShare = 0.30;   // the hole, of the outer radius
-    inline constexpr int kGearHoleSegments = 32;
-
-    struct GearShape
-    {
-        std::vector<Point> rim, hole;
-    };
-
-    /// The gear centred on a_cx, a_cy with the outer radius a_r
-    inline GearShape GearOutline(double a_cx, double a_cy, double a_r)
-    {
-        const double twoPi = 2.0 * std::numbers::pi, step = twoPi / kGearTeeth, inner = a_r * kGearRootShare;
-        const double tip = step * kGearTipShare / 2, root = tip * kGearRootWiden;
-        const auto at = [&](double a_radius, double a_angle) { return Point{ a_cx + a_radius * std::cos(a_angle), a_cy + a_radius * std::sin(a_angle) }; };
-        GearShape shape;
-        for (int i = 0; i < kGearTeeth; ++i) {
-            const double mid = step * i;
-            shape.rim.push_back(at(inner, mid - root));
-            shape.rim.push_back(at(a_r, mid - tip));
-            shape.rim.push_back(at(a_r, mid + tip));
-            shape.rim.push_back(at(inner, mid + root));
-            const double from = mid + root, to = mid + step - root;  // the flat valley to the next tooth
-            for (int k = 1; k < kGearValleySteps; ++k) shape.rim.push_back(at(inner, from + (to - from) * k / kGearValleySteps));
-        }
-        shape.rim.push_back(shape.rim.front());
-        const double hole = a_r * kGearHoleShare;
-        for (int k = 0; k < kGearHoleSegments; ++k) shape.hole.push_back(at(hole, twoPi * k / kGearHoleSegments));
-        shape.hole.push_back(shape.hole.front());
-        return shape;
     }
 
     /// The tree tooltip's top in its panel (review round 2): a_y as placed, kept within a_minY..a_maxY (under the title, inside

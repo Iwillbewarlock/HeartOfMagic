@@ -7,8 +7,9 @@
 
 // =============================================================================
 // KEY HINTS - our keys in SkyUI's own bottom key-hint strip (user 2026-10-31,
-// "단축키 표시"): the layout key (K) of the host and the add-ons' 'SLMK' hints
-// (BlockApi.h kMessageKeyHint; the HoM block's U and G), as buttons of
+// "단축키 표시"): the host's layout key (K; in the layout mode also the reset
+// key, Backspace by default) and the add-ons' 'SLMK' hints (BlockApi.h
+// kMessageKeyHint; the HoM block's U and G), as buttons of
 // _root.Menu_mc.bottomBar.buttonPanel, so they look like SkyUI's "Equip" /
 // "Search" (the key's icon + the label). Done the way STB Hotkey System adds
 // its hints: SkyUI's Menu_mc.updateBottomBar (MagicMenu.as:193-219, the one
@@ -34,7 +35,7 @@ namespace KeyHints
     /// The menu closes (any thread): the wrap does nothing more; this menu's counts logged
     void OnMenuClose();
 
-    /// Once per UI frame of the open menu, before the strip is placed (Widget.cpp PlaceStripAndGear): the wrap installed (in
+    /// Once per UI frame of the open menu, before the strip is placed (Widget.cpp PlaceStrip): the wrap installed (in
     /// the first frames), our buttons made again when the hint set changed and shown or hidden for a_blocks (every add-on in
     /// registration order and whether it shows now) and a_layoutMode
     void Frame(RE::GFxMovieView* a_movie, const std::vector<BlockRules::HintBlock>& a_blocks, bool a_layoutMode);

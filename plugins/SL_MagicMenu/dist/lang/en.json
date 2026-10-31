@@ -1,5 +1,5 @@
 {
-  "_about": "MagicMenuRewrite strings, English - the magic menu's own texts (preview box, spell card, layout buttons) and the fallback for any key another language file lacks; a key missing here too shows the plugin's built-in English. Keep the {placeholders} and the ' · ' separators as they are.",
+  "_about": "MagicMenuRewrite strings, English - the magic menu's own texts (preview box, spell card, layout key hints) and the fallback for any key another language file lacks; a key missing here too shows the plugin's built-in English. Keep the {placeholders} and the ' · ' separators as they are.",
   "preview_title": "Preview",
   "card_sub": "{school} · {level}",
   "school_alteration": "Alteration",
@@ -26,8 +26,6 @@
   "card_seconds": "{n}s",
   "layout_reset": "Reset layout",
   "empty_choose": "Select a spell to view",
-  "layout_gear_enter": "Edit mode {key}",
-  "layout_gear_leave": "View mode {key}",
   "hint_layout": "Edit mode",
   "hint_layout_leave": "View mode",
   "settings_item": "Settings",

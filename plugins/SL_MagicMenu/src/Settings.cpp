@@ -378,6 +378,13 @@ namespace Settings
         ReadBool(path, L"Preview", L"bKeepPanelAlpha", v.keepPanelAlpha);
         ReadBool(path, L"Preview", L"bHidePowers3D", v.hidePowers3D);
         ReadNumber(path, L"Keys", L"iLayout", v.keyLayout, 1u, kMaxScanCode);
+        ReadNumber(path, L"Keys", L"iLayoutReset", v.keyLayoutReset, 0u, kMaxScanCode);
+        if (v.keyLayoutReset != 0 && v.keyLayoutReset == v.keyLayout) {
+            // the toggle is judged first (Input.cpp), so this key would only ever toggle: the default, or none when that is iLayout too
+            const auto fallback = Values{}.keyLayoutReset != v.keyLayout ? Values{}.keyLayoutReset : 0u;
+            logger::warn("Settings: [Keys] iLayoutReset = {} is iLayout's key - using {}", v.keyLayoutReset, fallback == 0 ? std::string("none") : std::to_string(fallback));
+            v.keyLayoutReset = fallback;
+        }
         // SKSE's gamepad codes (266 D-pad up .. 281 Y, SKSE InputMap), or -1 for none
         ReadNumber(path, L"Keys", L"iGamepadLayout", v.gamepadLayout, -1, kMaxGamepadCode);
         if (v.gamepadLayout != -1 && v.gamepadLayout < kMinGamepadCode) {
@@ -407,9 +414,9 @@ namespace Settings
         g_values = v;
 
         logger::info("Settings: enabled {} selfTest {} movePreview {} moveItemCard {} drawPreviewOver {} previewUnlearned {} hideGamePass {} "
-                     "clipPreview {} ownCard {} hideBackdrop {} hideGlow {} keepPanelAlpha {} hidePowers3D {} keys layout {} gamepad layout {}",
+                     "clipPreview {} ownCard {} hideBackdrop {} hideGlow {} keepPanelAlpha {} hidePowers3D {} keys layout {} layout reset {} gamepad layout {}",
             v.enabled, v.selfTest, v.movePreview, v.moveItemCard, v.drawPreviewOver, v.previewUnlearned, v.hideGamePass, v.clipPreview,
-            v.ownCard, v.hideBackdrop, v.hideGlow, v.keepPanelAlpha, v.hidePowers3D, v.keyLayout, v.gamepadLayout);
+            v.ownCard, v.hideBackdrop, v.hideGlow, v.keepPanelAlpha, v.hidePowers3D, v.keyLayout, v.keyLayoutReset, v.gamepadLayout);
         LogRect("preview  ", v.preview);
         LogRect("  3D area", PanelContent(v.preview));
         LogRect("item card", v.itemCard);

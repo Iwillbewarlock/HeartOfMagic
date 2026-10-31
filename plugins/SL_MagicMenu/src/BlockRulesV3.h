@@ -402,15 +402,34 @@ namespace BlockRules
         bool shown = false;
     };
 
-    /// The frame's hint buttons in strip order: the host's own (a_host; none when its scanCode is 0 or its label empty) first,
-    /// shown on the keyboard in every mode; then every hint of a_blocks (registration order) in the block's own order, shown while
-    /// its block shows and the layout mode is off. None shows while SkyUI shows gamepad buttons (a_gamepad). A hint of a block not
-    /// in a_blocks has no button. Every hint gets a button, shown or not, so a change of tab or mode only shows or hides buttons
-    inline std::vector<HintButton> HintButtons(const HintButton& a_host, const std::vector<HintBlock>& a_blocks, const KeyHintList& a_hints, bool a_layoutMode,
-        bool a_gamepad)
+    /// The host's own hints (user 2026-10-31), in this order: the layout key a_layoutKey - a_enter in the view mode, a_leave in
+    /// the layout mode (its press there leaves it) - and, in the layout mode only, the layout reset key a_resetKey with a_reset.
+    /// A key that is 0 or past kMaxHintScanCode, or an empty label, has no button. Each is marked shown (HintButtons hides them
+    /// while SkyUI shows gamepad buttons)
+    inline std::vector<HintButton> HostHints(std::uint32_t a_layoutKey, std::uint32_t a_resetKey, bool a_layoutMode, const std::string& a_enter,
+        const std::string& a_leave, const std::string& a_reset)
+    {
+        std::vector<HintButton> hosts;
+        const auto add = [&](std::uint32_t a_key, const std::string& a_label) {
+            if (a_key != 0 && a_key <= BlockApi::kMaxHintScanCode && !a_label.empty()) hosts.push_back({ a_key, a_label, true });
+        };
+        add(a_layoutKey, a_layoutMode ? a_leave : a_enter);
+        if (a_layoutMode) add(a_resetKey, a_reset);
+        return hosts;
+    }
+
+    /// The frame's hint buttons in strip order: the host's own (a_hosts, HostHints; one with scanCode 0 or an empty label left
+    /// out) first, each shown as it says on the keyboard; then every hint of a_blocks (registration order) in the block's own
+    /// order, shown while its block shows and the layout mode is off. None shows while SkyUI shows gamepad buttons (a_gamepad).
+    /// A hint of a block not in a_blocks has no button. Every add-on hint gets a button, shown or not, so a change of tab only
+    /// shows or hides buttons (a mode change also changes the host's hints, which makes the buttons again)
+    inline std::vector<HintButton> HintButtons(const std::vector<HintButton>& a_hosts, const std::vector<HintBlock>& a_blocks, const KeyHintList& a_hints,
+        bool a_layoutMode, bool a_gamepad)
     {
         std::vector<HintButton> buttons;
-        if (a_host.scanCode != 0 && !a_host.label.empty()) buttons.push_back({ a_host.scanCode, a_host.label, !a_gamepad });
+        for (const auto& host : a_hosts) {
+            if (host.scanCode != 0 && !host.label.empty()) buttons.push_back({ host.scanCode, host.label, host.shown && !a_gamepad });
+        }
         for (const auto& block : a_blocks) {
             for (const auto& hint : a_hints) {
                 if (hint.id == block.id) buttons.push_back({ hint.scanCode, hint.label, block.shown && !a_layoutMode && !a_gamepad });

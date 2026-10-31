@@ -175,10 +175,8 @@ namespace Widget
         constexpr int kReselectFrames = 10;
         constexpr int kReselectWaitFrames = 2;  // frames before the first try
 
-        // Text colours and the hint box (the gear's hover hint; the look the Heart of Magic block's tooltip had at f83dc6f3)
-        constexpr double kLabelSize = 10.0;
+        // Text colours
         constexpr std::uint32_t kWhite = 0xF0F0F0, kLabelColor = 0xD8D8D8, kDimText = 0x8A8A8A;
-        constexpr double kTooltipW = 150.0, kTooltipPad = 4.0, kTooltipAlpha = 90.0;
 
         // Our spell card (v7 C1): its top inset, the name's size and lines, the body's sizes; kNotYet colours a harmful spell's name
         constexpr double kCardTop = 4.0, kNameSize = 19.0, kSubSize = 12.0, kRowSize = 13.0;
@@ -237,11 +235,13 @@ namespace Widget
             std::optional<double> guideAt;     // the border guide line as drawn
             // recorded by the handlers, done by the frame handler (no clip is changed inside its own handler)
             std::optional<std::tuple<Layout::BlockId, double, double>> pressDue;  // a cover pressed: block, pointer x, y
-            bool releaseDue = false, borderPressDue = false, borderReleaseDue = false, lockDue = false, resetDue = false;
-            const char* lockSource = "the gear button";  // the gear (LockClick)
+            bool releaseDue = false, borderPressDue = false, borderReleaseDue = false;
             double borderPressX = 0.0;
             // counts of this menu (logs and SelfTest L5)
             int entered = 0, drops = 0, borderMoves = 0, resets = 0, shieldPresses = 0;
+            // user 2026-10-31: the reset key's presses run (ResetLayout), those with the layout already the default, those the mode had
+            // left by then (a K earlier in the same frame), and resets that did not leave the default layout (SelfTest L9 reset key)
+            int resetKeys = 0, resetSame = 0, resetLate = 0, resetWrong = 0;
             std::uint64_t inputLeaks = 0, equipKept = 0;  // SkyUI's handleInput / AttemptEquip called in the mode
             std::set<std::uint32_t> wrapKeysOff;          // keyboard scan codes of handleInput keyDowns with the mode off
             std::uint64_t wrapKeyDownsOff = 0, wrapNoSkseCode = 0;
@@ -258,7 +258,6 @@ namespace Widget
         };
 
         // Reset on every menu open
-        constexpr int kMakeFailWarnFrames = 30;  // fix round 1 M3: a clip that keeps failing to be made is warned about once per menu after this
 
         struct MenuState
         {
@@ -266,7 +265,6 @@ namespace Widget
             // 2026-10-31 (the settings tab): [Blocks] sHidden as this menu applies it (HiddenBlocks::Effective, set at AttachWidget):
             // these blocks are absent this menu, as an add-on that is not installed (BlockHeights leaves them out)
             std::set<std::string> hidden;
-            int resetFails = 0;  // fix round 1 M3: frames the reset button's making failed this menu (one warning at kMakeFailWarnFrames)
             bool powersHideLogged = false;   // spec v13 B1: the Powers tab's line, once per menu
             Committed sel;                   // spec v12 G2
             std::uint64_t selSeq = 0;        // bumped by every change of sel
@@ -335,22 +333,14 @@ namespace Widget
             // not come from its own fit, or each draw would ask for less)
             std::map<Layout::BlockId, Settings::Rect> blocksMaxAll;
             int resizeLogs = 0;  // Rearrange's "block X is W x H now" lines this menu (a fitted card changes with its content)
-            std::optional<Settings::Rect> gearLast;  // where the gear was put last (PlaceStripAndGear)
             Settings::Rect board;                    // the board's rect (stage), fixed for the menu (DrawBoard)
             std::optional<bool> nothingLaid;         // whether nothing was shown when the columns were laid out last (WatchEmpty)
-            // user 2026-10-30: the reset button right of the gear in the edit mode - its full width, its width now and its unfold /
-            // fold (from, to, start, length; BlockRules::AnimWidth)
-            double resetFullW = 0.0, resetShownW = 0.0, resetFrom = 0.0, resetTo = 0.0, resetStartMs = 0.0, resetDurationMs = 0.0;
-            std::optional<Settings::Rect> resetPlaced;  // where it was put last
-            bool resetDrawn = false;                    // its mask drawn once this menu
             // user 2026-10-30: the key-hint strip (SkyUI's bottomBar.buttonPanel, one clip): its origin last known in place (set by the
             // host, or found right; its parent's space, BlockRules::PlacePanel; none yet at a menu's start), StripContent's cache (what
-            // the visible content was read from, and that content on the stage) and its last visible size (the gear's row while no
-            // button shows)
+            // the visible content was read from, and that content on the stage)
             std::optional<BlockRules::Point> stripInPlace;
             std::vector<double> stripSignature;
             std::optional<Settings::Rect> stripContent;
-            std::optional<std::pair<double, double>> stripSize;
             int stripMoveLogs = 0, stripApplies = 0, stripChecks = 0;  // review R4: moves logged, moves this menu, read-back lines
             int stripFoundFrame = -1;   // the frame the panel was first found this menu (-1: not yet; a menu without it logs at the close)
             int stripReadFails = 0;     // frames a shown button's bounds did not read (StripContent; logged at the close)
@@ -364,18 +354,14 @@ namespace Widget
             std::optional<Settings::Rect> stripTarget;
             int stripMoveFrame = -1, stripReadFrame = -1;
             std::optional<BlockRules::Point> stripRead;
-            // Task 8 T2 (L9, bSelfTest): read back every kPollFrames frames, logged at the close - checks, failures, the first
-            // failure; the reset button's clicks taken / ignored and taken before it was fully out
+            // Task 8 T2 (L9, bSelfTest): the board read back every kPollFrames frames, logged at the close - checks, failures, the
+            // first failure
             struct ChromeCheck
             {
                 int checks = 0, fails = 0;
                 std::string firstFail;
             };
-            ChromeCheck boardCheck, gearCheck, resetCheck;
-            int resetTaken = 0, resetIgnored = 0, resetTakenEarly = 0;
-            bool gearHintLeft = false;  // the gear's hint is on its left (the edit mode: the reset button is on its right)
-            bool gearHover = false;                  // the mouse is over the gear (GearHover)
-            std::optional<bool> gearDrawnMode;       // the layout mode the gear's look and hint were made for (UpdateGear)
+            ChromeCheck boardCheck;
             // user 2026-10-30: each fitted block's waiting shrink (BlockRules::DecideFit; built-in cards and add-ons alike)
             std::map<Layout::BlockId, BlockRules::HeldShrink> heldShrink;
             // blocks plan Task 6: add-on blocks to draw next frame (DrawAddons), drawn this menu (SelfTest L6), whose callback threw
@@ -4024,28 +4010,23 @@ namespace Widget
         }
 
         // ---------------------------------------------------------------------
-        // Layout mode (blocks plan Task 4, D5/D8/D10/D11; spec "Input boundary (Task 0)"): the lock and reset buttons below the
-        // left column, the mouse shield (layer 3), a cover per shown block that drags it, the column border handle, save and
-        // cancel. Layer 1 of the input boundary is Input.cpp's MenuControls hook; layer 2 the handleInput and AttemptEquip wraps
-        // here. The hook flips g_layoutMode at once (later events of its batch see it) and queues the UI work; the frame handler
-        // does every change of the movie (LayoutFrame), as for the node clicks
+        // Layout mode (blocks plan Task 4, D5/D8/D10/D11; spec "Input boundary (Task 0)"): the mouse shield (layer 3), a cover per
+        // shown block that drags it, the column border handle, save, cancel and (2026-10-31) the reset key. Layer 1 of the input
+        // boundary is Input.cpp's MenuControls hook; layer 2 the handleInput and AttemptEquip wraps here. The hook flips
+        // g_layoutMode at once (later events of its batch see it) and queues the UI work; the frame handler does every change of
+        // the movie (LayoutFrame), as for the node clicks
         // ---------------------------------------------------------------------
 
         constexpr const char* kShieldName = "layoutShield";    // full stage, the lowest depth in mmx_root, shown in the mode only
         constexpr const char* kBorderName = "layoutBorder";    // the border handle in the gap between the columns (the mode only)
         constexpr const char* kBoardName = "board";             // user 2026-10-30: the board behind the columns (DrawBoard)
-        constexpr const char* kGearName = "layoutGear";        // user 2026-10-30: the layout mode's toggle, under SkyUI's list (always)
-        constexpr double kGearSize = 18.0;                     // its square's side
         constexpr double kBoardStripGap = 8.0;                 // the key-hint strip under the board
-        constexpr double kGearGap = 4.0;                       // the gear one row under the strip, its left edge on the strip's start
         constexpr double kStripTolerance = 0.5;                // the panel's origin is where it should be, in its parent's space (Flash
                                                                // keeps _x in twips; under Inventory Reforged's 0.85 about 0.43 on screen)
         constexpr double kStripCheckTolerance = 1.0;           // the read-back after a move (SelfTest L8)
         constexpr const char* kButtonPanelPath = "_root.Menu_mc.bottomBar.buttonPanel";  // the key-hint strip (ItemMenu.as:73 navPanel)
         constexpr int kMaxStripMoveLogs = 5;
         constexpr int kClipDumpFrame = 30;                     // the frame of a menu the one-time clip dump runs at (SkyUI built by then)
-        constexpr double kGearLineW = 1.3;     // its line, scaled with the gear (noScale "normal"), round caps and joins
-        constexpr double kGearMiterLimit = 3.0;  // lineStyle's miterLimit (unused with round joins; AS2 wants the argument)
         constexpr const char* kOverlayName = "layoutOverlay";  // the drag ghost, the insertion line, the border guide: on top
         constexpr const char* kCoverPrefix = "mmxCover_";      // a block's drag cover, in its column clip above the panels
         constexpr const char* kCoverBlock = "mmxBlock";        // a cover's block id
@@ -4055,9 +4036,7 @@ namespace Widget
         constexpr const char* kAttemptEquipName = "AttemptEquip";  // MagicMenu.as:111
         constexpr const char* kSavedAttemptEquip = "mmxSavedAttemptEquip";
         constexpr const char* kShowPanelPath = "_global.InventoryLists.SHOW_PANEL";  // InventoryLists.as:34 (static, 1)
-        constexpr const char* kResetName = "layoutReset";       // user 2026-10-30: the reset button right of the gear (the edit mode)
-        constexpr double kResetGap = 4.0, kResetPadX = 8.0, kResetTextSize = 12.0, kResetAlpha = 92.0;
-        constexpr double kGreyAlpha = 40.0, kDraggedAlpha = 45.0, kGhostAlpha = 25.0, kLineW = 2.0, kHandleLineAlpha = 80.0;
+        constexpr double kDraggedAlpha = 45.0, kGhostAlpha = 25.0, kLineW = 2.0, kHandleLineAlpha = 80.0;
         constexpr double kMinHandleW = 6.0;  // the border handle's hit strip at least this wide (fPanelGap may be 0)
         constexpr double kAutoScrollEdge = 28.0, kAutoScrollStep = 8.0;  // D8: within this of a column's top/bottom the column scrolls, per frame
         constexpr int kMaxDragLogs = 24;
@@ -4100,7 +4079,8 @@ namespace Widget
             kEnter,
             kSave,
             kCancel,
-            kNav,  // Task 5: a key of the focus model
+            kNav,    // Task 5: a key of the focus model
+            kReset,  // user 2026-10-31: the reset key (ResetLayout)
         };
         struct LayoutRequest
         {
@@ -4134,7 +4114,7 @@ namespace Widget
             g_layoutRequests.push_back({ a_kind, std::move(a_why), {}, seq });
         }
 
-        // The frame handler's own change (the lock button, a tab change, the leave by B / Esc): the newest intent, numbered
+        // The frame handler's own change (a tab change, the leave by B / Esc): the newest intent, numbered
         std::uint64_t BeginModeChange(bool a_on)
         {
             const std::scoped_lock lock(g_layoutRequestLock);
@@ -4318,41 +4298,6 @@ namespace Widget
             }
         };
 
-        // The lock button's and the gear's click (a_source names it in the log lines)
-        class LockClick final : public RE::GFxFunctionHandler
-        {
-        public:
-            explicit LockClick(const char* a_source) : _source(a_source) {}
-
-            void Call(Params&) override
-            {
-                if (g_closing) return;
-                g_menu.layout.lockDue = true;
-                g_menu.layout.lockSource = _source;
-            }
-
-        private:
-            const char* _source;
-        };
-
-        class ResetClick final : public RE::GFxFunctionHandler
-        {
-        public:
-            void Call(Params&) override
-            {
-                // user 2026-10-30: the reset button takes a click only once fully out (a click while it unfolds is ignored)
-                if (g_closing) return;
-                if (!BlockRules::ResetClickable(g_menu.resetShownW, g_menu.resetFullW, g_menu.layout.active)) {
-                    ++g_menu.resetIgnored;
-                    return;
-                }
-                g_menu.layout.resetDue = true;
-                ++g_menu.resetTaken;
-                // Task 8 T2 (L9 reset): the widths at the click itself, not the rule - a taken click with the box not fully out fails
-                if (!g_menu.layout.active || g_menu.resetShownW < g_menu.resetFullW - BlockRules::kHeightTolerance) ++g_menu.resetTakenEarly;
-            }
-        };
-
         // Layer 3: the shield's press does nothing - it is there so Mouse.getTopMostEntity() is never one of SkyUI's clips
         class ShieldPress final : public RE::GFxFunctionHandler
         {
@@ -4479,7 +4424,6 @@ namespace Widget
         RE::GPtr<CoverRelease> g_coverRelease;
         RE::GPtr<BorderPress> g_borderPress;
         RE::GPtr<BorderRelease> g_borderRelease;
-        RE::GPtr<ResetClick> g_resetClick;
         RE::GPtr<ShieldPress> g_shieldPress;
         RE::GPtr<HandleInputWrap> g_handleInputWrap;
         RE::GPtr<AttemptEquipWrap> g_attemptEquipWrap;
@@ -4630,77 +4574,6 @@ namespace Widget
             }
         }
 
-        // The gear (BlockRules::GearOutline, shape B) in a_color, centred on a_c: the SR block's line (Flash 8 lineStyle with round
-        // caps and joins, BlockDraw.cpp), each outline closed on its first point
-        void DrawGear(RE::GFxValue& a_clip, double a_c, double a_r, std::uint32_t a_color)
-        {
-            Draw::Call(a_clip, "lineStyle", { kGearLineW, static_cast<double>(a_color), Draw::kAlphaFull, false, "normal", "round", "round", kGearMiterLimit });
-            const auto shape = BlockRules::GearOutline(a_c, a_c, a_r);
-            for (const auto* outline : { &shape.rim, &shape.hole }) {
-                if (outline->empty()) continue;
-                Draw::MoveTo(a_clip, outline->front().x, outline->front().y);
-                for (std::size_t i = 1; i < outline->size(); ++i) Draw::LineTo(a_clip, (*outline)[i].x, (*outline)[i].y);
-            }
-        }
-
-        // The gear's look: lit (kWhite) on hover and for the whole edit mode, its hint beside it on hover - not while the reset
-        // button is out or moving (it sits where the hint would go)
-        void ShowGearLook(RE::GFxValue& a_gear)
-        {
-            const bool lit = g_menu.gearHover || g_menu.layout.active;
-            RE::GFxValue dim, bright, hint;
-            if (a_gear.GetMember("dim", &dim) && dim.IsDisplayObject()) dim.SetMember("_visible", !lit);
-            if (a_gear.GetMember("lit", &bright) && bright.IsDisplayObject()) bright.SetMember("_visible", lit);
-            if (a_gear.GetMember("hint", &hint) && hint.IsDisplayObject()) {
-                hint.SetMember("_visible", g_menu.gearHover && (g_menu.resetShownW <= 0.0 || g_menu.gearHintLeft));
-            }
-        }
-
-        class GearHover final : public RE::GFxFunctionHandler
-        {
-        public:
-            explicit GearHover(bool a_over) : _over(a_over) {}
-
-            void Call(Params& a_params) override
-            {
-                if (!a_params.thisPtr || g_closing) return;
-                g_menu.gearHover = _over;
-                ShowGearLook(*a_params.thisPtr);
-            }
-
-        private:
-            bool _over;
-        };
-        RE::GPtr<GearHover> g_gearOver, g_gearOut;
-        RE::GPtr<LockClick> g_gearClick;
-
-        // The gear made in mmx_root above the shield (it works in the mode too): a transparent square that takes the mouse, the
-        // gear in kTitleColor and, on hover, in kWhite; its click toggles the mode (LockClick: the K path through lockDue).
-        // Placed by PlaceStripAndGear under the key-hint strip
-        void MakeGear(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
-        {
-            auto gear = Draw::Clip(a_widget, kGearName);
-            if (!gear.IsDisplayObject()) {
-                logger::warn("Layout: the gear button could not be made - the layout mode starts with the K key only this menu");
-                return;
-            }
-            Draw::NoLine(gear);
-            Draw::Rect(gear, 0, 0, kGearSize, kGearSize, kPanelFill, 0.0);  // alpha 0 still takes the mouse
-            auto dim = Draw::Clip(gear, "dim");
-            auto lit = Draw::Clip(gear, "lit");
-            if (dim.IsDisplayObject()) DrawGear(dim, kGearSize / 2, kGearSize / 2, kTitleColor);
-            if (lit.IsDisplayObject()) {
-                DrawGear(lit, kGearSize / 2, kGearSize / 2, kWhite);
-                lit.SetMember("_visible", false);
-            }
-            SetHandler(a_movie, gear, "onRelease", g_gearClick.get());
-            SetHandler(a_movie, gear, "onRollOver", g_gearOver.get());
-            SetHandler(a_movie, gear, "onRollOut", g_gearOut.get());
-            gear.SetMember("useHandCursor", false);
-            if (!SafetyNetReason().empty()) gear.SetMember("_alpha", kGreyAlpha);  // the mode rests in the safety-net states
-            gear.SetMember("_visible", false);  // until PlaceStripAndGear has a place
-        }
-
         // A clip's own transform for the dump: _x, _y, _xscale, _yscale, _rotation
         std::string TransformText(const RE::GFxValue& a_clip)
         {
@@ -4762,7 +4635,7 @@ namespace Widget
         // user 2026-10-30 (the board, mock board.png): a fixed panel behind both columns - their full areas (the frames: the border
         // between them does not change the union) BlockRules::kBoardPad larger, cut to the visible stage; lighter than the cards
         // (black kBoardAlpha, a kPanelEdge edge at kBoardEdgeAlpha), no title. Made once a menu, under the columns; it does not
-        // scroll and never changes size when cards fit. The key-hint strip and the gear hang from its bottom
+        // scroll and never changes size when cards fit. The key-hint strip hangs from its bottom
         // review R3: filled only when our card and the 3D over-pass are on - SkyUI's own card (bOwnCard=0, Inventory Reforged, the
         // C1 fallback) and the game's 3D drawn under the movie (no over-pass) would be darkened by the fill: an edge only then.
         // Drawn again at the C1 fallback
@@ -4854,7 +4727,7 @@ namespace Widget
         }
 
         // The panel's visible content: the union of its shown children (BlockRules::VisibleUnion: getBounds counts hidden ones too,
-        // and SkyUI hides the buttons it does not use, which would widen the strip and push it and the gear left). nullopt when no
+        // and SkyUI hides the buttons it does not use, which would widen the strip and push it left). nullopt when no
         // child shows (review of 4d50080a: hideButtons / clearButtons, ItemMenu.as:115, MagicMenu.as:195 - the panel's own bounds
         // would count the hidden buttons), and when a shown child's bounds do not read - unless a_how.partial
         std::optional<Bounds> VisibleBounds(RE::GFxValue& a_clip, RE::GFxValue& a_space, ContentRead a_how = {})
@@ -4916,17 +4789,17 @@ namespace Widget
             return Bounds{ read.content->left, read.content->right, read.content->top, read.content->bottom };
         }
 
-        // The key-hint strip moved (PlaceStripAndGear): BlockRules::PlacePanel with our stage -> the panel's parent through MapPoint,
+        // The key-hint strip moved (PlaceStrip): BlockRules::PlacePanel with our stage -> the panel's parent through MapPoint,
         // _x / _y set only when they are off; each set read back (SelfTest L8) and logged (the first kMaxStripMoveLogs)
         void MoveStrip(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget, RE::GFxValue& a_panel, RE::GFxValue& a_parent, const BlockRules::Point& a_now,
-            const BlockRules::Point& a_nowStage, const Bounds& a_content, const BlockRules::HintRow& a_row, double a_below)
+            const BlockRules::Point& a_nowStage, const Bounds& a_content, const Settings::Rect& a_target, double a_below)
         {
             const auto toParent = [&](const BlockRules::Point& a_point) -> std::optional<BlockRules::Point> {
                 const auto mapped = MapPoint(a_movie, a_widget, a_parent, a_point.x, a_point.y);
                 if (!mapped) return std::nullopt;
                 return BlockRules::Point{ mapped->first, mapped->second };
             };
-            const auto& target = a_row.strip;
+            const auto& target = a_target;
             const Settings::Rect content{ a_content.xMin, a_content.yMin, a_content.xMax, a_content.yMax };
             const auto place =
                 BlockRules::PlacePanel(a_now, a_nowStage, g_menu.stripInPlace, content, BlockRules::Point{ target.left, target.top }, toParent, kStripTolerance);
@@ -4952,18 +4825,12 @@ namespace Widget
                 const auto why = first ? std::string("first place")
                                  : place->rePlaced ? std::format("SkyUI set its _x to {:.1f}", a_now.x)
                                                    : std::string("its visible buttons changed");
-                logger::info("Layout: key-hint strip moved to {} under the board's bottom {:.0f} ({}: origin {:.1f},{:.1f} -> {:.1f},{:.1f} in its parent), "
-                             "the gear under it at {}{}{}",
-                    RectText(target), a_below, why, a_now.x, a_now.y, place->want.x, place->want.y, RectText(a_row.gear),
+                logger::info("Layout: key-hint strip moved to {} under the board's bottom {:.0f} ({}: origin {:.1f},{:.1f} -> {:.1f},{:.1f} in its parent){}{}",
+                    RectText(target), a_below, why, a_now.x, a_now.y, place->want.x, place->want.y,
                     target.right > right + kStripTolerance ? std::format(" (too wide: runs {:.0f} past the right column)", target.right - right) : "",
                     g_menu.stripMoveLogs == kMaxStripMoveLogs ? " - later moves not logged" : "");
             }
         }
-
-        // Task 8 R2: the strip's last visible size (any menu this game session) - the gear's row while this menu's is not known
-        // yet, so the gear does not open at the board and jump a row down once the first button shows (a size from an earlier
-        // menu; the first menu of a session still has none)
-        std::optional<std::pair<double, double>> g_lastStripSize;
 
         // Task 8 T1 (L8 last, bSelfTest): where the strip's visible content is, read on a frame after its last move (the frame
         // after each move and every kPollFrames frames) through Flash's own getBounds - not the corner mapping that placed it;
@@ -4978,15 +4845,6 @@ namespace Widget
             g_menu.stripReadFrame = g_menu.frame;
         }
 
-        // user 2026-10-30 (sketch), redesigned from SkyUI's source (BottomBar.as:26-53, ButtonPanel.as, ItemMenu.as:73): the
-        // key-hint strip is ONE clip, the bottom bar's buttonPanel. SkyUI sets its _x only in positionElements and lays its
-        // buttons out inside it; STB Hotkey System adds its hints as buttons of the same panel, so they move with it. Each frame
-        // the panel's visible content goes to one row under the board from the left column's left edge
-        // (BlockRules::HintRowRects), through every parent (Inventory Reforged's scale); never drawn again. No panel: SkyUI's
-        // strip is left alone (logged at the close). No button shown (nothing chosen): the panel is not moved and the gear keeps
-        // the row of the strip's last size this menu (review of 4d50080a: no jump while the buttons are cleared). The gear goes
-        // one row under the strip, its left edge on the strip's start (nothing else right of it on that row: the gear's flyout
-        // will open there). STB's keycaps in the list rows and the skill / XP row stay where their owners put them
         // 2026-10-31 (KeyHints): every add-on in registration order and whether it shows now - its key hints show with it
         std::vector<BlockRules::HintBlock> HintBlocks()
         {
@@ -4996,7 +4854,15 @@ namespace Widget
             return blocks;
         }
 
-        void PlaceStripAndGear(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
+        // user 2026-10-30 (sketch), redesigned from SkyUI's source (BottomBar.as:26-53, ButtonPanel.as, ItemMenu.as:73): the
+        // key-hint strip is ONE clip, the bottom bar's buttonPanel. SkyUI sets its _x only in positionElements and lays its
+        // buttons out inside it; STB Hotkey System adds its hints as buttons of the same panel, so they move with it. Each frame
+        // the panel's visible content goes to one row under the board from the left column's left edge (BlockRules::StripRect),
+        // through every parent (Inventory Reforged's scale); never drawn again. No panel: SkyUI's strip is left alone (logged at
+        // the close). No button shown (nothing chosen): the panel is not moved (review of 4d50080a: no jump while the buttons are
+        // cleared). STB's keycaps in the list rows and the skill / XP row stay where their owners put them. 2026-10-31: the gear
+        // that hung under the strip is gone, so nothing else is placed by the strip
+        void PlaceStrip(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
         {
             const auto visible = VisibleStage(a_movie);
             const double left = ColumnViewport(0).left;
@@ -5011,148 +4877,30 @@ namespace Widget
             const std::optional<double> x = found ? Number(panel, "_x") : std::nullopt, y = found ? Number(panel, "_y") : std::nullopt;
             const auto nowStage = x && y ? MapPoint(a_movie, parent, a_widget, *x, *y) : std::nullopt;
             const auto content = nowStage ? StripContent(panel, BlockRules::Point{ nowStage->first, nowStage->second }, a_widget) : std::nullopt;
-            if (content) g_menu.stripSize = g_lastStripSize = std::pair{ content->xMax - content->xMin, content->yMax - content->yMin };
-            const auto [stripW, stripH] = BlockRules::RowStripSize(g_menu.stripSize, g_lastStripSize);
-            auto row = BlockRules::HintRowRects(left, below, stripW, stripH, kGearSize, kBoardStripGap, kGearGap, visible);
-            // Task 8 R3: a row pulled up into the board (the columns reach the stage's bottom) - SkyUI's strip is left where it is (our
-            // board and panels in mmx_root would cover it) and the gear goes alone under the board
-            const bool covers = BlockRules::StripCoversBoard(row, below, kBoardStripGap, kStripCheckTolerance);
-            if (covers) row = BlockRules::HintRowRects(left, below, 0.0, 0.0, kGearSize, kBoardStripGap, kGearGap, visible);
-            static bool s_coverWarned = false;  // once a game session: the ini that sets the columns is read once too
-            if (content && covers) g_menu.stripLeft = true;
-            if (content && covers && !std::exchange(s_coverWarned, true)) {
-                logger::warn("Layout: key-hint strip left where SkyUI put it - placed under the board's bottom {:.0f} it would be pulled up into the "
-                             "board (the stage ends at {:.0f}, the strip is {:.0f} high); the gear goes alone under the board (logged once)",
-                    below, visible.bottom, stripH);
-            }
-            if (content && !covers) {
-                MoveStrip(a_movie, a_widget, panel, parent, BlockRules::Point{ *x, *y }, BlockRules::Point{ nowStage->first, nowStage->second }, *content, row, below);
+            if (content) {
+                const double stripH = content->yMax - content->yMin;
+                const auto target = BlockRules::StripRect(left, below, content->xMax - content->xMin, stripH, kBoardStripGap, visible);
+                // Task 8 R3: a strip pulled up into the board (the columns reach the stage's bottom) is left where SkyUI put it (our
+                // board and panels in mmx_root would cover it)
+                if (BlockRules::StripCoversBoard(target, below, kBoardStripGap, kStripCheckTolerance)) {
+                    g_menu.stripLeft = true;
+                    static bool s_coverWarned = false;  // once a game session: the ini that sets the columns is read once too
+                    if (!std::exchange(s_coverWarned, true)) {
+                        logger::warn("Layout: key-hint strip left where SkyUI put it - placed under the board's bottom {:.0f} it would be pulled up into "
+                                     "the board (the stage ends at {:.0f}, the strip is {:.0f} high) (logged once)",
+                            below, visible.bottom, stripH);
+                    }
+                } else {
+                    MoveStrip(a_movie, a_widget, panel, parent, BlockRules::Point{ *x, *y }, BlockRules::Point{ nowStage->first, nowStage->second }, *content,
+                        target, below);
+                }
             }
             if (found) ReadStripBack(panel, a_widget);
-            auto gear = Child(a_widget, kGearName);
-            if (!gear.IsDisplayObject()) return;
-            const auto& rect = row.gear;
-            if (g_menu.gearLast && SameRect(*g_menu.gearLast, rect)) return;
-            if (!g_menu.gearLast) {
-                logger::info("Layout: gear button at {} ({})", RectText(rect),
-                    covers              ? "under the board at the left column's left edge (the key-hint strip stays at SkyUI's place)" :
-                    g_menu.stripSize    ? "one row under the key-hint strip, on its start" :
-                    g_lastStripSize     ? "one row under where the key-hint strip goes (its size from an earlier menu)" :
-                                          "under the columns at the left column's left edge (no key-hint strip yet)");
-            }
-            gear.SetMember("_x", rect.left);
-            gear.SetMember("_y", rect.top);
-            gear.SetMember("_visible", true);
-            g_menu.gearLast = rect;
-            g_menu.gearDrawnMode.reset();  // the hint's side follows the new place (UpdateGear)
         }
 
-        // user 2026-10-30: the gear's hover hint ("배치 모드 [K]", in the mode "배치 모드 끝내기 [K]", the toggle key as the host
-        // names it) in the host's tooltip look, beside the gear on the side that stays on screen (BlockRules::GearHintX), and its
-        // lit look for the whole mode. Made again when the mode changes (by any path: the gear, K, a tab, the close) or the gear
-        // moved; checked every frame
-        void UpdateGear(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
-        {
-            constexpr double kHintGap = 4.0;
-            auto gear = Child(a_widget, kGearName);
-            if (!gear.IsDisplayObject() || !g_menu.gearLast) return;
-            if (g_menu.gearDrawnMode == g_menu.layout.active) return;
-            g_menu.gearDrawnMode = g_menu.layout.active;
-            Draw::Remove(gear, "hint");
-            auto hint = Draw::Clip(gear, "hint");
-            if (hint.IsDisplayObject()) {
-                const auto text = Fill(g_menu.layout.active ? Str::kLayoutGearLeave : Str::kLayoutGearEnter, { { "{key}", KeyLabel(Settings::Get().keyLayout) } });
-                const double size = TextFit::Size(Metrics(), kLabelSize), h = TextFit::FieldH(Metrics(), size) + 2 * kTooltipPad;
-                auto field = Draw::Text(a_movie, hint, "text", kTooltipPad, kTooltipPad, kTooltipW, TextFit::FieldH(Metrics(), size), text, kWhite, size);
-                const double w = (field.IsDisplayObject() ? TextW(field) : kTooltipW) + 2 * kTooltipPad;
-                const auto visible = VisibleStage(a_movie);
-                const double hintX = BlockRules::GearHintX(*g_menu.gearLast, w, kHintGap, visible, g_menu.layout.active);
-                g_menu.gearHintLeft = hintX < 0.0;  // review I10: in the edit mode on the gear's left, clear of the reset button
-                hint.SetMember("_x", hintX);
-                hint.SetMember("_y", (kGearSize - h) / 2);
-                Draw::Box(hint, w, h, kPanelFill, kTooltipAlpha, kPanelEdge, kEdgeWidth);
-            }
-            ShowGearLook(gear);
-        }
-
-        // user 2026-10-30: "처음 배치로" (the reset, one-shot) right of the gear on its row in the edit mode - a box in the mock's
-        // look (black kResetAlpha, a kPanelEdge edge, kLabelColor text) that unfolds out of the gear (its mask's width eased over
-        // kResetOpenMs) when the mode starts and folds back (kResetCloseMs) when it ends; the text never scales. A click counts
-        // only once it is fully out (ResetClick, BlockRules::ResetClickable). Greyed in the safety-net states, as the old button
-        void ResetButtonFrame(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
-        {
-            auto button = Child(a_widget, kResetName);
-            if (!button.IsDisplayObject() || !g_menu.gearLast) return;
-            RE::GFxValue inner, mask;
-            if (g_menu.resetFullW <= 0.0) {  // made once a menu: the box at its full width, its mask grows over it
-                // GPT on 8897d3db (Draw::NextDepth can fail): made whole or not at all - a part that did not come is removed with the
-                // rest and the whole button tried again next frame, never kept as a clickable box with no label
-                const auto unmake = [&] {
-                    Draw::Remove(button, "inner");
-                    Draw::Remove(button, "mask");
-                    // fix round 1 M3: one warning per menu once it keeps failing (it is still tried every frame)
-                    if (++g_menu.resetFails == kMakeFailWarnFrames) {
-                        logger::warn("Widget: the layout reset button could not be made in {} frames this menu (a clip or its label did not come) - "
-                                     "still tried each frame, not logged again this menu",
-                            kMakeFailWarnFrames);
-                    }
-                };
-                inner = Draw::Clip(button, "inner");
-                mask = Draw::Clip(button, "mask");
-                if (!inner.IsDisplayObject() || !mask.IsDisplayObject()) {
-                    unmake();
-                    return;
-                }
-                const double h = kGearSize;
-                auto field = Draw::Text(a_movie, inner, "label", kResetPadX, (h - TextFit::FieldH(Metrics(), kResetTextSize)) / 2, kTooltipW, TextFit::FieldH(Metrics(), kResetTextSize),
-                    Text(Str::kLayoutReset), kLabelColor, kResetTextSize);
-                if (!field.IsDisplayObject()) {
-                    unmake();
-                    return;
-                }
-                g_menu.resetFullW = TextW(field) + 2 * kResetPadX;
-                Draw::Box(inner, g_menu.resetFullW, h, kPanelFill, kResetAlpha, kPanelEdge, kEdgeWidth);
-                SetHandler(a_movie, inner, "onRelease", g_resetClick.get());
-                inner.SetMember("useHandCursor", false);
-                if (!SafetyNetReason().empty()) inner.SetMember("_alpha", kGreyAlpha);
-                const std::array<RE::GFxValue, 1> args{ mask };
-                inner.Invoke("setMask", nullptr, args.data(), args.size());
-                button.SetMember("_visible", false);
-            } else if (!button.GetMember("mask", &mask) || !mask.IsDisplayObject()) {
-                return;
-            }
-            const auto visible = VisibleStage(a_movie);
-            const auto rect = BlockRules::ResetButtonRect(*g_menu.gearLast, g_menu.resetFullW, kGearSize, kResetGap, visible);
-            if (!g_menu.resetPlaced || !SameRect(*g_menu.resetPlaced, rect)) {
-                button.SetMember("_x", rect.left);
-                button.SetMember("_y", rect.top);
-                g_menu.resetPlaced = rect;
-            }
-            const double now = NowMs();
-            const double want = g_menu.layout.active ? g_menu.resetFullW : 0.0;
-            if (std::abs(want - g_menu.resetTo) > kRectTolerance) {  // the mode changed: unfold or fold from where it is now
-                g_menu.resetFrom = g_menu.resetShownW;
-                g_menu.resetTo = want;
-                g_menu.resetStartMs = now;
-                g_menu.resetDurationMs = want > 0.0 ? BlockRules::kResetOpenMs : BlockRules::kResetCloseMs;
-            }
-            const double shown = BlockRules::AnimWidth(g_menu.resetFrom, g_menu.resetTo, g_menu.resetStartMs, now, g_menu.resetDurationMs);
-            const double next = shown <= kRectTolerance ? 0.0 : shown;
-            if (g_menu.resetDrawn && std::abs(next - g_menu.resetShownW) <= kRectTolerance) return;
-            g_menu.resetDrawn = true;
-            g_menu.resetShownW = next;
-            Draw::Call(mask, "clear", {});
-            if (g_menu.resetShownW > 0.0) {
-                Draw::NoLine(mask);
-                Draw::Rect(mask, 0, 0, g_menu.resetShownW + kEdgeWidth, kGearSize + kEdgeWidth, kMaskFill, Draw::kAlphaFull);
-            }
-            button.SetMember("_visible", g_menu.resetShownW > 0.0);
-            if (auto gear = Child(a_widget, kGearName); gear.IsDisplayObject()) ShowGearLook(gear);
-        }
-
-        // Task 8 T2 (SelfTest L9, bSelfTest): the board, the gear and the reset button read back every kPollFrames frames on the
-        // frame thread - each against the rule that placed it (BlockRules::BoardProblem / GearProblem / ResetProblem); the counts
-        // and the first failure are logged at the close (CloseChecks: no GFx call there)
+        // Task 8 T2 (SelfTest L9, bSelfTest): the board read back every kPollFrames frames on the frame thread against the rule that
+        // placed it (BlockRules::BoardProblem); the counts and the first failure are logged at the close (CloseChecks: no GFx call
+        // there). 2026-10-31: the gear's and its reset button's read-backs went with them (L9 reset key: LayoutAtClose)
         void CheckChrome(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
         {
             constexpr double kReadTolerance = 0.5;  // stage units: Flash keeps _x / _width in twips (0.05)
@@ -5164,31 +4912,16 @@ namespace Widget
                 ++a_check.fails;
                 if (a_check.firstFail.empty()) a_check.firstFail = std::format("frame {}: {}", g_menu.frame, a_problem);
             };
-            const auto point = [](RE::GFxValue& a_clip) -> std::optional<BlockRules::Point> {
-                const auto x = Number(a_clip, "_x"), y = Number(a_clip, "_y");
-                if (!x || !y) return std::nullopt;
-                return BlockRules::Point{ *x, *y };
-            };
             if (auto board = Child(a_widget, kBoardName); board.IsDisplayObject()) {
                 const auto drawn = BoundsIn(board, a_widget);
                 note(g_menu.boardCheck, BlockRules::BoardProblem(g_menu.board, BlockRules::BoardRect(BoardColumns(), BlockRules::kBoardPad, visible),
                                             drawn ? std::optional{ Settings::Rect{ drawn->xMin, drawn->yMin, drawn->xMax, drawn->yMax } } : std::nullopt, kEdgeWidth,
                                             kReadTolerance));
             }
-            auto gear = Child(a_widget, kGearName);
-            if (!gear.IsDisplayObject() || !g_menu.gearLast) return;
-            note(g_menu.gearCheck,
-                BlockRules::GearProblem(point(gear), *g_menu.gearLast, g_menu.board.bottom, kBoardStripGap, ColumnViewport(0).left, visible, kReadTolerance));
-            auto button = Child(a_widget, kResetName);
-            RE::GFxValue mask, shown;
-            if (!button.IsDisplayObject() || g_menu.resetFullW <= 0.0 || !button.GetMember("mask", &mask) || !mask.IsDisplayObject()) return;
-            const auto want = BlockRules::ResetButtonRect(*g_menu.gearLast, g_menu.resetFullW, kGearSize, kResetGap, visible);
-            const std::optional<bool> isShown = button.GetMember("_visible", &shown) && shown.IsBool() ? std::optional{ shown.GetBool() } : std::nullopt;
-            note(g_menu.resetCheck, BlockRules::ResetProblem(point(button), want, isShown, g_menu.resetShownW, Number(mask, "_width"), kEdgeWidth, kReadTolerance));
         }
 
         // At the close (the close event's thread: g_menu only, no GFx call): SelfTest L8 last (the strip's last target against a
-        // read on a later frame, ReadStripBack) and L9 board / gear / reset (CheckChrome, the reset button's clicks)
+        // read on a later frame, ReadStripBack) and L9 board (CheckChrome)
         void CloseChecks()
         {
             using BlockRules::Verdict3;
@@ -5205,17 +4938,9 @@ namespace Widget
                     g_menu.stripRead ? at(*g_menu.stripRead) : std::string("-"), g_menu.stripReadFrame, g_menu.stripMoveFrame,
                     verdict == Verdict3::kSkip ? " - nothing to compare" : g_menu.stripPartial ? " (placed by the buttons that read, R1)" : ""));
             }
-            const auto line = [](const char* a_what, const MenuState::ChromeCheck& a_check, const std::string& a_extra, bool a_extraFails) {
-                const char* verdict = a_check.fails > 0 || a_extraFails ? "FAIL" : a_check.checks == 0 ? "SKIP" : "PASS";
-                SelfTest(std::format("L9 {} {} - {} read-back(s) every {} frames, {} failed{}{}", a_what, verdict, a_check.checks, kPollFrames, a_check.fails,
-                    a_check.firstFail.empty() ? std::string{} : "; first: " + a_check.firstFail, a_extra));
-            };
-            line("board", g_menu.boardCheck, "", false);
-            line("gear", g_menu.gearCheck, "", false);
-            line("reset", g_menu.resetCheck,
-                std::format("; clicks {} taken, {} ignored (unfolding or out of the edit mode), {} taken before it was fully out (want 0)", g_menu.resetTaken,
-                    g_menu.resetIgnored, g_menu.resetTakenEarly),
-                g_menu.resetTakenEarly > 0);
+            const auto& board = g_menu.boardCheck;
+            SelfTest(std::format("L9 board {} - {} read-back(s) every {} frames, {} failed{}", board.fails > 0 ? "FAIL" : board.checks == 0 ? "SKIP" : "PASS",
+                board.checks, kPollFrames, board.fails, board.firstFail.empty() ? std::string{} : "; first: " + board.firstFail));
         }
 
         // The border handle: a strip over the gap between the columns (at least kMinHandleW wide), a thin line in its middle;
@@ -5247,13 +4972,11 @@ namespace Widget
             if (g_menu.layout.active) SetCovers(a_movie, a_widget);
         }
 
-        // After the panels (AttachWidget): the border handle, the overlay, then the gear and its reset button on top of everything
+        // After the panels (AttachWidget): the border handle and the overlay on top of everything
         void MakeLayoutChrome(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
         {
             auto handle = Draw::Clip(a_widget, kBorderName);
             auto overlay = Draw::Clip(a_widget, kOverlayName);
-            MakeGear(a_movie, a_widget);  // user 2026-10-30: above the shield and the overlay
-            Draw::Clip(a_widget, kResetName);  // its reset button (ResetButtonFrame draws it), above the gear
             if (handle.IsDisplayObject()) {
                 SetHandler(a_movie, handle, "onPress", g_borderPress.get());
                 SetHandler(a_movie, handle, "onRelease", g_borderRelease.get());
@@ -5265,7 +4988,7 @@ namespace Widget
             }
             PlaceLayoutChrome(a_movie, a_widget);
             if (const auto why = SafetyNetReason(); !why.empty() && !std::exchange(g_menu.layout.restLogged, true)) {
-                logger::info("Layout: the layout mode rests this menu - {}; the gear is greyed, the default layout is used (the saved one is "
+                logger::info("Layout: the layout mode rests this menu - {}; the default layout is used (the saved one is "
                              "kept)",
                     why);
             }
@@ -5603,7 +5326,7 @@ namespace Widget
                     std::string detail;
                     const auto result = Settings::SaveLayout(m.working, &detail);
                     if (result == Settings::SaveResult::kFailed) {
-                        logger::error("Layout: save FAILED - {}. The layout mode stays on with the edited layout (the gear or {} again to retry, "
+                        logger::error("Layout: save FAILED - {}. The layout mode stays on with the edited layout ({} again to retry, "
                                       "Esc to leave without saving)",
                             detail, KeyLabel(Settings::Get().keyLayout));
                         SelfTest(std::format("L3 layout saved FAIL - not written: {}", detail));
@@ -5773,7 +5496,33 @@ namespace Widget
             DrawSlotLine(a_widget, slot, *g_layoutFocus.focus);
         }
 
-        // Each frame (Frame handler): the wraps, the published refusals, the queued requests, the buttons, the drags
+        // User 2026-10-31: the reset key in the mode (Input.cpp; it replaced the gear's reset button and does what that did): the
+        // default layout with the add-on blocks (Task 6), applied to the working layout - saved when the mode is left with the
+        // toggle, gone with Esc. In order with the other requests of the frame (a K before it in the same frame left the mode)
+        void ResetLayout(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget, const std::string& a_why)
+        {
+            auto& m = g_menu.layout;
+            ++m.resetKeys;
+            if (!m.active) {
+                ++m.resetLate;
+                logger::info("Layout: {} - the layout mode was left before it ran, nothing reset", a_why);
+                return;
+            }
+            const auto reset = Settings::DefaultLayout();
+            if (reset == m.working) {
+                ++m.resetSame;
+                logger::info("Layout: {} - the layout is the default already, nothing to reset", a_why);
+                return;
+            }
+            EndDrag(a_widget);
+            EndPick(a_movie, a_widget, "the reset");
+            ApplyLayout(a_movie, a_widget, reset);
+            ++m.resets;
+            if (!(m.working == reset)) ++m.resetWrong;
+            logger::info("Layout: reset to the default layout {} by {} (saved when the mode is left with the toggle)", Describe(reset), a_why);
+        }
+
+        // Each frame (Frame handler): the wraps, the published refusals, the queued requests, the drags
         void LayoutFrameWork(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget);
 
         void LayoutFrame(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
@@ -5801,31 +5550,9 @@ namespace Widget
                 case LayoutRequestKind::kSave: LeaveLayoutMode(a_movie, a_widget, true, request.why); break;
                 case LayoutRequestKind::kCancel: LeaveLayoutMode(a_movie, a_widget, false, request.why); break;
                 case LayoutRequestKind::kNav: PadKey(a_movie, a_widget, request.nav, request.why); break;
+                case LayoutRequestKind::kReset: ResetLayout(a_movie, a_widget, request.why); break;
                 }
-                if (request.kind != LayoutRequestKind::kNav) SettleMode(request.seq, m.active);
-            }
-            if (std::exchange(m.lockDue, false)) {
-                if (m.active) {
-                    const auto seq = BeginModeChange(false);
-                    LeaveLayoutMode(a_movie, a_widget, true, m.lockSource);
-                    SettleMode(seq, m.active);
-                } else if (const auto bits = LiveBlock(Input::HeldCount() > 0); bits != 0) {
-                    LogRefusal(bits, m.lockSource);
-                } else if (!g_layoutMode) {  // on already: an Enter is queued (the next frame runs it)
-                    const auto seq = BeginModeChange(true);
-                    EnterLayoutMode(a_movie, a_widget, m.lockSource);
-                    SettleMode(seq, m.active);
-                }
-            }
-            if (std::exchange(m.resetDue, false) && m.active) {
-                const auto reset = Settings::DefaultLayout();  // with the add-on blocks (Task 6)
-                if (!(reset == m.working)) {
-                    EndDrag(a_widget);
-                    EndPick(a_movie, a_widget, "the reset");
-                    ApplyLayout(a_movie, a_widget, reset);
-                    ++m.resets;
-                    logger::info("Layout: reset to the default layout {} (saved when the mode is left with the lock)", Describe(reset));
-                }
+                if (request.kind != LayoutRequestKind::kNav && request.kind != LayoutRequestKind::kReset) SettleMode(request.seq, m.active);
             }
             if (!m.active) return;
             if (auto press = std::exchange(m.pressDue, std::nullopt)) StartDrag(a_movie, a_widget, std::get<0>(*press), std::get<1>(*press), std::get<2>(*press));
@@ -5879,6 +5606,13 @@ namespace Widget
             }
             if (m.drops + m.borderMoves + m.resets > 0) {
                 logger::info("Layout: this menu {} drop(s), {} border move(s), {} reset(s)", m.drops, m.borderMoves, m.resets);
+            }
+            // user 2026-10-31: the reset key (it replaced the gear's reset button): each press in the mode ran, and every reset left
+            // the default layout; with the mode off the key passed (L5 passthrough counts it with the other keys)
+            if (m.resetKeys > 0) {
+                SelfTest(std::format("L9 reset key {} - {} press(es) in the layout mode: {} reset to the default layout, {} already the default, {} after "
+                                     "the mode was left; {} reset(s) not at the default layout after it (want 0)",
+                    m.resetWrong == 0 ? "PASS" : "FAIL", m.resetKeys, m.resets, m.resetSame, m.resetLate, m.resetWrong));
             }
             // Task 5: the focus model's keys this menu (each pad drop has its own L6 pad drop line)
             if (m.padKeys > 0) {
@@ -6219,12 +5953,10 @@ namespace Widget
                 // Block API v3: key and frame calls with this frame's content clips and overlays - after every draw and fit of this frame
                 // (nothing below moves a block)
                 AddonFrames(movie, widget);
-                // 2026-10-31: our key hints in SkyUI's strip (the layout key, the add-ons' 'SLMK'), before the strip is placed by them
+                // 2026-10-31: our key hints in SkyUI's strip (the layout keys, the add-ons' 'SLMK'), before the strip is placed by them
                 KeyHints::Frame(movie, HintBlocks(), LayoutModeOn());
-                // user 2026-10-30: the key-hint strip and the gear under the columns as this frame left them
-                PlaceStripAndGear(movie, widget);
-                UpdateGear(movie, widget);
-                ResetButtonFrame(movie, widget);
+                // user 2026-10-30: the key-hint strip under the board as this frame left it
+                PlaceStrip(movie, widget);
                 CheckChrome(movie, widget);  // Task 8 T2: SelfTest L9 read-backs (bSelfTest)
                 if (g_menu.frame == kClipDumpFrame && Settings::Get().selfTest) DumpMenuClips(movie, root, widget);
                 // review GPT 1: the preview's place after every fit of this frame (a fitted block above it moves it)
@@ -6398,11 +6130,7 @@ namespace Widget
                 g_coverRelease = RE::make_gptr<CoverRelease>();
                 g_borderPress = RE::make_gptr<BorderPress>();
                 g_borderRelease = RE::make_gptr<BorderRelease>();
-                g_gearClick = RE::make_gptr<LockClick>("the gear button");
-                g_resetClick = RE::make_gptr<ResetClick>();
                 g_shieldPress = RE::make_gptr<ShieldPress>();
-                g_gearOver = RE::make_gptr<GearHover>(true);
-                g_gearOut = RE::make_gptr<GearHover>(false);
                 g_addonPress = RE::make_gptr<AddonPress>();
                 g_addonRelease = RE::make_gptr<AddonRelease>(true);
                 g_addonReleaseOutside = RE::make_gptr<AddonRelease>(false);
@@ -6469,7 +6197,7 @@ namespace Widget
                                                   g_menu.irActive ? "SkyUI's, left to Inventory Reforged" :
                                                   SpellCardHidden() ? "none - the spell card is hidden ([Blocks] sHidden): SkyUI's item card stays where SkyUI puts it" :
                                                                     "SkyUI's, moved and fitted (bOwnCard=0)");
-            MakeLayoutChrome(movie, widget);  // blocks plan Task 4 (D5): the border handle, the drag overlay, the gear and its reset button
+            MakeLayoutChrome(movie, widget);  // blocks plan Task 4 (D5): the border handle and the drag overlay
             CalibrateFocusCheck();
             g_layoutBlock = g_layoutBlock.load() & ~kBlockNoWidget;
             RE::GFxValue fn;
@@ -6527,7 +6255,7 @@ namespace Widget
                         logger::info("Widget: no key-hint strip ({}) in {} frame(s) this menu - SkyUI's strip was left where it is", kButtonPanelPath,
                             g_menu.frame);
                     }
-                    CloseChecks();  // Task 8: SelfTest L8 last, L9 board / gear / reset
+                    CloseChecks();  // Task 8: SelfTest L8 last, L9 board
                     if (g_menu.addonKeysUnused > 0) {
                         logger::info("Widget: add-on keys this menu: {} key call(s) not used by a block (not logged one by one)",
                             g_menu.addonKeysUnused);
@@ -6773,6 +6501,11 @@ namespace Widget
     void LayoutKey(Layout::Nav a_nav, const char* a_source)
     {
         if (g_layoutMode) QueueLayout(LayoutRequestKind::kNav, a_source, a_nav);
+    }
+
+    void LayoutResetKey(const char* a_source)
+    {
+        if (g_layoutMode) QueueLayout(LayoutRequestKind::kReset, a_source);
     }
 
     void LayoutStick(float a_y)

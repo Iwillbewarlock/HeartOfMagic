@@ -60,6 +60,11 @@ namespace Settings
         // taken in this menu, Task 0) - -1 = no gamepad toggle
         std::uint32_t keyLayout = 37;
         int gamepadLayout = 273;
+        // user 2026-10-31 (the gear removed): the layout mode's reset key, read only in the mode (the default layout, as the gear's
+        // reset button did). 14 = Backspace ("back to the first layout"): free in this menu by the 2026-10-31 key scan (R 19 is
+        // Spell Organizer's, O 24 OpenAnimationReplacer's UI and OBody's preset key, Home 199 dMenu's; IED's Backspace needs Shift
+        // and does not open in menus). 0 = no reset key; one equal to iLayout falls back (Settings.cpp)
+        std::uint32_t keyLayoutReset = 14;
 
         // [Layout] stage units: layout E2 the user chose from the offline renders (spec v6 L1, 2026-10-25): one two-column
         // grid, gap fPanelGap everywhere - left column 648..969, right 978..1238; rows from 67 down to 623. The item card's height

@@ -15,13 +15,14 @@
 //
 // [Blocks] sHidden (2026-10-31, magic-menu-layout-check-hidden.cpp): HiddenBlocks.h's parse and toggle, the layout without hidden blocks.
 //
-// Task 8 (review fixes): the strip read once a button's bounds keep failing (R1, BlockRules::ReadStrip), the gear's row with an
-// earlier menu's strip size (R2), the strip left out of the board (R3), and the in-game self-test verdicts' rules (L8 last, L9, L1).
+// Task 8 (review fixes): the strip read once a button's bounds keep failing (R1, BlockRules::ReadStrip), the strip left out of
+// the board (R3), and the in-game self-test verdicts' rules (L8 last, L9 board, L1). 2026-10-31: the gear and its reset button
+// are gone (the reset is a key now, the layout keys show in the key-hint strip), and their cases with them (R2 too).
 //
-// Not covered here (widget code, checked by reading and in game only): PlaceStripAndGear / StripContent / MoveStrip (resolving
+// Not covered here (widget code, checked by reading and in game only): PlaceStrip / StripContent / MoveStrip (resolving
 // SkyUI's bottomBar.buttonPanel, reading its children and the content cache, setting _x/_y; the rule itself,
-// BlockRules::PlacePanel, is checked here with made-up mappings), Visibility / AddonsHiddenOn / WatchEmpty, the click delivery
-// of the gear and the reset button, and MapPoint itself (the strip's mapping between its parent and the stage goes through it).
+// BlockRules::PlacePanel, is checked here with made-up mappings), Visibility / AddonsHiddenOn / WatchEmpty, the reset key's
+// path through the input hook, and MapPoint itself (the strip's mapping between its parent and the stage goes through it).
 //
 // No game types. Exit 0 when every check passes, 1 otherwise.
 
@@ -1366,7 +1367,7 @@ namespace
 
 namespace
 {
-    // user 2026-10-30: blocks fit their content (BlockRules::ApplyFits with Layout::Arrange), the layout row, the gear
+    // user 2026-10-30: blocks fit their content (BlockRules::ApplyFits with Layout::Arrange), the key-hint strip
     void FitLayout()
     {
         std::printf("blocks fit their content (BlockRules::ApplyFits, Arrange)\n");
@@ -1426,47 +1427,23 @@ namespace
                    BlockRules::FittedHeight(std::numeric_limits<double>::quiet_NaN(), 100.0) == 100.0,
             "FittedHeight: needed + slack, never over the full height, a bad needed height keeps the full one");
 
-        std::printf("the layout row and the gear\n");
+        std::printf("the key-hint strip under the board\n");
         const Settings::Rect visible1610{ 0, -40, 1280, 760 };
-        // the reset button right of the gear in the edit mode (user 2026-10-30): eased unfold / fold, rect, clicks
-        {
-            using BlockRules::AnimWidth;
-            const double open = BlockRules::kResetOpenMs, close = BlockRules::kResetCloseMs;
-            Expect(Near(AnimWidth(0, 90, 1000, 1000, open), 0) && Near(AnimWidth(0, 90, 1000, 1000 + open, open), 90) &&
-                       Near(AnimWidth(0, 90, 1000, 5000, open), 90),
-                "unfold: 0 at the start, full at the end and after it");
-            const double mid = AnimWidth(0, 90, 0, open / 2, open);
-            Expect(mid > 45 && mid < 90, Text("ease-out: more than half way at half the time (%.1f of 90)", mid));
-            Expect(Near(AnimWidth(90, 0, 0, 0, close), 90) && Near(AnimWidth(90, 0, 0, close, close), 0) && AnimWidth(90, 0, 0, close / 2, close) < 45,
-                "fold: full at the start, 0 at the end, eased");
-            const double resumed = AnimWidth(40, 90, 0, open / 2, open);
-            Expect(Near(AnimWidth(40, 90, 0, 0, open), 40) && resumed > 40 && resumed < 90 && Near(AnimWidth(40, 90, 0, open, open), 90),
-                Text("a fold turned into an unfold half way: starts at 40 (where it was), %.1f half way, full at the end", resumed));
-            const Settings::Rect gear{ 648, 655, 666, 673 };
-            const auto button = BlockRules::ResetButtonRect(gear, 90, 18, 4, visible1610);
-            Expect(Near(button.left, 670) && Near(button.CenterY(), gear.CenterY()) && Near(button.Width(), 90),
-                Text("the reset button 4 right of the gear on its row (%s)", Show(button).c_str()));
-            const auto edge = BlockRules::ResetButtonRect(Settings::Rect{ 1240, 740, 1258, 758 }, 90, 18, 4, visible1610);
-            Expect(edge.right <= 1280 + kTolerance && edge.bottom <= 760 + kTolerance, Text("at the stage's corner: kept inside (%s)", Show(edge).c_str()));
-            Expect(BlockRules::ResetClickable(90, 90, true) && !BlockRules::ResetClickable(60, 90, true) && !BlockRules::ResetClickable(90, 90, false) &&
-                       !BlockRules::ResetClickable(0, 0, true),
-                "clickable only fully out and in the edit mode");
-        }
-        // the key-hint strip and the gear under it on one vertical line (user 2026-10-30): columns' bottom 623, left column at 648
-        const auto row = BlockRules::HintRowRects(648, 623, 400, 24, 18, 4, 4, visible1610);
-        Expect(Near(row.strip.left, 648) && Near(row.strip.top, 627) && Near(row.strip.Width(), 400) && Near(row.strip.Height(), 24),
-            Text("strip: from the left column's left edge, 4 under the columns (%s)", Show(row.strip).c_str()));
-        Expect(Near(row.gear.left, row.strip.left) && Near(row.gear.top, 655) && Near(row.gear.Width(), 18),
-            Text("gear: one row under the strip (4 below it), its left edge on the strip's start (%s)", Show(row.gear).c_str()));
-        const auto low = BlockRules::HintRowRects(648, 750, 400, 24, 18, 4, 4, visible1610);
-        Expect(Near(low.gear.bottom, 760) && Near(low.gear.top - low.strip.bottom, 4) && Near(low.gear.left, low.strip.left),
-            Text("columns down to the stage's bottom: strip and gear move up together, still apart by 4 (%s / %s)", Show(low.strip).c_str(), Show(low.gear).c_str()));
-        Expect(BlockRules::StripCoversBoard(low, 750, 4, 1.0), "the same row pulled up into the board: the no-move verdict (Task 8 R3: SkyUI's strip stays where it is)");
-        const auto wide = BlockRules::HintRowRects(900, 600, 600, 24, 18, 4, 4, visible1610);
-        Expect(Near(wide.strip.right, 1280) && Near(wide.gear.left, wide.strip.left),
-            Text("a strip wider than the room right of the column: moved left to stay inside, the gear with it (%s)", Show(wide.strip).c_str()));
-        const auto none = BlockRules::HintRowRects(648, 623, 0, 0, 18, 4, 4, visible1610);
-        Expect(Near(none.gear.top, 627) && Near(none.gear.left, 648), "no strip: the gear alone, 4 under the columns at the column's edge");
+        // the key-hint strip under the board (user 2026-10-30; 2026-10-31 without the gear under it): columns' bottom 623, left
+        // column at 648
+        const auto strip = BlockRules::StripRect(648, 623, 400, 24, 4, visible1610);
+        Expect(Near(strip.left, 648) && Near(strip.top, 627) && Near(strip.Width(), 400) && Near(strip.Height(), 24),
+            Text("strip: from the left column's left edge, 4 under the columns (%s)", Show(strip).c_str()));
+        const auto low = BlockRules::StripRect(648, 750, 400, 24, 4, visible1610);
+        Expect(Near(low.bottom, 760) && Near(low.top, 736),
+            Text("columns down to the stage's bottom: the strip moves up to end on it - only its own height counts (%s)", Show(low).c_str()));
+        Expect(BlockRules::StripCoversBoard(low, 750, 4, 1.0), "the same strip pulled up into the board: the no-move verdict (Task 8 R3: SkyUI's strip stays where it is)");
+        const auto wide = BlockRules::StripRect(900, 600, 600, 24, 4, visible1610);
+        Expect(Near(wide.right, 1280) && Near(wide.left, 680),
+            Text("a strip wider than the room right of the column: moved left to stay inside (%s)", Show(wide).c_str()));
+        const auto none = BlockRules::StripRect(648, 623, 0, 0, 4, visible1610);
+        Expect(Near(none.top, 627) && Near(none.left, 648) && Near(none.Width(), 0) && Near(none.Height(), 0) && !BlockRules::StripCoversBoard(none, 623, 4, 1.0),
+            "no strip: an empty rect 4 under the columns at the column's edge, no verdict");
         // the key-hint strip: SkyUI's bottomBar.buttonPanel moved as one clip (BlockRules::PlacePanel, VisibleUnion)
         {
             using BlockRules::Point;
@@ -1553,36 +1530,8 @@ namespace
                        BlockRules::EmptyLookOf(Layout::kTree, false, false) == EmptyLook::kAsUsual &&
                        BlockRules::EmptyLookOf("SpellResearch.archetypes", false, true) == EmptyLook::kAsUsual,
                 "an add-on drawn per selection closes up with nothing shown; a v1 block as usual; anything chosen: as usual");
-            const auto hang = BlockRules::HintRowRects(648, board.bottom, 400, 24, 18, 8, 4, visible1610);
-            Expect(Near(hang.strip.top, 647) && Near(hang.strip.left, 648) && Near(hang.gear.top, 675) && Near(hang.gear.left, 648),
-                Text("strip 8 under the board's bottom (%s), the gear one row below at its start (%s)", Show(hang.strip).c_str(), Show(hang.gear).c_str()));
-        }
-        // the gear's shape (user's choice "B"): 6 teeth with flat tops, every point within the radius, both outlines closed
-        {
-            const double cx = 9.0, cy = 9.0, r = 9.0, eps = 1e-9;
-            const auto shape = BlockRules::GearOutline(cx, cy, r);
-            const auto radius = [&](const BlockRules::Point& a_p) { return std::hypot(a_p.x - cx, a_p.y - cy); };
-            int tips = 0;
-            bool within = true;
-            for (const auto& p : shape.rim) {
-                within = within && radius(p) <= r + eps;
-                tips += std::abs(radius(p) - r) <= eps ? 1 : 0;
-            }
-            const std::size_t perTooth = 4 + (BlockRules::kGearValleySteps - 1);
-            Expect(shape.rim.size() == BlockRules::kGearTeeth * perTooth + 1 && tips == 2 * BlockRules::kGearTeeth,
-                Text("gear rim: %d teeth, %zu points (%zu each + the closing one), %d tooth-top corners on the radius", BlockRules::kGearTeeth,
-                    shape.rim.size(), perTooth, tips));
-            Expect(within, "every rim point within the outer radius");
-            const auto closed = [](const std::vector<BlockRules::Point>& a_line) {
-                return a_line.size() > 2 && a_line.front().x == a_line.back().x && a_line.front().y == a_line.back().y;
-            };
-            Expect(closed(shape.rim) && closed(shape.hole), "both outlines end on their first point (no start tick)");
-            bool round = shape.hole.size() == static_cast<std::size_t>(BlockRules::kGearHoleSegments) + 1;
-            for (const auto& p : shape.hole) round = round && std::abs(radius(p) - r * BlockRules::kGearHoleShare) <= 1e-9;
-            Expect(round, Text("the hole: %d segments at %.2f of the radius", BlockRules::kGearHoleSegments, BlockRules::kGearHoleShare));
-            bool rootOk = true;
-            for (const auto& p : shape.rim) rootOk = rootOk && (std::abs(radius(p) - r) <= eps || std::abs(radius(p) - r * BlockRules::kGearRootShare) <= 1e-9);
-            Expect(rootOk, "every other rim point on the root circle (flat valleys, flat tops)");
+            const auto hang = BlockRules::StripRect(648, board.bottom, 400, 24, 8, visible1610);
+            Expect(Near(hang.top, 647) && Near(hang.left, 648), Text("strip 8 under the board's bottom (%s)", Show(hang).c_str()));
         }
         // the tree tooltip's top (review round 2): panel coordinates, title 22, tooltip 60 high, full-height limit 180
         Expect(Near(BlockRules::TooltipY(50, 60, 22, 180, 0, 0, 300), 50), "tooltip inside everything: kept where placed");
@@ -1620,11 +1569,6 @@ namespace
             Expect(BlockRules::AskHeight(fresh, 80, 0, false) && Near(*fresh.current, 80), "the menu's first fit applies at once");
             Expect(BlockRules::AskHeight(waiting, 160, 10, false) && !waiting.held, "a grow applies and drops the waiting shrink");
         }
-        Expect(Near(BlockRules::GearHintX(Settings::Rect{ 434, 680, 452, 698 }, 80, 4, visible1610), 22), "the gear's hint right of it when it fits");
-        Expect(Near(BlockRules::GearHintX(Settings::Rect{ 1250, 680, 1268, 698 }, 80, 4, visible1610), -84), "at the stage's right edge: left of it");
-        Expect(Near(BlockRules::GearHintX(Settings::Rect{ 648, 675, 666, 693 }, 80, 4, visible1610, true), -84),
-            "the edit mode: the hint on the gear's left, clear of the reset button (review I10)");
-        Expect(Near(BlockRules::GearHintX(Settings::Rect{ 10, 675, 28, 693 }, 80, 4, visible1610, true), 22), "the edit mode with no room on the left: right of it");
         // corner bounds (controller finding 2026-10-30): the logged scrollbar 432,79..452,667 through Inventory Reforged's window
         // (scale 0.85, moved 200, 26) lands at 567.2,93.2..584.2,593 - where the screenshot shows it
         {
@@ -1686,25 +1630,17 @@ namespace
             "the fail count's signature compare: NaN alike to NaN, sizes and values must match");
     }
 
-    /// Task 8 R2, R3, T1, T2: the gear's row with an earlier menu's strip size, the strip left out of the board, L8 last, L9 and L1's
-    /// per-block SKIP
+    /// Task 8 R3, T1, T2: the strip left out of the board, L8 last, L9 board and L1's per-block SKIP (R2 and L9 gear / reset went
+    /// with the gear, 2026-10-31)
     void StripChecks()
     {
         std::printf("StripChecks\n");
         const Rect visible{ 0, -40, 1280, 760 };
-        // R2: the game log's jump (gear 648,647 then 648,678): the row with the last size puts the gear where it ends up
-        const auto [w0, h0] = BlockRules::RowStripSize(std::nullopt, std::pair{ 400.0, 27.0 });
-        const auto opening = BlockRules::HintRowRects(648, 639, w0, h0, 18, 8, 4, visible);
-        const auto settled = BlockRules::HintRowRects(648, 639, 400, 27, 18, 8, 4, visible);
-        Expect(Near(opening.gear.top, settled.gear.top) && Near(opening.gear.top, 678), Text("R2: the gear at open with the last size: top %.0f, as when settled", opening.gear.top));
-        const auto [w1, h1] = BlockRules::RowStripSize(std::pair{ 300.0, 24.0 }, std::pair{ 400.0, 27.0 });
-        const auto [w2, h2] = BlockRules::RowStripSize(std::nullopt, std::nullopt);
-        Expect(Near(w1, 300) && Near(h1, 24) && Near(w2, 0) && Near(h2, 0), "R2: this menu's size first; none known: 0 x 0 (the gear alone)");
         // R3: the "low" case (the columns down to the stage's bottom) is a no-move; the usual row and no strip are not
-        const auto low = BlockRules::HintRowRects(648, 750, 400, 24, 18, 4, 4, visible);
-        const auto usual = BlockRules::HintRowRects(648, 639, 400, 24, 18, 8, 4, visible);
-        const auto none = BlockRules::HintRowRects(648, 750, 0, 0, 18, 4, 4, visible);
-        Expect(BlockRules::StripCoversBoard(low, 750, 4, 1.0), Text("R3 low: the strip pulled up to %.0f over the board's bottom 750 - left at SkyUI's place", low.strip.top));
+        const auto low = BlockRules::StripRect(648, 750, 400, 24, 4, visible);
+        const auto usual = BlockRules::StripRect(648, 639, 400, 24, 8, visible);
+        const auto none = BlockRules::StripRect(648, 750, 0, 0, 4, visible);
+        Expect(BlockRules::StripCoversBoard(low, 750, 4, 1.0), Text("R3 low: the strip pulled up to %.0f over the board's bottom 750 - left at SkyUI's place", low.top));
         Expect(!BlockRules::StripCoversBoard(usual, 639, 8, 1.0) && !BlockRules::StripCoversBoard(none, 750, 4, 1.0), "R3: the usual row moves; no strip: no verdict");
         // T1: L8 last
         using BlockRules::Verdict3;
@@ -1714,28 +1650,12 @@ namespace
         Expect(BlockRules::StripLastCheck(target, BlockRules::Point{ 648, 647 }, false, 1.0) == Verdict3::kSkip &&
                    BlockRules::StripLastCheck(std::nullopt, std::nullopt, true, 1.0) == Verdict3::kSkip,
             "L8 last: no read after the last move, or never placed: SKIP");
-        // T2: L9 board / gear / reset
+        // T2: L9 board
         const Rect board{ 632, 51, 1254, 639 };
         Expect(BlockRules::BoardProblem(board, board, Rect{ 631.5, 50.5, 1254.5, 639.5 }, 1.0, 0.5).empty(), "L9 board: kept = BoardRect, drawn with its line: nothing wrong");
         Expect(!BlockRules::BoardProblem(board, Rect{ 632, 51, 1254, 700 }, board, 1.0, 0.5).empty() && !BlockRules::BoardProblem(board, board, std::nullopt, 1.0, 0.5).empty() &&
                    !BlockRules::BoardProblem(board, board, Rect{ 600, 51, 1254, 639 }, 1.0, 0.5).empty(),
             "L9 board: columns moved, bounds unread, or drawn elsewhere: each a problem");
-        const Rect gear{ 648, 678, 666, 696 };
-        Expect(BlockRules::GearProblem(BlockRules::Point{ 648, 678 }, gear, 639, 8, 648, visible, 0.5).empty(), "L9 gear: read back where put, under the board: nothing wrong");
-        Expect(!BlockRules::GearProblem(BlockRules::Point{ 648, 647 }, gear, 639, 8, 648, visible, 0.5).empty() &&
-                   !BlockRules::GearProblem(BlockRules::Point{ 648, 620 }, Rect{ 648, 620, 666, 638 }, 639, 8, 648, visible, 0.5).empty() &&
-                   !BlockRules::GearProblem(std::nullopt, gear, 639, 8, 648, visible, 0.5).empty(),
-            "L9 gear: read elsewhere, over the board, or unread: each a problem");
-        Expect(BlockRules::GearProblem(BlockRules::Point{ 648, 742 }, Rect{ 648, 742, 666, 760 }, 750, 4, 648, visible, 0.5).empty(),
-            "L9 gear: held up by the stage's bottom (the low case): not over-the-board");
-        const Rect want{ 670, 678, 760, 696 };
-        Expect(BlockRules::ResetProblem(BlockRules::Point{ 670, 678 }, want, true, 45, 46, 1.0, 0.5).empty() &&
-                   BlockRules::ResetProblem(BlockRules::Point{ 670, 678 }, want, false, 0, 0, 1.0, 0.5).empty(),
-            "L9 reset: half out and shown with its mask 46 wide; folded and hidden: nothing wrong");
-        Expect(!BlockRules::ResetProblem(BlockRules::Point{ 670, 678 }, want, false, 45, 46, 1.0, 0.5).empty() &&
-                   !BlockRules::ResetProblem(BlockRules::Point{ 670, 678 }, want, true, 90, 30, 1.0, 0.5).empty() &&
-                   !BlockRules::ResetProblem(BlockRules::Point{ 600, 678 }, want, true, 90, 91, 1.0, 0.5).empty(),
-            "L9 reset: hidden while out, its mask narrower than the part out, or off its place: each a problem");
         // L1 per block (Task 5 review): the preview while first in its column, the spell card with no add-on ahead (our card: none after)
         const std::set<BlockId> addons{ "HoM.progress", "SR.archetypes" };
         const auto addon = [&](const BlockId& a_id) { return addons.contains(a_id); };

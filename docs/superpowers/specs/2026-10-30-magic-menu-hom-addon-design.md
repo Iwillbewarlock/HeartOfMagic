@@ -14,7 +14,7 @@ Map of the coupling at f83dc6f3: session notes (explorer report), older map `Des
 ## Goal
 
 - `MagicMenuRewrite.dll` (the core) builds and runs with no HoM include, no `SpellLearning` listener, no `spell_tree.json` /
-  HoM `config.json` read. Without any add-on it shows: 3D preview box, our spell card, the board, the gear / layout mode,
+  HoM `config.json` read. Without any add-on it shows: 3D preview box, our spell card, the board, the layout mode,
   the key-hint strip. Today the core draws nothing at all without HoM (`Widget.cpp:8378` `if (!Hom::Ready()) return;`).
 - `MagicMenuRewrite_HoM.dll` (new, `plugins/SL_MagicMenu_HoM`) registers three blocks through the Block API and draws the
   same tree window, learning progress card and node card as today (marks, legend, labels, badges, tooltip, U / G keys,
@@ -25,7 +25,7 @@ Map of the coupling at f83dc6f3: session notes (explorer report), older map `Des
 
 ## What stays in the core
 
-3D preview (Preview.*), our spell card, the board, columns, scroll, layout mode, gear, key-hint strip, Block API host,
+3D preview (Preview.*), our spell card, the board, columns, scroll, layout mode, key-hint strip, Block API host,
 the tree-card / 3D path for a spell that is not in the list (P2 `ShowTreeSpellCard`, P3 `LoadUnlearned`; reached now by
 an add-on request instead of the tree's own click), `bPreviewUnlearned`, the generic thread helper
 (`Hom::SetGameThread/OnGameThread`, renamed `GameThread::*`), `Spells::SchoolOf(SpellItem*)`, text fitting helpers

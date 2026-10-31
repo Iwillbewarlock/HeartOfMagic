@@ -50,11 +50,9 @@ namespace WidgetText
         kCardHours,
         kCardMinutes,
         kCardSeconds,
-        // blocks plan Task 4 (D5): the layout buttons
+        // blocks plan Task 4 (D5): the layout reset (since 2026-10-31 the reset key's hint)
         kLayoutReset,
         kEmptyChoose,
-        kLayoutGearEnter,
-        kLayoutGearLeave,
         // 2026-10-31: the layout key's hint in SkyUI's key-hint strip (KeyHints.cpp)
         kHintLayout,
         kHintLayoutLeave,
@@ -109,16 +107,14 @@ namespace WidgetText
         { Str::kCardHours, "card_hours", "{n}h" },
         { Str::kCardMinutes, "card_minutes", "{n}m" },
         { Str::kCardSeconds, "card_seconds", "{n}s" },
-        // the reset button right of the gear in the edit mode (user 2026-10-30), {key} the toggle key as the hints show keys
+        // the layout reset (user 2026-10-30, the reviewed text of the gear's reset button): since 2026-10-31 the reset key's hint in
+        // SkyUI's key-hint strip, shown in the layout mode only (the key is its icon there)
         { Str::kLayoutReset, "layout_reset", "Reset layout" },
         // user 2026-10-30 (the board): a block's line while nothing is chosen
         { Str::kEmptyChoose, "empty_choose", "Select a spell to view" },
-        // user 2026-10-30: the gear's hover hint, out of the layout mode and in it
-        { Str::kLayoutGearEnter, "layout_gear_enter", "Edit mode {key}" },
-        { Str::kLayoutGearLeave, "layout_gear_leave", "View mode {key}" },
         // 2026-10-31: the layout key's hint in SkyUI's key-hint strip (the key is its icon there)
         { Str::kHintLayout, "hint_layout", "Edit mode" },
-        // fix round 1: the same key's hint in the layout mode (the gear's layout_gear_leave without the key)
+        // fix round 1: the same key's hint in the layout mode
         { Str::kHintLayoutLeave, "hint_layout_leave", "View mode" },
         // 2026-10-31: the settings tab in SKSE Menu Framework - its item under the "Magic Menu Rewrite" section, the language row (the
         // language names themselves, English and 한국어, are not translated), the block checkboxes and their notes

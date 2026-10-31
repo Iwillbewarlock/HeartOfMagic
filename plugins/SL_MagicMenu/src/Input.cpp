@@ -29,7 +29,8 @@
 // sinks (PlayerControls, SKSE, the key sink below) see the whole list. With nothing kept the original gets the caller's
 // list untouched. The decisions are taken in order, so a toggle earlier in a batch changes how the rest of it is judged.
 // Task 5: in the mode the downs of the focus model's keys (NavOf) and the right stick's y are handed to the widget (queued, done
-// on the menu's next frame); the events themselves are kept as before.
+// on the menu's next frame); the events themselves are kept as before. 2026-10-31 (the gear removed): the reset key's down
+// ([Keys] iLayoutReset, Backspace) is handed to the widget the same way, in the mode only; with the mode off it passes.
 // =============================================================================
 
 namespace Input
@@ -61,7 +62,6 @@ namespace Input
         std::unordered_set<std::uint64_t> g_owned;  // presses whose down this hook kept: their holds and up are kept too
         std::array<bool, 2> g_stickOwned{};         // a stick kept in the mode until its first neutral sample (left, right)
         std::atomic<bool> g_hooked{ false };
-        std::atomic<int> g_heldCount{ 0 };
 
         // per menu (ResetCounters at its open)
         std::atomic<std::uint64_t> g_eventsOff{ 0 }, g_strayOff{ 0 }, g_ownedOff{ 0 }, g_toggles{ 0 }, g_downsOn{ 0 }, g_keyboardDownsOff{ 0 };
@@ -97,27 +97,32 @@ namespace Input
         // Task 5: the focus model's keys in the mode (down only; held repeats do nothing). Raw codes: the keyboard's DirectInput scan
         // codes and the gamepad's XInput masks (BSWin32GamepadDevice.h), so a remapped controlmap does not move them. Esc and the
         // menu's Cancel (B, Tab) are kCancel. None of them reaches SkyUI in the mode (all non-mouse events are kept)
+        // The focus model's keyboard keys (Esc apart: IsCancel)
+        std::optional<Layout::Nav> KeyboardNav(std::uint32_t a_code)
+        {
+            using Nav = Layout::Nav;
+            using Key = RE::BSKeyboardDevice::Keys::Key;
+            switch (a_code) {
+            case Key::kUp: return Nav::kUp;
+            case Key::kDown: return Nav::kDown;
+            case Key::kLeft: return Nav::kLeft;
+            case Key::kRight: return Nav::kRight;
+            case Key::kEnter:
+            case Key::kKP_Enter: return Nav::kAccept;
+            case Key::kBracketLeft:
+            case Key::kPageUp: return Nav::kBorderLeft;
+            case Key::kBracketRight:
+            case Key::kPageDown: return Nav::kBorderRight;
+            default: return std::nullopt;
+            }
+        }
+
         std::optional<Layout::Nav> NavOf(const RE::ButtonEvent& a_button)
         {
             using Nav = Layout::Nav;
             if (IsCancel(a_button)) return Nav::kCancel;
             const auto code = a_button.GetIDCode();
-            if (a_button.GetDevice() == RE::INPUT_DEVICE::kKeyboard) {
-                using Key = RE::BSKeyboardDevice::Keys::Key;
-                switch (code) {
-                case Key::kUp: return Nav::kUp;
-                case Key::kDown: return Nav::kDown;
-                case Key::kLeft: return Nav::kLeft;
-                case Key::kRight: return Nav::kRight;
-                case Key::kEnter:
-                case Key::kKP_Enter: return Nav::kAccept;
-                case Key::kBracketLeft:
-                case Key::kPageUp: return Nav::kBorderLeft;
-                case Key::kBracketRight:
-                case Key::kPageDown: return Nav::kBorderRight;
-                default: return std::nullopt;
-                }
-            }
+            if (a_button.GetDevice() == RE::INPUT_DEVICE::kKeyboard) return KeyboardNav(code);
             if (a_button.GetDevice() == RE::INPUT_DEVICE::kGamepad) {
                 using Pad = RE::BSWin32GamepadDevice::Keys::Key;
                 switch (code) {
@@ -180,10 +185,14 @@ namespace Input
             }
             if (!Widget::LayoutModeOn() || Exempt(a_button)) return Take::kPass;
             if (down) {
-                // Task 5: the focus model's keys go to the widget in order; B / Esc there drops a pick, or leaves the mode (Cancel)
+                // Task 5: the focus model's keys go to the widget in order; B / Esc there drops a pick, or leaves the mode (Cancel).
+                // User 2026-10-31: the reset key ([Keys] iLayoutReset) puts the default layout back - in the mode only, owned like
+                // every key here; with the mode off it passes untouched (the branch above)
+                const bool keyboard = device == RE::INPUT_DEVICE::kKeyboard;
                 if (const auto nav = NavOf(a_button)) {
-                    const bool keyboard = device == RE::INPUT_DEVICE::kKeyboard;
                     Widget::LayoutKey(*nav, *nav == Layout::Nav::kCancel ? (keyboard ? "Esc" : "the gamepad's Cancel") : (keyboard ? "the keyboard" : "the gamepad"));
+                } else if (keyboard && code != 0 && code == Settings::Get().keyLayoutReset) {
+                    Widget::LayoutResetKey("the reset key");
                 }
                 g_owned.insert(key);
                 ++g_downsOn;
@@ -271,7 +280,6 @@ namespace Input
                 static bool s_wasOpen = false;
                 if (menuOpen && !s_wasOpen) {
                     g_held.clear();
-                    g_heldCount = 0;
                 }
                 s_wasOpen = menuOpen;
                 // a key whose up was lost (Alt-Tab, focus loss inside the menu) would stay held and refuse the mode for the rest
@@ -286,7 +294,6 @@ namespace Input
                             g_held.size());
                     }
                     g_held.clear();
-                    g_heldCount = 0;
                 }
                 s_hadFocus = !focusLost;
                 if (!a_events || !*a_events || !Armed(menuOpen)) return original(a_this, a_events, a_source);
@@ -301,7 +308,6 @@ namespace Input
                     any = any || take != Take::kPass;
                     if (menuOpen && !modeBefore) CountOff(*event, take);
                 }
-                g_heldCount = static_cast<int>(g_held.size());
                 if (!any) return original(a_this, a_events, a_source);
                 const Relink relink(*a_events);
                 RE::InputEvent* head = nullptr;
@@ -381,22 +387,27 @@ namespace Input
         devices->AddEventSink(KeySink::GetSingleton());
         const auto& settings = Settings::Get();
         logger::info("Input: key sink installed (keyboard downs for the add-on blocks' key calls)");
-        // the key scan of the installed mods (2026-10-25, v5-key-scan.md), so the game log alone explains the defaults
+        // the key scan of the installed mods (2026-10-25, v5-key-scan.md; the reset key 2026-10-31), so the game log alone explains
+        // the defaults
         const auto avoided = [](std::uint32_t a_key) { return a_key == 19 || a_key == 49; };
         logger::info("Input: key scan - avoided 19 R (Spell Organizer RemoveHotkey, live in the magic menu; its saved value is in the "
                      "save, assumed R) and 49 N (Creature Framework PupTargetKey, no menu check); 37 K (the layout mode): in no "
-                     "controlmap line, SexLab scenes only{}",
-            avoided(settings.keyLayout) ? " - WARNING: the ini sets one of the avoided keys" : "");
+                     "controlmap line, SexLab scenes only; 14 Backspace (the layout reset, in the mode only): IED's UI key needs Shift "
+                     "and does not open in menus{}",
+            avoided(settings.keyLayout) || avoided(settings.keyLayoutReset) ? " - WARNING: the ini sets one of the avoided keys" : "");
+        if (settings.keyLayoutReset == 0) {
+            logger::info("Input: no layout reset key ([Keys] iLayoutReset = 0)");
+        } else if (KeyboardNav(settings.keyLayoutReset) || settings.keyLayoutReset == kEscape) {
+            logger::warn("Input: [Keys] iLayoutReset = {} is one of the layout mode's fixed keys (arrows, Enter, [ ], PageUp / PageDown, Esc) - that "
+                         "key keeps its own action and nothing resets the layout", settings.keyLayoutReset);
+        } else {
+            logger::info("Input: layout reset key {} (in the layout mode only)", settings.keyLayoutReset);
+        }
     }
 
     bool HookInstalled()
     {
         return g_hooked;
-    }
-
-    int HeldCount()
-    {
-        return g_heldCount;
     }
 
     void ResetCounters()

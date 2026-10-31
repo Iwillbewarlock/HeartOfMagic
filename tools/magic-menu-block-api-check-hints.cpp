@@ -1,7 +1,7 @@
 // magic-menu-block-api-check, its key hint part (2026-10-31, user "단축키 표시"): the v3 'SLMK' message (BlockApi::KeyHint) and
 // the pure rules of KeyHints.cpp in BlockRulesV3.h - reading (whole, cut short, versions, scan codes, labels cut at a UTF-8
-// boundary), the per-block list (add, relabel in place, remove, the cap), the frame's hint buttons (order, shown per block, the
-// layout mode, gamepad) and the panel's growth and tail rules. See magic-menu-block-api-check.cpp for the tool's usage.
+// boundary), the per-block list (add, relabel in place, remove, the cap), the host's own hints (K, and in the layout mode the
+// reset key), the frame's hint buttons (order, shown per block, the layout mode, gamepad) and the panel's growth and tail rules. See magic-menu-block-api-check.cpp for the tool's usage.
 
 #include "magic-menu-block-api-check.h"
 
@@ -100,31 +100,46 @@ namespace BlockApiCheck
 
         void Buttons()
         {
-            const BlockRules::HintButton host{ 37, "Edit mode", false };
+            // the host's own hints (user 2026-10-31, the gear removed): K, and in the layout mode the reset key (Backspace, 14)
+            using BlockRules::HintButton;
+            const auto viewHosts = BlockRules::HostHints(37, 14, false, "Edit mode", "View mode", "Reset layout");
+            const auto layoutHosts = BlockRules::HostHints(37, 14, true, "Edit mode", "View mode", "Reset layout");
+            Expect(viewHosts == std::vector<HintButton>{ { 37, "Edit mode", true } }, "host hints, view mode: K \"Edit mode\" alone (no reset key)");
+            Expect(layoutHosts == std::vector<HintButton>{ { 37, "View mode", true }, { 14, "Reset layout", true } },
+                "host hints, layout mode: K \"View mode\" first, then the reset key \"Reset layout\"");
+            Expect(BlockRules::HostHints(37, 0, true, "Edit mode", "View mode", "Reset layout") == std::vector<HintButton>{ { 37, "View mode", true } } &&
+                       BlockRules::HostHints(0, 14, true, "Edit mode", "View mode", "Reset layout") == std::vector<HintButton>{ { 14, "Reset layout", true } } &&
+                       BlockRules::HostHints(37, 14, true, "Edit mode", "View mode", "").size() == 1 &&
+                       BlockRules::HostHints(37, BlockApi::kMaxHintScanCode + 1, true, "Edit mode", "View mode", "Reset layout").size() == 1,
+                "host hints: a key 0 (iLayoutReset = 0: no reset key), past the keyboard's scan codes, or with no label has no button");
             BlockRules::KeyHintList hints;
             BlockRules::SetKeyHint(hints, Hint(kOther, 48, "Stats"), BlockApi::kMaxKeyHints);
             BlockRules::SetKeyHint(hints, Hint(kTree, 22, "Next spell"), BlockApi::kMaxKeyHints);
             BlockRules::SetKeyHint(hints, Hint(kTree, 34, "Set learning target"), BlockApi::kMaxKeyHints);
             BlockRules::SetKeyHint(hints, Hint("Gone.block", 40, "Gone"), BlockApi::kMaxKeyHints);
             const std::vector<BlockRules::HintBlock> blocks{ { kTree, true }, { kOther, false } };  // registration order: tree first
-            const auto view = BlockRules::HintButtons(host, blocks, hints, false, false);
-            const std::vector<BlockRules::HintButton> want{ { 37, "Edit mode", true }, { 22, "Next spell", true }, { 34, "Set learning target", true },
-                { 48, "Stats", false } };
+            const auto view = BlockRules::HintButtons(viewHosts, blocks, hints, false, false);
+            const std::vector<HintButton> want{ { 37, "Edit mode", true }, { 22, "Next spell", true }, { 34, "Set learning target", true }, { 48, "Stats", false } };
             Expect(view == want, "view mode: the host's K first, then the blocks in registration order (not the order sent), a hidden block's hint not shown, "
                                  "a hint of no listed block has no button");
-            const auto layout = BlockRules::HintButtons(host, blocks, hints, true, false);
-            Expect(layout.size() == 4 && layout[0].shown && !layout[1].shown && !layout[2].shown && !layout[3].shown,
-                "layout mode: K still shown, the blocks' hints hidden");
-            const auto pad = BlockRules::HintButtons(host, blocks, hints, false, true);
-            Expect(pad.size() == 4 && std::ranges::none_of(pad, [](const auto& a_button) { return a_button.shown; }), "gamepad buttons up: every hint hidden");
-            Expect(BlockRules::HintButtons({ 0, "Edit mode", false }, blocks, hints, false, false).size() == 3 &&
-                       BlockRules::HintButtons({ 37, "", false }, blocks, hints, false, false).size() == 3,
-                "the host's hint left out with no key or no label");
-            Expect(BlockRules::SameHintSet(view, layout) && BlockRules::SameHintSet(view, pad) && !BlockRules::SameHintSet(view, BlockRules::HintButtons(host, {}, hints, false, false)),
-                "SameHintSet: shown flags aside alike (a tab or mode change only shows or hides); a block gone is another set");
+            const auto layout = BlockRules::HintButtons(layoutHosts, blocks, hints, true, false);
+            const std::vector<HintButton> wantLayout{ { 37, "View mode", true }, { 14, "Reset layout", true }, { 22, "Next spell", false },
+                { 34, "Set learning target", false }, { 48, "Stats", false } };
+            Expect(layout == wantLayout, "layout mode: K \"View mode\" and the reset key shown, in that order; the blocks' hints hidden");
+            const auto pad = BlockRules::HintButtons(layoutHosts, blocks, hints, true, true);
+            Expect(pad.size() == 5 && std::ranges::none_of(pad, [](const auto& a_button) { return a_button.shown; }),
+                "gamepad buttons up: every hint hidden, the layout mode's too (keyboard hints only)");
+            Expect(BlockRules::HintButtons({ { 0, "Edit mode", true } }, blocks, hints, false, false).size() == 3 &&
+                       BlockRules::HintButtons({ { 37, "", true } }, blocks, hints, false, false).size() == 3,
+                "a host hint left out with no key or no label");
+            const std::vector<BlockRules::HintBlock> otherTab{ { kTree, false }, { kOther, true } };
+            Expect(BlockRules::SameHintSet(view, BlockRules::HintButtons(viewHosts, otherTab, hints, false, false)) &&
+                       BlockRules::SameHintSet(view, BlockRules::HintButtons(viewHosts, blocks, hints, false, true)) &&
+                       !BlockRules::SameHintSet(view, layout) && !BlockRules::SameHintSet(view, BlockRules::HintButtons(viewHosts, {}, hints, false, false)),
+                "SameHintSet: a tab change or gamepad only shows or hides; the mode change (K's label, the reset key) and a block gone are another set");
             auto relabelled = hints;
             BlockRules::SetKeyHint(relabelled, Hint(kTree, 22, "Next"), BlockApi::kMaxKeyHints);
-            Expect(!BlockRules::SameHintSet(view, BlockRules::HintButtons(host, blocks, relabelled, false, false)), "SameHintSet: a new label is another set");
+            Expect(!BlockRules::SameHintSet(view, BlockRules::HintButtons(viewHosts, blocks, relabelled, false, false)), "SameHintSet: a new label is another set");
         }
 
         void Panel()
@@ -155,7 +170,7 @@ namespace BlockApiCheck
 
     void V3KeyHints()
     {
-        std::printf("'SLMK' key hints (BlockRules::ReadKeyHint, SetKeyHint, HintButtons, ButtonsToGrow, LaidOutAfter)\n");
+        std::printf("'SLMK' key hints (BlockRules::ReadKeyHint, SetKeyHint, HostHints, HintButtons, ButtonsToGrow, LaidOutAfter)\n");
         Reading();
         List();
         Buttons();

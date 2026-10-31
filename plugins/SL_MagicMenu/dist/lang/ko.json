@@ -26,8 +26,6 @@
   "card_seconds": "{n}초",
   "layout_reset": "처음 배치로",
   "empty_choose": "주문을 고르면 표시됩니다",
-  "layout_gear_enter": "편집 모드 {key}",
-  "layout_gear_leave": "보기 모드로 {key}",
   "hint_layout": "편집 모드",
   "hint_layout_leave": "보기 모드로",
   "settings_item": "설정",

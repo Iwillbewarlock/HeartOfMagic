@@ -11,8 +11,8 @@
 // =============================================================================
 // WIDGET - everything MagicMenuRewrite draws into the magic menu: one clip
 // _root.mmx_root on the menu movie with the board, the 3D preview box, our
-// spell card (or SkyUI's item card moved into its block), the layout mode's
-// gear and the add-on blocks (BlockApi.h; since HoM add-on plan Task 5 the
+// spell card (or SkyUI's item card moved into its block), the layout mode
+// and the add-on blocks (BlockApi.h; since HoM add-on plan Task 5 the
 // spell tree, progress and node card are the Heart of Magic add-on's). Built by
 // a UI task when the menu opens; the movie (and the clip) die when it closes.
 // One frame handler on mmx_root does the per-frame work (selection watch, item
@@ -101,6 +101,11 @@ namespace Widget
     /// pick leave the mode as Cancel). Nothing while the mode is off
     void LayoutKey(Layout::Nav a_nav, const char* a_source);
 
+    /// User 2026-10-31: the layout reset key's down ([Keys] iLayoutReset) in the mode, queued for the menu's next frame in order
+    /// with the other requests: the default layout, as the gear's reset button did (saved when the mode is left with the toggle).
+    /// Nothing while the mode is off
+    void LayoutResetKey(const char* a_source);
+
     /// The right stick's y while the mode keeps it (0 = neutral): the focused block's column scrolls by it each frame
     void LayoutStick(float a_y);
 
@@ -115,9 +120,6 @@ namespace Input
 
     /// The MenuControls hook is on (the layout mode needs it)
     bool HookInstalled();
-
-    /// Keyboard / gamepad buttons held now, as the hook last saw them (the lock button refuses the mode while one is held)
-    int HeldCount();
 
     /// SelfTest L5's counts, per magic menu (ResetCounters at its open): events judged with the mode off, those kept although
     /// the mode was off and they were neither the toggle nor an owned tail (want 0), owned tails kept, toggles taken, button
