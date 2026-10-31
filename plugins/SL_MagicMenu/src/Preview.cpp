@@ -295,7 +295,7 @@ namespace Preview
             bool dirtyLogged = false;            // P8: the dirty-state line logged this menu
             std::uint64_t selectionFrame = 0;    // the frame of the last selection change (P8's check waits kDarkCheckDelay after it)
             std::uint64_t ownSetFrame = 0;       // the frame that first saw our last own list set (OnOwnListSet; 0 = none this menu)
-            std::uint64_t ownSetsSeen = 0;       // g_ownListSets as that frame read it (0 at a reset: a set before it is the first frame's)
+            std::uint64_t ownSetsSeen = 0;       // g_ownListSets as that frame read it (the count at this menu's reset)
             int darkChecks = 0;
             std::uint64_t darkCheckedFor = 0;    // the selectionFrame P8 last checked (one check per selection)
             bool swapChainLogged = false;  // spec v12 C3 / G10
@@ -3210,6 +3210,7 @@ float4 PSMain(float4 position : SV_Position) : SV_Target
                 GiveBackTab(*manager, "a new menu opened, before its reset", true);
             }
             g_state.clip = Clip{};
+            g_state.clip.ownSetsSeen = g_ownListSets.load();  // an earlier menu's sets are not this menu's first frame
             g_state.generation = a_generation;
             g_state.placedFor.reset();
             g_state.room.reset();
