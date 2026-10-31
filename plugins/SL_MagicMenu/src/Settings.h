@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <map>
 #include <optional>
@@ -30,6 +31,29 @@ namespace Settings
         [[nodiscard]] double CenterY() const { return (top + bottom) / 2; }
         [[nodiscard]] bool Contains(double a_x, double a_y) const { return a_x >= left && a_x <= right && a_y >= top && a_y <= bottom; }
     };
+
+    /// Fix round 1 (2026-10-31): the keys the layout mode already has a use for, as DirectInput scan codes - the focus model's
+    /// (Input.cpp NavOf: the arrows, Enter and numpad Enter, [ ], PageUp / PageDown), Esc and Tab (the menu's Cancel), and the
+    /// two Input passes in every mode (its Exempt user events: the console key ~ and Print Screen, the default controlmap's)
+    inline constexpr std::array<std::uint32_t, 14> kLayoutModeKeys{ 200, 208, 203, 205, 28, 156, 26, 27, 201, 209, 1, 15, 41, 183 };
+
+    enum class ResetClash
+    {
+        kNone,
+        kToggle,    // iLayout's key: the toggle is judged first, so it would only toggle
+        kModeKey,   // one of kLayoutModeKeys: it keeps that action, so it would never reset
+    };
+
+    /// Whether a_reset ([Keys] iLayoutReset, 0 = none) can be the layout reset key beside the toggle a_layout
+    constexpr ResetClash LayoutResetClash(std::uint32_t a_reset, std::uint32_t a_layout)
+    {
+        if (a_reset == 0) return ResetClash::kNone;
+        if (a_reset == a_layout) return ResetClash::kToggle;
+        for (const auto key : kLayoutModeKeys) {
+            if (key == a_reset) return ResetClash::kModeKey;
+        }
+        return ResetClash::kNone;
+    }
 
     struct Values
     {
@@ -63,7 +87,7 @@ namespace Settings
         // user 2026-10-31 (the gear removed): the layout mode's reset key, read only in the mode (the default layout, as the gear's
         // reset button did). 14 = Backspace ("back to the first layout"): free in this menu by the 2026-10-31 key scan (R 19 is
         // Spell Organizer's, O 24 OpenAnimationReplacer's UI and OBody's preset key, Home 199 dMenu's; IED's Backspace needs Shift
-        // and does not open in menus). 0 = no reset key; one equal to iLayout falls back (Settings.cpp)
+        // and does not open in menus). 0 = no reset key; one that clashes (LayoutResetClash) falls back (Settings.cpp)
         std::uint32_t keyLayoutReset = 14;
 
         // [Layout] stage units: layout E2 the user chose from the offline renders (spec v6 L1, 2026-10-25): one two-column

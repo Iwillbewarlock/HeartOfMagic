@@ -14,7 +14,7 @@
 ## Credits
 
 - LayMovi - Inventory Reforged (GPL-3.0): the 3D preview's placement follows the method of Inventory Reforged's item
-  view, with the author's permission. Thank you.
+  view (its code was read for the method; no code was taken), with the author's permission. Thank you.
 - SKSE/Plugins/InventoryReforged/MagicMenuRewrite.ini turns Inventory Reforged's own magic-menu panel off; it holds no
   Inventory Reforged code.
 

@@ -60,8 +60,8 @@ wrong reading and are dropped (user: "배열을 유저가 조정하고 자동으
   focused block (there is no cursor). Input.cpp only listens today: the layout mode needs to consume the D-pad / A / B /
   arrow / Enter / Esc it uses while it is on (and nothing while it is off), so SkyUI's list and menu close do not react.
 - Safety net only (not normal play): the mod ships `SKSE/Plugins/InventoryReforged/MagicMenuRewrite.ini` with `[Panel] bMagicMenu = 0`
-  (2026-10-31, from `MCM/Settings/InventoryReforged.ini`, the player's whole IR settings file; IR loads every ini in that
-  folder and keeps a setting the player changed),
+  (2026-10-31, from `MCM/Settings/InventoryReforged.ini`, the player's whole IR settings file; per Inventory Reforged's
+  author (LayMovi, 2026-10-31) IR loads every ini in that folder and keeps a setting the player changed),
   so Inventory Reforged's magic-menu panel is off and never shares this menu with ours (user 2026-10-26: our mod
   turns IR's magic-menu editing off). Only if a player turns IR's magic-menu panel back on in its MCM (irActive), or
   turns off our own fallback switches (bOwnCard=0, bMovePreview=0, bDrawPreviewOver=0 - debugging/rollback switches),
@@ -534,7 +534,9 @@ User: "톱니바퀴 없애자. 단축키 표시 만들어놨으니까. 대신 �
   takes the gear's row. No ini key was the gear's alone, so none is left unused.
 - The layout mode is toggled by K (`[Keys] iLayout`) or the gamepad button (`iGamepadLayout`), as before.
 - The reset is a key: `[Keys] iLayoutReset`, default 14 (Backspace, "back to the first layout"; 0 = none; one equal to
-  `iLayout` falls back to 14, or none). Key scan of the installed mods (2026-10-31, the v5 scan's method, `D:/TAKEALOOK/mods`):
+  `iLayout` falls back to 14, or none; one the layout mode already uses - arrows, Enter, [ ], PageUp / PageDown, Esc, Tab -
+  or passes - the console key, Print Screen - falls back to none, `Settings::LayoutResetClash`, so no hint shows a key that
+  never resets). Key scan of the installed mods (2026-10-31, the v5 scan's method, `D:/TAKEALOOK/mods`):
   R 19 is Spell Organizer's (live in the magic menu), O 24 Open Animation Replacer's UI key and OBody's preset key, Home 199
   dMenu's toggle, L 38 Kudasai's; Backspace's only hit is Immersive Equipment Displays, whose UI key is Shift+Backspace
   (its saved setting) and which does not open in menus (`EnableInMenus=false`); the controlmap binds 0x0E only in the debug
@@ -542,13 +544,14 @@ User: "톱니바퀴 없애자. 단축키 표시 만들어놨으니까. 대신 �
   `kReset` request done in order with the frame's other requests), which does what the reset button did - the default
   layout (`Settings::DefaultLayout`) applied to the working layout, saved when the mode is left with the toggle, gone with
   Esc ("Layout: reset to the default layout ..."). Like every key in the mode it is owned by the input boundary, so SkyUI
-  does not see it; with the mode off it passes untouched (L5 passthrough counts it with the other keys). A reset key set to
-  one of the mode's fixed keys (arrows, Enter, [ ], PageUp / PageDown, Esc) keeps that key's action (warned at load).
+  does not see it; with the mode off it passes untouched (L5 passthrough counts it with the other keys). Fix round 1: the
+  reset also ends a column-border drag (its grab, guide and queued press / release), as leaving the mode does.
 - Key hints: in the layout mode the strip shows K "View mode" and then the reset key "Reset layout" / "처음 배치로"
   (`layout_reset`, the reset button's reviewed text; `BlockRules::HostHints`); outside it only K "Edit mode". The gear's
   `layout_gear_enter` / `layout_gear_leave` texts are gone from the table and the language files. SelfTest L10 reads each
   set (view mode, layout mode) up to 4 times a menu and names the set and its shown keys. A new "L9 reset key" line at the
-  close counts the presses in the mode and FAILs a reset that did not leave the default layout.
+  close counts the presses in the mode and FAILs a reset whose read-back (the layout in use, every panel at its arranged
+  rect, as L4 cancel reads it) is not the default layout.
 - Gamepad: the layout mode's gamepad toggle is unchanged; there is no gamepad reset, and with SkyUI's gamepad buttons up
   our hints are hidden (keyboard keys only), so a gamepad player has no on-screen hint for the mode now.
 

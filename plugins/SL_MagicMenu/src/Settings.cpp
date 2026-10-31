@@ -379,10 +379,17 @@ namespace Settings
         ReadBool(path, L"Preview", L"bHidePowers3D", v.hidePowers3D);
         ReadNumber(path, L"Keys", L"iLayout", v.keyLayout, 1u, kMaxScanCode);
         ReadNumber(path, L"Keys", L"iLayoutReset", v.keyLayoutReset, 0u, kMaxScanCode);
-        if (v.keyLayoutReset != 0 && v.keyLayoutReset == v.keyLayout) {
-            // the toggle is judged first (Input.cpp), so this key would only ever toggle: the default, or none when that is iLayout too
-            const auto fallback = Values{}.keyLayoutReset != v.keyLayout ? Values{}.keyLayoutReset : 0u;
-            logger::warn("Settings: [Keys] iLayoutReset = {} is iLayout's key - using {}", v.keyLayoutReset, fallback == 0 ? std::string("none") : std::to_string(fallback));
+        // a key that would never reset is not shown in the key hints either: iLayout's falls back to the default (or none when
+        // that is iLayout too), one of the layout mode's own keys to none
+        if (const auto clash = LayoutResetClash(v.keyLayoutReset, v.keyLayout); clash != ResetClash::kNone) {
+            const auto defaultKey = Values{}.keyLayoutReset;
+            const auto fallback = clash == ResetClash::kToggle && LayoutResetClash(defaultKey, v.keyLayout) == ResetClash::kNone ? defaultKey : 0u;
+            logger::warn("Settings: [Keys] iLayoutReset = {}{} is {} - using {}", v.keyLayoutReset,
+                Raw(path, L"Keys", L"iLayoutReset") ? "" : " (the default)",
+                clash == ResetClash::kToggle ? "iLayout's key (the toggle wins)"
+                                             : "a key the layout mode already uses (arrows, Enter, [ ], PageUp / PageDown, Esc, Tab) or passes (the "
+                                               "console, Print Screen)",
+                fallback == 0 ? std::string("none") : std::to_string(fallback));
             v.keyLayoutReset = fallback;
         }
         // SKSE's gamepad codes (266 D-pad up .. 281 Y, SKSE InputMap), or -1 for none

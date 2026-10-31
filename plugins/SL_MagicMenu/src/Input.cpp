@@ -395,11 +395,9 @@ namespace Input
                      "controlmap line, SexLab scenes only; 14 Backspace (the layout reset, in the mode only): IED's UI key needs Shift "
                      "and does not open in menus{}",
             avoided(settings.keyLayout) || avoided(settings.keyLayoutReset) ? " - WARNING: the ini sets one of the avoided keys" : "");
+        // a reset key the mode already uses was set to none by Settings (LayoutResetClash)
         if (settings.keyLayoutReset == 0) {
-            logger::info("Input: no layout reset key ([Keys] iLayoutReset = 0)");
-        } else if (KeyboardNav(settings.keyLayoutReset) || settings.keyLayoutReset == kEscape) {
-            logger::warn("Input: [Keys] iLayoutReset = {} is one of the layout mode's fixed keys (arrows, Enter, [ ], PageUp / PageDown, Esc) - that "
-                         "key keeps its own action and nothing resets the layout", settings.keyLayoutReset);
+            logger::info("Input: no layout reset key ([Keys] iLayoutReset is 0, or fell back to none)");
         } else {
             logger::info("Input: layout reset key {} (in the layout mode only)", settings.keyLayoutReset);
         }

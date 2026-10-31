@@ -1632,6 +1632,25 @@ namespace
 
     /// Task 8 R3, T1, T2: the strip left out of the board, L8 last, L9 board and L1's per-block SKIP (R2 and L9 gear / reset went
     /// with the gear, 2026-10-31)
+    /// Fix round 1 (2026-10-31): [Keys] iLayoutReset against the toggle and the layout mode's own keys (Settings::LayoutResetClash)
+    void ResetKeyChecks()
+    {
+        std::printf("ResetKeyChecks\n");
+        using Settings::ResetClash;
+        Expect(Settings::LayoutResetClash(14, 37) == ResetClash::kNone && Settings::LayoutResetClash(0, 37) == ResetClash::kNone &&
+                   Settings::LayoutResetClash(0, 0) == ResetClash::kNone,
+            "reset key: Backspace beside K is fine; 0 (no reset key) never clashes");
+        Expect(Settings::LayoutResetClash(37, 37) == ResetClash::kToggle && Settings::LayoutResetClash(14, 14) == ResetClash::kToggle,
+            "reset key: iLayout's own key is the toggle's (the toggle is judged first)");
+        bool every = true;
+        for (const auto key : { 200u, 208u, 203u, 205u, 28u, 156u, 26u, 27u, 201u, 209u, 1u, 15u, 41u, 183u }) {
+            every = every && Settings::LayoutResetClash(key, 37) == ResetClash::kModeKey;
+        }
+        Expect(every, "reset key: the arrows, Enter, numpad Enter, [ ], PageUp / PageDown, Esc, Tab, ~ and Print Screen are the mode's own keys");
+        Expect(Settings::LayoutResetClash(19, 37) == ResetClash::kNone && Settings::LayoutResetClash(211, 37) == ResetClash::kNone,
+            "reset key: other keys (R, Delete) are not refused here - the key scan, not this rule, keeps those away");
+    }
+
     void StripChecks()
     {
         std::printf("StripChecks\n");
@@ -1700,6 +1719,7 @@ int main()
     AddonHeightChange();
     VisibleUnionAfterFails();
     StripChecks();
+    ResetKeyChecks();
     HiddenCheck::Run(Expect);
     std::printf("layout-check: %d PASS, %d FAIL\n", g_pass, g_fail);
     return g_fail == 0 ? kExitOk : kExitFail;

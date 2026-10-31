@@ -242,6 +242,7 @@ namespace Widget
             // user 2026-10-31: the reset key's presses run (ResetLayout), those with the layout already the default, those the mode had
             // left by then (a K earlier in the same frame), and resets that did not leave the default layout (SelfTest L9 reset key)
             int resetKeys = 0, resetSame = 0, resetLate = 0, resetWrong = 0;
+            std::string resetFirstWrong;  // fix round 1: what the first failed read-back found
             std::uint64_t inputLeaks = 0, equipKept = 0;  // SkyUI's handleInput / AttemptEquip called in the mode
             std::set<std::uint32_t> wrapKeysOff;          // keyboard scan codes of handleInput keyDowns with the mode off
             std::uint64_t wrapKeyDownsOff = 0, wrapNoSkseCode = 0;
@@ -2733,7 +2734,7 @@ namespace Widget
             g_menu.cardSlot = slot;
         }
 
-        void PlaceLayoutChrome(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget);  // the layout mode's buttons, handle, covers (Task 4)
+        void PlaceLayoutChrome(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget);  // the layout mode's border handle and covers (Task 4)
 
         double FullHeight(const BlockId& a_id);  // a block's full height on this tab (with FitBlock, below)
 
@@ -2777,7 +2778,7 @@ namespace Widget
                 g_menu.placed[id] = rect;
             }
             CheckCardSlot();
-            PlaceLayoutChrome(a_movie, a_widget);  // Task 4: the buttons and the border handle follow the border, the covers the blocks
+            PlaceLayoutChrome(a_movie, a_widget);  // Task 4: the border handle follows the border, the covers the blocks
         }
 
         // A block's full height on this tab: an add-on's registered one, a built-in block's as arranged with no fit (its ini height,
@@ -5282,6 +5283,18 @@ namespace Widget
 
         // --- entering and leaving ---
 
+        // The panels' rects against the layout in use arranged again ("" when every one is there; "; <id> not at <rect>" each
+        // that is not): the read-back of L4 cancel and of the reset key's L9 line
+        std::string PanelDiffs()
+        {
+            std::string diffs;
+            for (const auto& [id, rect] : ArrangeBlocks(ArrangementFor(OwnCard()))) {
+                const auto it = g_menu.blocks.find(id);
+                if (it == g_menu.blocks.end() || !SameRect(it->second, rect)) diffs += std::format("; {} not at {}", id, RectText(rect));
+            }
+            return diffs;
+        }
+
         void EnterLayoutMode(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget, const std::string& a_why)
         {
             auto& m = g_menu.layout;
@@ -5356,12 +5369,7 @@ namespace Widget
             if (HeightsFitted() || AddonsCloseUp()) Rearrange(a_movie, a_widget);  // the fitted heights and the closed-up add-ons back
             if (!a_save) {
                 const bool same = CurrentLayout() == m.entry && Settings::SavedLayout() == m.entry;
-                const auto arranged = ArrangeBlocks(ArrangementFor(OwnCard()));
-                std::string diffs;
-                for (const auto& [id, rect] : arranged) {
-                    const auto it = g_menu.blocks.find(id);
-                    if (it == g_menu.blocks.end() || !SameRect(it->second, rect)) diffs += std::format("; {} not at {}", id, RectText(rect));
-                }
+                const auto diffs = PanelDiffs();
                 logger::info("Layout: mode OFF by {} - cancelled, the entry layout is back", a_why);
                 SelfTest(std::format("L4 cancel {} - the layout {} the entry layout ({}), the panels' rects {}{}", same && diffs.empty() ? "PASS" : "FAIL",
                     same ? "equals" : "differs from", Describe(m.entry), diffs.empty() ? "are the entry layout's" : "differ", diffs));
@@ -5516,10 +5524,24 @@ namespace Widget
             }
             EndDrag(a_widget);
             EndPick(a_movie, a_widget, "the reset");
+            // fix round 1: a column-border grab ends too (as LeaveLayoutMode ends it), with a border press or release still queued -
+            // else the next BorderFrame / BorderDrop would put the mouse's border over the default layout's
+            if (m.borderGrab) logger::info("Layout: the border drag ended by the reset - not moved");
+            m.borderGrab.reset();
+            m.guideAt.reset();
+            m.borderPressDue = m.borderReleaseDue = false;
+            ClearOverlay(a_widget, "guide");
             ApplyLayout(a_movie, a_widget, reset);
             ++m.resets;
-            if (!(m.working == reset)) ++m.resetWrong;
-            logger::info("Layout: reset to the default layout {} by {} (saved when the mode is left with the toggle)", Describe(reset), a_why);
+            // fix round 1: read back as L4 cancel does - the layout in use is the default, and every panel at its arranged rect
+            const auto diffs = PanelDiffs();
+            const bool held = CurrentLayout() == reset && diffs.empty();
+            if (!held) {
+                ++m.resetWrong;
+                if (m.resetFirstWrong.empty()) m.resetFirstWrong = (CurrentLayout() == reset ? "" : "the layout in use is " + Describe(CurrentLayout())) + diffs;
+            }
+            logger::info("Layout: reset to the default layout {} by {} (saved when the mode is left with the toggle){}", Describe(reset), a_why,
+                held ? "" : " - the read-back differs" + diffs);
         }
 
         // Each frame (Frame handler): the wraps, the published refusals, the queued requests, the drags
@@ -5611,8 +5633,10 @@ namespace Widget
             // the default layout; with the mode off the key passed (L5 passthrough counts it with the other keys)
             if (m.resetKeys > 0) {
                 SelfTest(std::format("L9 reset key {} - {} press(es) in the layout mode: {} reset to the default layout, {} already the default, {} after "
-                                     "the mode was left; {} reset(s) not at the default layout after it (want 0)",
-                    m.resetWrong == 0 ? "PASS" : "FAIL", m.resetKeys, m.resets, m.resetSame, m.resetLate, m.resetWrong));
+                                     "the mode was left; {} reset(s) whose read-back (the layout in use, the panels' rects) was not the default "
+                                     "layout (want 0){}",
+                    m.resetWrong == 0 ? "PASS" : "FAIL", m.resetKeys, m.resets, m.resetSame, m.resetLate, m.resetWrong,
+                    m.resetFirstWrong.empty() ? std::string{} : "; first: " + m.resetFirstWrong));
             }
             // Task 5: the focus model's keys this menu (each pad drop has its own L6 pad drop line)
             if (m.padKeys > 0) {
