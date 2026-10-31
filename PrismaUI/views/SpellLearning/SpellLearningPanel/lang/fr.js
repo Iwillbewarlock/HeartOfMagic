@@ -142,6 +142,7 @@ window._i18nPreload = {
     "hud.needMore": "Vous devez maîtriser encore {{count}} sorts liés pour comprendre ce tome",
     "hud.needMoreOne": "Vous devez maîtriser encore 1 sort lié pour comprendre ce tome",
     "hud.powerIncreased": "Puissance de {{spell}} portée à {{percent}} %",
+    "hud.presetRenameFailed": "Impossible de renommer le préréglage \"{{name}}\". Il conserve son ancien nom.",
     "hud.review": "Vous relisez {{spell}}... (rien de nouveau)",
     "hud.studiedHour": "{{spell}} étudié pendant {{hours}} heure.",
     "hud.studiedHours": "{{spell}} étudié pendant {{hours}} heures.",

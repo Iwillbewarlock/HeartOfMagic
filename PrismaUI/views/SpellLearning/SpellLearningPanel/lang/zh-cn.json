@@ -145,6 +145,7 @@
     "hud.needMore": "还需精通 {{count}} 个相关法术才能领会这本法术书",
     "hud.needMoreOne": "还需精通 1 个相关法术才能领会这本法术书",
     "hud.powerIncreased": "{{spell}} 威力提升至 {{percent}}%",
+    "hud.presetRenameFailed": "无法重命名预设\"{{name}}\"。已保留原名称。",
     "hud.review": "重温 {{spell}}...（没有新的领悟）",
     "hud.studiedHour": "研习了 {{spell}} {{hours}} 小时。",
     "hud.studiedHours": "研习了 {{spell}} {{hours}} 小时。",

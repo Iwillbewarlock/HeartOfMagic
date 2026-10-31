@@ -142,6 +142,7 @@ window._i18nPreload = {
     "hud.needMore": "Bu kitabı kavramak için {{count}} ilgili büyüde daha ustalaşmalısın",
     "hud.needMoreOne": "Bu kitabı kavramak için 1 ilgili büyüde daha ustalaşmalısın",
     "hud.powerIncreased": "{{spell}} gücü %{{percent}} oldu",
+    "hud.presetRenameFailed": "\"{{name}}\" hazır ayarının adı değiştirilemedi. Eski adı korundu.",
     "hud.review": "{{spell}} yeniden gözden geçiriliyor... (yeni bir şey yok)",
     "hud.studiedHour": "{{spell}} {{hours}} saat çalışıldı.",
     "hud.studiedHours": "{{spell}} {{hours}} saat çalışıldı.",

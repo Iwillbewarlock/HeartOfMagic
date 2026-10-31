@@ -142,6 +142,7 @@ window._i18nPreload = {
     "hud.needMore": "Devi padroneggiare ancora {{count}} incantesimi correlati per comprendere questo tomo",
     "hud.needMoreOne": "Devi padroneggiare ancora 1 incantesimo correlato per comprendere questo tomo",
     "hud.powerIncreased": "Potenza di {{spell}} salita al {{percent}}%",
+    "hud.presetRenameFailed": "Impossibile rinominare il preset «{{name}}». Mantiene il vecchio nome.",
     "hud.review": "Ripassi {{spell}}... (nessuna nuova intuizione)",
     "hud.studiedHour": "Hai studiato {{spell}} per {{hours}} ora.",
     "hud.studiedHours": "Hai studiato {{spell}} per {{hours}} ore.",

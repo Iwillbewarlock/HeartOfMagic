@@ -142,6 +142,7 @@ window._i18nPreload = {
     "hud.needMore": "이 마법서를 이해하려면 관련 주문 {{count}}개를 더 숙달해야 합니다",
     "hud.needMoreOne": "이 마법서를 이해하려면 관련 주문 1개를 더 숙달해야 합니다",
     "hud.powerIncreased": "{{spell}} 위력이 {{percent}}%로 올랐습니다",
+    "hud.presetRenameFailed": "\"{{name}}\" 프리셋의 이름을 변경할 수 없습니다. 기존 이름으로 유지됩니다.",
     "hud.review": "{{spell}}을(를) 다시 살펴봅니다... (새로 얻은 깨달음 없음)",
     "hud.studiedHour": "{{spell}}을(를) {{hours}}시간 공부했습니다.",
     "hud.studiedHours": "{{spell}}을(를) {{hours}}시간 공부했습니다.",

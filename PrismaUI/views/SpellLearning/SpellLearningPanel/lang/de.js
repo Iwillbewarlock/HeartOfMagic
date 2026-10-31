@@ -142,6 +142,7 @@ window._i18nPreload = {
     "hud.needMore": "Meistere noch {{count}} verwandte Zauber, um diesen Foliant zu verstehen",
     "hud.needMoreOne": "Meistere noch 1 verwandten Zauber, um diesen Foliant zu verstehen",
     "hud.powerIncreased": "Stärke von {{spell}} auf {{percent}}% gestiegen",
+    "hud.presetRenameFailed": "Die Voreinstellung \"{{name}}\" konnte nicht umbenannt werden. Sie behält ihren alten Namen.",
     "hud.review": "Du gehst {{spell}} noch einmal durch... (keine neuen Erkenntnisse)",
     "hud.studiedHour": "{{spell}} {{hours}} Stunde studiert.",
     "hud.studiedHours": "{{spell}} {{hours}} Stunden studiert.",

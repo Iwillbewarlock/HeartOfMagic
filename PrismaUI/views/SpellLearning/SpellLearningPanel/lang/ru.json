@@ -145,6 +145,7 @@
     "hud.needMore": "Освойте ещё связанных заклинаний: {{count}}, чтобы понять этот том",
     "hud.needMoreOne": "Освойте ещё 1 связанное заклинание, чтобы понять этот том",
     "hud.powerIncreased": "Сила {{spell}} выросла до {{percent}}%",
+    "hud.presetRenameFailed": "Не удалось переименовать пресет «{{name}}». Сохранено старое имя.",
     "hud.review": "Вы перечитываете {{spell}}... (ничего нового)",
     "hud.studiedHour": "{{spell}}: изучено часов — {{hours}}.",
     "hud.studiedHours": "{{spell}}: изучено часов — {{hours}}.",

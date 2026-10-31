@@ -142,6 +142,7 @@ window._i18nPreload = {
     "hud.needMore": "Opanuj jeszcze {{count}} powiązanych zaklęć, aby zrozumieć tę księgę",
     "hud.needMoreOne": "Opanuj jeszcze 1 powiązane zaklęcie, aby zrozumieć tę księgę",
     "hud.powerIncreased": "Moc {{spell}} wzrosła do {{percent}}%",
+    "hud.presetRenameFailed": "Nie udało się zmienić nazwy szablonu «{{name}}». Zachowano starą nazwę.",
     "hud.review": "Przeglądasz {{spell}}... (nic nowego)",
     "hud.studiedHour": "Studiowano {{spell}} przez {{hours}} godz.",
     "hud.studiedHours": "Studiowano {{spell}} przez {{hours}} godz.",

@@ -142,6 +142,7 @@ window._i18nPreload = {
     "hud.needMore": "Você precisa dominar mais {{count}} magias relacionadas para compreender este tomo",
     "hud.needMoreOne": "Você precisa dominar mais 1 magia relacionada para compreender este tomo",
     "hud.powerIncreased": "Poder de {{spell}} aumentou para {{percent}}%",
+    "hud.presetRenameFailed": "Não foi possível renomear o preset \"{{name}}\". O nome antigo foi mantido.",
     "hud.review": "Você revisa {{spell}}... (nenhum novo entendimento)",
     "hud.studiedHour": "{{spell}} estudada por {{hours}} hora.",
     "hud.studiedHours": "{{spell}} estudada por {{hours}} horas.",

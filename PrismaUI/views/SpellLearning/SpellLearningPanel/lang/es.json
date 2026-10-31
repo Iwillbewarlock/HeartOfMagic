@@ -145,6 +145,7 @@
     "hud.needMore": "Debes dominar {{count}} hechizos relacionados más para comprender este tomo",
     "hud.needMoreOne": "Debes dominar 1 hechizo relacionado más para comprender este tomo",
     "hud.powerIncreased": "El poder de {{spell}} sube al {{percent}}%",
+    "hud.presetRenameFailed": "No se pudo renombrar el preset «{{name}}». Se mantiene con su nombre anterior.",
     "hud.review": "Repasas {{spell}}... (sin nuevos conocimientos)",
     "hud.studiedHour": "Has estudiado {{spell}} durante {{hours}} hora.",
     "hud.studiedHours": "Has estudiado {{spell}} durante {{hours}} horas.",

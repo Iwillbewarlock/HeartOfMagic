@@ -142,6 +142,7 @@ window._i18nPreload = {
     "hud.needMore": "この呪文書を理解するには、関連する呪文をあと{{count}}つ習熟する必要がある",
     "hud.needMoreOne": "この呪文書を理解するには、関連する呪文をあと1つ習熟する必要がある",
     "hud.powerIncreased": "{{spell}} の威力が {{percent}}% に上昇",
+    "hud.presetRenameFailed": "プリセット「{{name}}」の名前を変更できませんでした。元の名前のままになります。",
     "hud.review": "{{spell}} を読み返した...（新たな発見なし）",
     "hud.studiedHour": "{{spell}} を{{hours}}時間研究した。",
     "hud.studiedHours": "{{spell}} を{{hours}}時間研究した。",
