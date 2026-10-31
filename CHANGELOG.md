@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## Heart of Magic Librarian 1.7.0
 
 ### New
 
@@ -33,8 +33,8 @@
   panel saves the tree over the new spells before it has shown them, they join again at the next game start. The
   tree file is backed up first (`spell_tree.json.bak`). Not yet tested in game.
 
-- **Experimental: spell tomes changed by SpellScribe count as spell tomes.** This is an experimental
-  compatibility add-on. SpellScribe (through SkyPatcher) turns off the "teaches spell" flag on the spell tomes of
+- **Experimental: spell tomes changed by SpellScribe count as spell tomes.** It is experimental and
+  built into the main plugin. SpellScribe (through SkyPatcher) turns off the "teaches spell" flag on the spell tomes of
   vanilla and about 50 spell mods while the game runs, so Heart of Magic found no tome for those spells and the
   tree could come out empty. Such a book still points at its spell, so Heart of Magic now takes that spell for
   the tree, the check of which tomes the game hands out and the XP bonus for carrying a tome. Reading the tome
