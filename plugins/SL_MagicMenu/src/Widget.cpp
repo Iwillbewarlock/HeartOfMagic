@@ -5516,6 +5516,14 @@ namespace Widget
                 logger::info("Layout: {} - the layout mode was left before it ran, nothing reset", a_why);
                 return;
             }
+            // fix round 1: a column-border grab ends too (as LeaveLayoutMode ends it), with a border press or release still queued -
+            // else the next BorderFrame / BorderDrop would put the mouse's border over the default layout's. Before the "default
+            // already" check (GPT on 36aeb4e3): a border being dragged is not in m.working until it is dropped
+            if (m.borderGrab) logger::info("Layout: the border drag ended by the reset - not moved");
+            m.borderGrab.reset();
+            m.guideAt.reset();
+            m.borderPressDue = m.borderReleaseDue = false;
+            ClearOverlay(a_widget, "guide");
             const auto reset = Settings::DefaultLayout();
             if (reset == m.working) {
                 ++m.resetSame;
@@ -5524,13 +5532,6 @@ namespace Widget
             }
             EndDrag(a_widget);
             EndPick(a_movie, a_widget, "the reset");
-            // fix round 1: a column-border grab ends too (as LeaveLayoutMode ends it), with a border press or release still queued -
-            // else the next BorderFrame / BorderDrop would put the mouse's border over the default layout's
-            if (m.borderGrab) logger::info("Layout: the border drag ended by the reset - not moved");
-            m.borderGrab.reset();
-            m.guideAt.reset();
-            m.borderPressDue = m.borderReleaseDue = false;
-            ClearOverlay(a_widget, "guide");
             ApplyLayout(a_movie, a_widget, reset);
             ++m.resets;
             // fix round 1: read back as L4 cancel does - the layout in use is the default, and every panel at its arranged rect
