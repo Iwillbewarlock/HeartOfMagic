@@ -136,14 +136,30 @@ namespace BlockApiCheck
             Expect(BlockRules::OursAtTail(3, 3, 6) && !BlockRules::OursAtTail(3, 3, 8) && BlockRules::OursAtTail(5, 0, 5),
                 "ours at the panel's end: only when nothing came after them");
         }
+
+        // game run 2026-10-31: Untarnished UI's panel wraps at button index 4 (x 0, y 35); the L10 FAILs read x alone
+        void ReadingOrder()
+        {
+            using BlockRules::ButtonSpot;
+            Expect(BlockRules::LaidOutAfter(std::nullopt, { 0.0, 0.0 }), "the first shown button: after nothing");
+            Expect(BlockRules::LaidOutAfter(ButtonSpot{ 169.0, 0.0 }, { 251.2, 0.0 }), "same row, right of the last: after it");
+            Expect(BlockRules::LaidOutAfter(ButtonSpot{ 251.2, 0.0 }, { 0.0, 35.0 }) && BlockRules::LaidOutAfter(ButtonSpot{ 0.0, 35.0 }, { 82.3, 35.0 }),
+                "the 10-31 FAIL case (button 3 at 251.2, then 4 at 0 and 5 at 82.3 on the next row): after it");
+            Expect(!BlockRules::LaidOutAfter(ButtonSpot{ 251.2, 0.0 }, { 0.0, 0.0 }) && !BlockRules::LaidOutAfter(ButtonSpot{ 82.3, 35.0 }, { 82.3, 35.0 }),
+                "same row at or left of the last: not after it (an overlap)");
+            Expect(!BlockRules::LaidOutAfter(ButtonSpot{ 0.0, 35.0 }, { 300.0, 0.0 }), "a row above the last: not after it");
+            Expect(BlockRules::LaidOutAfter(ButtonSpot{ 10.0, 0.0 }, { 20.0, BlockRules::kRowTolerance * 0.5 }),
+                "a _y within the tolerance is the same row (right of it: after it)");
+        }
     }
 
     void V3KeyHints()
     {
-        std::printf("'SLMK' key hints (BlockRules::ReadKeyHint, SetKeyHint, HintButtons, ButtonsToGrow)\n");
+        std::printf("'SLMK' key hints (BlockRules::ReadKeyHint, SetKeyHint, HintButtons, ButtonsToGrow, LaidOutAfter)\n");
         Reading();
         List();
         Buttons();
         Panel();
+        ReadingOrder();
     }
 }

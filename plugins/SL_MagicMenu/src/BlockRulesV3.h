@@ -440,4 +440,24 @@ namespace BlockRules
     {
         return a_first + a_count == a_used;
     }
+
+    /// A shown button's place in the panel (_x, _y in the panel's own space)
+    struct ButtonSpot
+    {
+        double x = 0.0;
+        double y = 0.0;
+    };
+
+    inline constexpr double kRowTolerance = 0.5;  // panel units: two buttons this close in _y are on one row
+
+    /// SelfTest L10: a_now is laid out after the shown button before it (a_last; none: the first shown) in the panel's reading
+    /// order - right of it on its row, or on a later row. SkyUI's ButtonPanel.doUpdateButtons (ButtonPanel.as:106-128) lays
+    /// every button out on one row; Untarnished UI's bottombar.swf (the one installed in TAKEALOOK, disassembled 2026-10-31)
+    /// starts a new row at every 4th button index that shows (x 0, y + 35, spacing 2), so x alone goes back to 0 there
+    constexpr bool LaidOutAfter(const std::optional<ButtonSpot>& a_last, const ButtonSpot& a_now)
+    {
+        if (!a_last) return true;
+        if (a_now.y > a_last->y + kRowTolerance) return true;
+        return a_now.y >= a_last->y - kRowTolerance && a_now.x > a_last->x;
+    }
 }

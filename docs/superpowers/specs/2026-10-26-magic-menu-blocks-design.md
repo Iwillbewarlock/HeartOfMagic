@@ -465,6 +465,11 @@ block) messages. v1 and v2 add-ons are read as before. The contract is the heade
   bottombar.swf); SkyUI uses up to 3 in the magic menu and STB 2 more, so with ours 8 can be needed: more buttons are made
   as the panel's constructor makes them (ButtonPanel.as:41-45: `attachMovie(buttonRenderer, "button<n>", depth,
   buttonInitializer)`, pushed on `buttons`), at most 8 per menu. The strip move counts them (they are the panel's children).
+  `updateButtons(true)` lays every button of `buttons` out at once, the made ones too (ButtonPanel.as:95-98, :112).
+  Untarnished UI's bottombar.swf (installed loose over SkyUI's) lays them out in rows: a shown button at index 4, 8, ...
+  starts a new row (`_x` 0, `_y` + 35), spacing 2 (SkyUI's: one row, spacing 10). SelfTest L10 therefore reads our shown
+  buttons in reading order (`BlockRules::LaidOutAfter`: right of the last shown one, or on a later row; game run
+  2026-10-31: x alone gave 8 FAILs on the second row).
 - The panel is only moved, never drawn again. With no panel SkyUI's strip is left alone; a menu that never had one says
   so at its close.
 - The gear goes one row under the strip, with its left edge on the strip's start, so both sit on one vertical line. The

@@ -11,7 +11,6 @@
 #include <array>
 #include <atomic>
 #include <format>
-#include <limits>
 #include <mutex>
 #include <optional>
 #include <string>
@@ -24,6 +23,8 @@
 // SetPlatform :170-196, 0 = PC), MagicMenu.as (updateBottomBar :193-219: clearButtons, SkyUI's buttons, updateButtons(true); its
 // callers :107, :157, :166, :176 and ItemMenu's setConfig :166). STB Hotkey System's BottomBarHint.cpp (github STB-Team) wraps the
 // same method on the menu object and adds {text, controls: {keyCode}} buttons after it; its wrap and ours chain either way round.
+// Untarnished UI's bottombar.swf (loose in TAKEALOOK, over SkyUI's; its doUpdateButtons disassembled 2026-10-31) lays the same
+// buttons out in rows: a shown button at index 4, 8, ... starts a row (_x 0, _y + 35), spacing 2 (SkyUI's: one row, spacing 10).
 
 namespace KeyHints
 {
@@ -195,15 +196,18 @@ namespace KeyHints
         }
 
         // SelfTest L10 (bSelfTest), the frame after our buttons were added or shown / hidden: each at its index with its label,
-        // _visible as wanted, and every shown one laid out right of the shown buttons before it (doUpdateButtons' order)
+        // _visible as wanted, and every shown one laid out after the shown button before it in reading order (BlockRules::
+        // LaidOutAfter: right of it, or on a later row). updateButtons(true) lays the panel out at once and every button of
+        // buttons, ours made by GrowOne too (ButtonPanel.as:95-98, :112); game run 2026-10-31: Untarnished UI's panel starts a
+        // row at button index 4, which x alone read as 8 FAILs. Our shown buttons' places are logged (the rows show)
         void Check(RE::GFxValue& a_panel)
         {
             if (!Settings::Get().selfTest || !std::exchange(g_menu.checkDue, false) || g_menu.checks >= kMaxChecks) return;
             ++g_menu.checks;
             RE::GFxValue buttons, button, visible;
             const auto used = InUse(a_panel, buttons);
-            std::string why;
-            double lastX = -std::numeric_limits<double>::infinity();
+            std::string why, spots;
+            std::optional<BlockRules::ButtonSpot> last;
             int shownCount = 0;
             for (std::size_t i = 0; used && i < g_menu.first + g_menu.ours.size(); ++i) {
                 if (!buttons.GetElement(static_cast<std::uint32_t>(i), &button)) {
@@ -211,20 +215,26 @@ namespace KeyHints
                     continue;
                 }
                 const bool shown = button.GetMember("_visible", &visible) && visible.IsBool() && visible.GetBool();
-                const auto x = Number(button, "_x");
+                const auto x = Number(button, "_x"), y = Number(button, "_y");
+                const auto spot = x && y ? std::optional(BlockRules::ButtonSpot{ *x, *y }) : std::nullopt;
                 const bool ours = i >= g_menu.first;
                 if (ours) {
                     const auto& want = g_menu.ours[i - g_menu.first];
                     if (Label(button) != want.label) why += std::format("button {} reads \"{}\", not \"{}\"; ", i, Label(button), want.label);
                     if (shown != want.shown) why += std::format("button {} {} (want {}); ", i, shown ? "shown" : "hidden", want.shown ? "shown" : "hidden");
-                    if (shown && (!x || !(*x > lastX))) why += std::format("button {} at x {} not right of {:.1f}; ", i, x ? std::format("{:.1f}", *x) : "unread", lastX);
+                    if (shown && !spot) why += std::format("button {}'s _x / _y do not read; ", i);
+                    if (shown && spot && !BlockRules::LaidOutAfter(last, *spot)) {
+                        why += std::format("button {} at {:.1f},{:.1f} not after {:.1f},{:.1f}; ", i, spot->x, spot->y, last->x, last->y);
+                    }
+                    if (shown && spot) spots += std::format("{}{} at {:.1f},{:.1f}", spots.empty() ? "" : ", ", i, spot->x, spot->y);
                     shownCount += shown ? 1 : 0;
                 }
-                if (shown && x) lastX = std::max(lastX, *x);
+                if (shown && spot) last = spot;
             }
             if (!used) why = "the panel's _buttonCount / buttons do not read";
-            logger::info("SelfTest: L10 key hints {} - {} of ours ({} shown) from button {}{}{}", why.empty() ? "PASS" : "FAIL", g_menu.ours.size(), shownCount,
-                g_menu.first, g_menu.grown ? std::format(", {} button(s) made by us", g_menu.grown) : "", why.empty() ? "" : " - " + why);
+            logger::info("SelfTest: L10 key hints {} - {} of ours ({} shown) from button {}{}{}{}", why.empty() ? "PASS" : "FAIL", g_menu.ours.size(), shownCount,
+                g_menu.first, g_menu.grown ? std::format(", {} button(s) made by us", g_menu.grown) : "", spots.empty() ? "" : " (" + spots + ")",
+                why.empty() ? "" : " - " + why);
             FlushLog();
         }
 
