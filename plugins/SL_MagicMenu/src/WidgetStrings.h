@@ -58,6 +58,18 @@ namespace WidgetText
         // 2026-10-31: the layout key's hint in SkyUI's key-hint strip (KeyHints.cpp)
         kHintLayout,
         kHintLayoutLeave,
+        // 2026-10-31: the SKSE Menu Framework settings tab (SettingsTab.cpp; only with SKSE Menu Framework)
+        kSetItem,
+        kSetLanguage,
+        kSetLangAuto,
+        kSetLangOther,
+        kSetLangNote,
+        kSetLangTitles,
+        kSetBlocks,
+        kSetBlocksNote,
+        kSetBlockPreview,
+        kSetBlockSpellCard,
+        kSetBlocksBuiltIn,
         kCount
     };
 
@@ -108,6 +120,21 @@ namespace WidgetText
         { Str::kHintLayout, "hint_layout", "Edit mode" },
         // fix round 1: the same key's hint in the layout mode (the gear's layout_gear_leave without the key)
         { Str::kHintLayoutLeave, "hint_layout_leave", "View mode" },
+        // 2026-10-31: the settings tab in SKSE Menu Framework - its item under the "Magic Menu Note" section, the language row (the
+        // language names themselves, English and 한국어, are not translated), the block checkboxes and their notes
+        { Str::kSetItem, "settings_item", "Settings" },
+        { Str::kSetLanguage, "settings_language", "Language" },
+        { Str::kSetLangAuto, "settings_lang_auto", "Auto (the game's language)" },
+        { Str::kSetLangOther, "settings_lang_other", "Other: {code}" },
+        { Str::kSetLangNote, "settings_lang_note", "Applies the next time the magic menu opens." },
+        { Str::kSetLangTitles, "settings_lang_titles", "Add-on block titles and this tab's name change after the game restarts." },
+        { Str::kSetBlocks, "settings_blocks", "Blocks" },
+        { Str::kSetBlocksNote, "settings_blocks_note",
+            "Unticked blocks are left out of the magic menu; their places in the layout are kept. Applies the next time the magic menu opens." },
+        { Str::kSetBlockPreview, "settings_block_preview", "3D preview" },
+        { Str::kSetBlockSpellCard, "settings_block_spellcard", "Spell card" },
+        { Str::kSetBlocksBuiltIn, "settings_blocks_builtin",
+            "Without the spell card, SkyUI's own item card shows in its usual place; without the 3D preview, the game draws the spell's 3D itself." },
     });
 
     consteval bool StringsInOrder()

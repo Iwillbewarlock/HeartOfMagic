@@ -3,8 +3,8 @@
 // the shipped dist/lang/en.json and ko.json against the DLL's table - every key there, no extra key, the files parse, the
 // {placeholders} and the " · " separators the same in en, ko and the built-in text, the built-in text equal to en.json -
 // and the shared LangFiles.h as the DLLs run it: [Display] sLanguage + the game's language -> the code, the file chain
-// (<code>.json, en.json, built-in) on the real folders and on made-up ones, the Catalog's one load, the log lines. The
-// shipped SL_MagicMenu.ini must carry [Display] sLanguage=auto.
+// (<code>.json, en.json, built-in) on the real folders and on made-up ones, the Catalog's one load and its refresh at a menu open, the log lines. The
+// shipped SL_MagicMenu.ini must carry [Display] sLanguage=auto and an empty [Blocks] sHidden.
 // Not covered here (the game only): LangGame.h's ini and game INI setting reads.
 //
 //   magic-menu-lang-check               one PASS/FAIL line per check, a total line
@@ -20,6 +20,7 @@
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
+#include <optional>
 #include <set>
 #include <sstream>
 #include <string>
@@ -336,21 +337,52 @@ namespace
         Expect(before && loaded && kept, Text("%s: built-in English before, ko.json after the load, a second load refused (first stands)", a_name));
     }
 
-    void DistIni()
+    // 2026-10-31 (the settings tab writes [Display] sLanguage while the game runs): Refresh at a menu open resolves again only for
+    // another setting, and a pointer Text gave before stays valid with its old text
+    template <class Entry, std::size_t N>
+    void Refreshes(const char* a_name, const std::array<Entry, N>& a_table, const fs::path& a_dir)
     {
-        std::printf("the shipped SL_MagicMenu.ini\n");
+        std::printf("%s: the Catalog's refresh at a menu open\n", a_name);
+        Catalog<Entry, N> catalog(a_table);
+        Expect(!catalog.Refresh(a_dir, "ko", "") && !catalog.Loaded(), Text("%s: a refresh before the load does nothing", a_name));
+        const auto en = ReadTableFile(FilePath(a_dir, kEnglish)), ko = ReadTableFile(FilePath(a_dir, kKorean));
+        const std::string key = a_table[0].key;
+        catalog.Load(a_dir, "", "");
+        const char* old = catalog.Text(0);
+        Expect(!catalog.Refresh(a_dir, " AUTO ", "") && !catalog.Refresh(a_dir, "auto", "") && catalog.Generations() == 1,
+            Text("%s: \"\" then \" AUTO \" / \"auto\": the same setting, not resolved again", a_name));
+        const auto changed = catalog.Refresh(a_dir, "ko", "");
+        Expect(changed && changed->choice.code == kKorean && ko.table && catalog.Text(0) == ko.table->at(key) && catalog.Generations() == 2,
+            Text("%s: auto -> ko resolves again: ko.json's text now", a_name));
+        Expect(en.table && old == en.table->at(key), Text("%s: the pointer taken before the refresh still reads the English text", a_name));
+        Expect(!catalog.Refresh(a_dir, "KO", "") && catalog.Generations() == 2, Text("%s: ko -> KO: the same setting, not resolved again", a_name));
+        const auto back = catalog.Refresh(a_dir, "en", "KOREAN");
+        Expect(back && en.table && catalog.Text(0) == en.table->at(key) && catalog.Generations() == 3, Text("%s: ko -> en: English again", a_name));
+        Expect(NormalizedSetting("") == kAuto && NormalizedSetting(" Ko\t") == kKorean, "NormalizedSetting: \"\" is auto, trimmed and lower case");
+    }
+
+    // The value of a_key in a_section ("[Display]") of the shipped ini; nullopt when the key is not there
+    std::optional<std::string> DistValue(std::string_view a_section, std::string_view a_key)
+    {
         std::istringstream in(ReadText(MM_DIST_INI));
-        std::string line, section, value;
-        bool found = false;
+        std::string line, section;
+        const std::string prefix = std::string(a_key) + "=";
+        std::optional<std::string> value;
         while (std::getline(in, line)) {
             if (!line.empty() && line.back() == '\r') line.pop_back();
             if (line.starts_with("[")) section = line;
-            if (section == "[Display]" && line.starts_with("sLanguage=")) {
-                found = true;
-                value = line.substr(std::string_view("sLanguage=").size());
-            }
+            if (section == a_section && line.starts_with(prefix)) value = line.substr(prefix.size());
         }
-        Expect(found && value == kAuto, Text("[Display] sLanguage=auto (found %s, value '%s')", found ? "yes" : "no", value.c_str()));
+        return value;
+    }
+
+    void DistIni()
+    {
+        std::printf("the shipped SL_MagicMenu.ini\n");
+        const auto language = DistValue("[Display]", "sLanguage");
+        Expect(language == kAuto, Text("[Display] sLanguage=auto (found %s, value '%s')", language ? "yes" : "no", language.value_or("").c_str()));
+        const auto hidden = DistValue("[Blocks]", "sHidden");
+        Expect(hidden && hidden->empty(), Text("[Blocks] sHidden= (empty: every block shown; found %s)", hidden ? "yes" : "no"));
     }
 
     int Run()
@@ -366,6 +398,8 @@ namespace
         MadeUp("hom", HomStrings::kStrings);
         OneLoad("core", WidgetText::kStrings, coreDir);
         OneLoad("hom", HomStrings::kStrings, homDir);
+        Refreshes("core", WidgetText::kStrings, coreDir);
+        Refreshes("hom", HomStrings::kStrings, homDir);
         DistIni();
         std::printf("lang-check: %d PASS, %d FAIL\n", g_pass, g_fail);
         return g_fail == 0 ? kExitOk : kExitFail;

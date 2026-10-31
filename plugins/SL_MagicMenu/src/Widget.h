@@ -4,7 +4,9 @@
 #include "Layout.h"
 
 #include <cstdint>
+#include <string>
 #include <string_view>
+#include <vector>
 
 // =============================================================================
 // WIDGET - everything SL_MagicMenu draws into the magic menu: one clip
@@ -27,6 +29,17 @@ namespace Widget
     /// the plugin a_sender. Any thread. Accepted until the first magic menu open; logged, with "SelfTest: L6 addon <id>
     /// registered" / "... refused <reason>". The outcome is what the sender is answered (BlockApi::Result)
     BlockRegistry::Outcome RegisterBlock(std::string_view a_sender, const void* a_data, std::uint32_t a_dataLen);
+
+    /// A block as the settings tab lists it: its final id, its registered title ("" for the built-in ones and an add-on block
+    /// with no title strip), the plugin that registered it and the retired id it took over ("" = none; [Blocks] sHidden may name it)
+    struct BlockLabel
+    {
+        std::string id, title, sender, legacyId;
+    };
+
+    /// 2026-10-31 (the settings tab): every block the menu knows now - the built-in preview and spell card, then the accepted
+    /// add-on blocks in registration order. Any thread (a copy taken under the registry's lock; no game call)
+    std::vector<BlockLabel> KnownBlocks();
 
     /// Block API v2: an add-on's kMessageRedraw ('SLMD', data = the block's final id) from a_sender. Any thread: the id is
     /// queued and its block drawn again on the menu's next frame; dropped while the magic menu is closed. An id that is not a

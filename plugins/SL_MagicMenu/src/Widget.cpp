@@ -8,9 +8,12 @@
 #include "BlockRulesV3.h"
 #include "BlockRulesStrip.h"
 
+#include "BlockHiding.h"
 #include "Draw.h"
 #include "GameThread.h"
+#include "HiddenBlocks.h"
 #include "KeyHints.h"
+#include "LangGame.h"
 #include "Layout.h"
 #include "LayoutMath.h"
 #include "Preview.h"
@@ -257,6 +260,9 @@ namespace Widget
         struct MenuState
         {
             bool firstFrame = true;
+            // 2026-10-31 (the settings tab): [Blocks] sHidden as this menu applies it (HiddenBlocks::Effective, set at AttachWidget):
+            // these blocks are absent this menu, as an add-on that is not installed (BlockHeights leaves them out)
+            std::set<std::string> hidden;
             bool powersHideLogged = false;   // spec v13 B1: the Powers tab's line, once per menu
             Committed sel;                   // spec v12 G2
             std::uint64_t selSeq = 0;        // bumped by every change of sel
@@ -1059,10 +1065,17 @@ namespace Widget
             return std::pair{ *card, holder };
         }
 
+        // [Blocks] sHidden holds the spell card: no card block this menu - SkyUI's item card stays where SkyUI puts it (not moved,
+        // not fitted, not hidden), as with no card block at all
+        bool SpellCardHidden()
+        {
+            return g_menu.hidden.contains(Layout::kSpellCard);
+        }
+
         // v7 C1: our own info card replaces SkyUI's (bOwnCard=1), not while Inventory Reforged runs its panel here
         bool OwnCard()
         {
-            return Settings::Get().ownCard && !g_menu.irActive && !g_menu.ownCardFallback;
+            return Settings::Get().ownCard && !g_menu.irActive && !g_menu.ownCardFallback && !SpellCardHidden();
         }
 
         // ---------------------------------------------------------------------
@@ -1087,6 +1100,7 @@ namespace Widget
         std::vector<BlockRegistry::Block> g_addons;  // the registry's blocks as they were when it closed, in registration order
         std::vector<std::string> g_addonClips;       // each add-on's panel clip name ("mmxAddon0", ...): an id may hold '.'
         std::vector<BlockId> g_allBlocks(kBlocks.begin(), kBlocks.end());
+        std::map<std::string, std::string> g_legacyAliases;  // retired id -> final id, fixed when the registry closes ([Blocks] sHidden reads both)
 
         // Block API v2: kMessageRedraw ids from any thread (RequestAddonRedraw), taken by the frame handler (TakeAddonRedraws);
         // emptied at each menu open
@@ -1179,8 +1193,26 @@ namespace Widget
             g_contentGenerations.resize(g_addons.size());
             logger::info("Widget: add-on block registration closed at the first magic menu open - {} block(s){}{}", g_addons.size(),
                 g_addons.empty() ? "" : ": ", names);
+            g_legacyAliases = legacyAliases;
             Settings::SetLegacyAliases(legacyAliases);  // HoM add-on design G-e: before AddBlocks, which renames the layout by it
             Settings::AddBlocks(ids);
+        }
+
+        // 2026-10-31: [Blocks] sHidden (BlockHiding::Read in the menu sink) for this menu - the blocks it names (a retired id read as
+        // the add-on block that took it over); ids that name no block are ignored and stay in the ini. Logged when the result changes
+        void ApplyHiddenSetting()
+        {
+            const auto setting = BlockHiding::Setting();
+            const std::set<BlockId> known(g_allBlocks.begin(), g_allBlocks.end());
+            g_menu.hidden = HiddenBlocks::Effective(setting, known, g_legacyAliases);
+            static std::optional<std::string> s_logged;  // the UI thread only
+            const auto value = HiddenBlocks::Join(setting);
+            if (s_logged == value) return;
+            s_logged = value;
+            const auto unknown = HiddenBlocks::Unknown(setting, known, g_legacyAliases);
+            logger::info("Widget: hidden blocks ([Blocks] sHidden): {}{}",
+                g_menu.hidden.empty() ? std::string("none") : HiddenBlocks::Join({ g_menu.hidden.begin(), g_menu.hidden.end() }),
+                unknown.empty() ? std::string{} : " - not a block here, ignored: " + HiddenBlocks::Join(unknown));
         }
 
         // [Debug] bDebugFillerBlock: the test add-on's draw callback - a note and three bars of falling length (the title strip
@@ -1278,6 +1310,7 @@ namespace Widget
                     logger::warn("Widget: add-on block {} has the height {} - left out of the layout (logged once)", addon.id, addon.height);
                 }
             }
+            HiddenBlocks::Drop(heights, g_menu.hidden);  // [Blocks] sHidden: absent, as an add-on not installed (no place, no gap)
             return heights;
         }
 
@@ -1369,7 +1402,7 @@ namespace Widget
             };
             if (const auto it = g_menu.blocks.find(a_id); it != g_menu.blocks.end()) return scrolled(it->second);
             if (const auto it = g_menu.blocksAll.find(a_id); it != g_menu.blocksAll.end()) return scrolled(it->second);
-            if (Addon(a_id)) return {};  // an add-on with no arranged place (no usable height): nothing to draw in
+            if (Addon(a_id) || g_menu.hidden.contains(a_id)) return {};  // no arranged place (no usable height, or hidden): nothing to draw in
             return IniRect(Settings::Get(), a_id);  // before the menu's first Rearrange (Repair keeps every block in the layout)
         }
 
@@ -1838,7 +1871,7 @@ namespace Widget
         // is worked out again when the union changes or the tab moves the slot. The P4 check runs at a window's end.
         void FitItemCard(RE::GFxMovieView* a_movie, RE::GFxValue& a_root)
         {
-            if (!Settings::Get().moveItemCard || g_menu.irActive || OwnCard()) return;  // our card replaces SkyUI's (v7 C1)
+            if (!Settings::Get().moveItemCard || g_menu.irActive || OwnCard() || SpellCardHidden()) return;  // our card replaces SkyUI's (v7 C1)
             auto pair = CardAndHolder(a_movie);
             if (!pair) return;
             auto& [card, holder] = *pair;
@@ -2371,7 +2404,7 @@ namespace Widget
         // A block's box clip at its rect
         void Panel(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget, const BlockId& a_id)
         {
-            if (Addon(a_id) && !g_menu.blocksAll.contains(a_id)) return;  // an add-on with no usable height: no panel
+            if ((Addon(a_id) || g_menu.hidden.contains(a_id)) && !g_menu.blocksAll.contains(a_id)) return;  // no usable height, or hidden: no panel
             auto parent = BlockParent(a_widget, a_id);
             if (!parent.IsDisplayObject()) return;
             auto panel = Draw::Clip(parent, PanelName(a_id));
@@ -2678,7 +2711,7 @@ namespace Widget
         // the holder's parent - no new measure (that put the card a frame late at its old place); a new size fits it again
         bool ShiftCardFit(const Settings::Rect& a_from, const Settings::Rect& a_to)
         {
-            if (!g_menu.cardFit || !Settings::Get().moveItemCard || g_menu.irActive || OwnCard()) return false;
+            if (!g_menu.cardFit || !Settings::Get().moveItemCard || g_menu.irActive || OwnCard() || SpellCardHidden()) return false;
             auto* movie = OpenMagicMenuMovie();
             RE::GFxValue root, parent;
             auto pair = movie ? CardAndHolder(movie) : std::nullopt;
@@ -3075,7 +3108,7 @@ namespace Widget
             // (BlockRules::EmptyLookOf); before, nothing chosen hid them all
             Showing shown;
             shown.preview = BlockShown(Layout::kPreview);
-            shown.any = shown.preview || own;
+            shown.any = shown.preview || own || !g_menu.blocks.empty();  // [Blocks] sHidden: the other blocks show with the preview hidden too
             shown.card = own && g_menu.ownCardShown;
             return shown;
         }
@@ -3116,7 +3149,7 @@ namespace Widget
             // 16: drawn on THIS tab - OwnCardBox - not the last tab's drawing still up while WatchTab rearranges). FAIL: the card's
             // box (ours as drawn, else SkyUI's slot; unscrolled) is inverted, empty or outside its column (Layout::CardBoxProblem)
             const auto box = own ? OwnCardBox() : std::nullopt;
-            if (g_menu.chosen && (!own || (card && box)) && g_menu.c2Logged.insert(static_cast<int>(g_menu.tab)).second) {
+            if (g_menu.chosen && !SpellCardHidden() && (!own || (card && box)) && g_menu.c2Logged.insert(static_cast<int>(g_menu.tab)).second) {
                 const auto rect = OwnCardRect();
                 const auto arranged = g_menu.blocks.find(Layout::kSpellCard);
                 const auto column = ColumnOf(Layout::kSpellCard);
@@ -3371,7 +3404,8 @@ namespace Widget
                         // Task 8: per block - the preview is compared while it is first in its column, the spell card while no add-on
                         // is ahead of it (our card: none after it either, BlockRules::CoreCompared)
                         const auto column = ColumnOf(id);
-                        if (custom || !column || !BlockRules::CoreCompared(CurrentLayout().columns[*column], id, own && id == Layout::kSpellCard, arrangedAddon)) {
+                        if (custom || !column || g_menu.hidden.contains(id) ||
+                            !BlockRules::CoreCompared(CurrentLayout().columns[*column], id, own && id == Layout::kSpellCard, arrangedAddon)) {
                             skipped += std::format(" {}", id);
                             continue;
                         }
@@ -3383,7 +3417,7 @@ namespace Widget
                     const char* verdict = compared == 0 ? "SKIP" : diffs.empty() ? "PASS" : "FAIL";
                     SelfTest(std::format("L1 layout {} {} ({}) -{}{}{}", TabName(tab), verdict, own ? "our card" : "SkyUI's card", rects,
                         custom            ? " (the layout file is not the default layout: the core's rects are no reference)" :
-                        !skipped.empty()  ? std::format(" (not compared:{} - an add-on block is ahead of it in its column, or after our card that fills it)", skipped) :
+                        !skipped.empty()  ? std::format(" (not compared:{} - hidden ([Blocks] sHidden), an add-on block ahead of it in its column, or after our card that fills it)", skipped) :
                                             std::string{},
                         diffs));
                 }
@@ -3399,6 +3433,7 @@ namespace Widget
             constexpr double kSlack = 0.5;
             std::string places, diffs;
             for (const BlockId& id : AllBlocks()) {
+                if (g_menu.hidden.contains(id)) continue;  // [Blocks] sHidden: no panel this menu
                 auto panel = BlockClip(a_widget, id);
                 const auto rect = BlockRect(id);
                 const auto local = BlockLocal(id, rect);
@@ -6296,6 +6331,7 @@ namespace Widget
             if (root.GetMember(kRootName, &existing) && existing.IsDisplayObject()) return;  // already on this movie
 
             g_menu = MenuState{};
+            ApplyHiddenSetting();  // 2026-10-31: [Blocks] sHidden as the menu sink read it, before anything is arranged
             KeyHints::OnMenuOpen();
             {
                 const std::scoped_lock lock(g_redrawLock);  // Block API v2: a request of the last menu is not carried over
@@ -6369,16 +6405,20 @@ namespace Widget
             g_hide3D = false;
             g_powersHidePending = false;
             g_attachedMovie = movie;
-            g_overPass = settings.drawPreviewOver && g_postDisplayHooked && !g_menu.irActive;
+            // [Blocks] sHidden holds the preview: no box this menu, and the game's own pass draws its 3D where the game puts it
+            const bool previewHidden = g_menu.hidden.contains(Layout::kPreview);
+            g_overPass = settings.drawPreviewOver && g_postDisplayHooked && !g_menu.irActive && !previewHidden;
             logger::info("Widget: preview over-pass {} ({})", g_overPass ? "ON" : "off",
+                previewHidden             ? "the preview block is hidden ([Blocks] sHidden)" :
                 !settings.drawPreviewOver ? "bDrawPreviewOver=0" :
                 !g_postDisplayHooked      ? "PostDisplay not hooked" :
                 g_menu.irActive           ? "Inventory Reforged draws the magic menu's 3D itself" :
                                             "the 3D preview is drawn again after the menu movie");
             const bool vr = REL::Module::IsVR();
-            g_fitPass = settings.movePreview && g_postDisplayHooked && !g_menu.irActive && !vr;
+            g_fitPass = settings.movePreview && g_postDisplayHooked && !g_menu.irActive && !vr && !previewHidden;
             g_powersHideCalls = g_postDisplayHooked && !g_menu.irActive && !vr;
             logger::info("Widget: preview place/fit {} ({})", g_fitPass ? "ON" : "off",
+                previewHidden         ? "the preview block is hidden ([Blocks] sHidden)" :
                 !settings.movePreview ? "bMovePreview=0" :
                 !g_postDisplayHooked  ? "PostDisplay not hooked" :
                 g_menu.irActive       ? "Inventory Reforged runs its panel in this menu" :
@@ -6441,6 +6481,10 @@ namespace Widget
                     g_blockingMenus.clear();
                 }
                 if (a_event->opening) {
+                    // 2026-10-31 (the settings tab writes them while the game runs): [Display] sLanguage and [Blocks] sHidden read again
+                    // here, before the UI task that builds the widget
+                    LangGame::Refresh(WidgetText::g_catalog, WidgetText::kLangDir);
+                    BlockHiding::Read("menu open");
                     CloseRegistry();  // blocks plan Task 6: the first open ends add-on registration (before the widget is made)
                     SKSE::GetTaskInterface()->AddUITask([] { AttachWidget(); });
                 } else {
@@ -6524,6 +6568,15 @@ namespace Widget
                 CancelLayoutMode(std::format("the menu \"{}\" opening over the magic menu", name).c_str());
             }
         };
+    }
+
+    std::vector<BlockLabel> KnownBlocks()
+    {
+        std::vector<BlockLabel> blocks;
+        for (const char* id : kBlocks) blocks.push_back({ id, {}, BlockApi::kPluginName, {} });
+        const std::scoped_lock lock(g_registryLock);
+        for (const auto& block : g_registry.Blocks()) blocks.push_back({ block.id, block.title, block.sender, block.legacyId });
+        return blocks;
     }
 
     BlockRegistry::Outcome RegisterBlock(std::string_view a_sender, const void* a_data, std::uint32_t a_dataLen)

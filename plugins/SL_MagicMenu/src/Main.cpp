@@ -12,9 +12,11 @@
 #include "Common.h"
 
 #include "BlockApi.h"
+#include "BlockHiding.h"
 #include "GameThread.h"
 #include "LangGame.h"
 #include "Settings.h"
+#include "SettingsTab.h"
 #include "Widget.h"
 #include "WidgetStrings.h"
 
@@ -75,8 +77,11 @@ namespace
             return;
         }
         if (a_msg->type != SKSE::MessagingInterface::kDataLoaded) return;
-        // the on-screen texts in [Display] sLanguage's language (the game's INI settings are read by now), once per session
+        // the on-screen texts in [Display] sLanguage's language (the game's INI settings are read by now); read again at each magic
+        // menu open (Widget's menu sink: the settings tab writes the key while the game runs)
         LangGame::Load(WidgetText::g_catalog, WidgetText::kLangDir);
+        // 2026-10-31: the optional SKSE Menu Framework tab (language, blocks); without the framework one log line
+        SettingsTab::Register(LangGame::AutoCode());
         if (Settings::Get().debugFillerBlock) Widget::RegisterDebugFiller();  // blocks plan Task 6: through the add-on path
         logger::info("SL_MagicMenu: kDataLoaded on thread {}, main thread {}", REX::W32::GetCurrentThreadId(), GameThread::Id());
         Widget::Install();
@@ -95,6 +100,7 @@ SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
     logger::info("SL_MagicMenu: main thread {}", REX::W32::GetCurrentThreadId());
 
     Settings::Load();
+    BlockHiding::Read("plugin load");  // [Blocks] sHidden (read again at each magic menu open)
     if (!Settings::Get().enabled) {
         logger::info("SL_MagicMenu: bEnabled=0 - nothing installed");
         return true;

@@ -90,6 +90,8 @@ namespace
         logger::info("SL_MagicMenu_HoM: Heart of Magic API v{} received", api->GetAPIVersion());
     }
 
+    void SendKeyHints(const SKSE::MessagingInterface* a_messaging);  // below, with the registrations
+
     class MenuSink : public RE::BSTEventSink<RE::MenuOpenCloseEvent>
     {
     public:
@@ -104,6 +106,12 @@ namespace
             if (!a_event || a_event->menuName != RE::MagicMenu::MENU_NAME) return RE::BSEventNotifyControl::kContinue;
             // the per-menu state is reset by the next callback (EnsureMenu); the style is read for this open
             if (a_event->opening) {
+                // 2026-10-31 (the settings tab): [Display] sLanguage read again; a new language gets new texts from this menu on,
+                // and the key hints SL_MagicMenu keeps are sent again with the new labels (relabelled in place). The tree's title
+                // strip keeps the start language: the host copied it at the registration (Block API v3 has no title update)
+                if (LangGame::Refresh(HomStrings::g_catalog, HomStrings::kLangDir)) {
+                    if (const auto* messaging = SKSE::GetMessagingInterface()) SendKeyHints(messaging);
+                }
                 HomAddon::OnMenuOpen();
             } else {
                 HomAddon::OnMenuClose();  // SelfTest L2 mask clicks
@@ -154,7 +162,8 @@ namespace
     }
 
     // 2026-10-31 (user: "단축키 표시"): the keys the tree block's key callback takes (next spell, set the learning target) as hints in
-    // SkyUI's key-hint strip ('SLMK'), sent once: the host keeps them for the session and shows them while the tree block shows
+    // SkyUI's key-hint strip ('SLMK'), sent at the registration and again after a language change (MenuSink): the host keeps them for
+    // the session (the same block and key relabelled in place) and shows them while the tree block shows
     void SendKeyHints(const SKSE::MessagingInterface* a_messaging)
     {
         const auto id = FinalId(HomAddon::BlockKind::kTree);
@@ -214,7 +223,7 @@ namespace
                 return;
             }
             logger::info("SL_MagicMenu_HoM: kDataLoaded on thread {}, main thread {}", REX::W32::GetCurrentThreadId(), GameThread::Id());
-            // the texts in [Display] sLanguage's language, once per session; before Register, which copies the tree title
+            // the texts in [Display] sLanguage's language (refreshed at each menu open, MenuSink); before Register, which copies the tree title
             LangGame::Load(HomStrings::g_catalog, HomStrings::kLangDir);
             Spells::Load();
             if (Register()) {

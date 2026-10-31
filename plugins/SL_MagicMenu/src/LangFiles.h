@@ -10,6 +10,8 @@
 #include <filesystem>
 #include <fstream>
 #include <initializer_list>
+#include <memory>
+#include <mutex>
 #include <optional>
 #include <sstream>
 #include <string>
@@ -27,8 +29,9 @@
 // (<lang dir>/<code>.json: one flat JSON object of strings, UTF-8, a BOM
 // accepted, "_" keys are notes) and each table key's text: the language's
 // file, then en.json, then the built-in English compiled in. A Catalog holds
-// one DLL's resolved texts, loaded once per game session (LangGame.h does it
-// in the game). No game types: tools/magic-menu-lang-check runs all of it.
+// one DLL's resolved texts, loaded at kDataLoaded and refreshed at each magic
+// menu open when sLanguage changed (LangGame.h does both in the game). No game
+// types: tools/magic-menu-lang-check runs all of it.
 // The Spell Research block keeps its own reader (SrBlockText.h).
 // =============================================================================
 
@@ -337,12 +340,23 @@ namespace LangFiles
         return { std::move(texts), std::move(report) };
     }
 
-    /// One DLL's texts: the built-in table until Load, the resolved texts from then on. Loaded once (kDataLoaded) and never
-    /// changed after, so Text's pointer stays valid for the session and draws on the UI thread need no lock
+    /// [Display] sLanguage as a Catalog compares it: trimmed, lower case, "" read as auto
+    inline std::string NormalizedSetting(std::string_view a_setting)
+    {
+        auto setting = Detail::Lower(Detail::Trim(a_setting));
+        return setting.empty() ? std::string(kAuto) : setting;
+    }
+
+    /// One DLL's texts: the built-in table until Load, the resolved texts from then on. Load once (kDataLoaded); Refresh at each
+    /// magic menu open resolves again when [Display] sLanguage changed since (the settings tab writes it). Every resolved set is
+    /// kept until the DLL unloads (a few KB per language change), so a pointer Text gave stays valid for the session and draws
+    /// on any thread (the UI thread, the settings tab's render thread) need no lock; only Load and Refresh lock
     template <class Entry, std::size_t N>
     class Catalog
     {
     public:
+        using Texts = std::array<std::string, N>;
+
         constexpr explicit Catalog(const std::array<Entry, N>& a_table) noexcept :
             table_(a_table)
         {}
@@ -352,26 +366,53 @@ namespace LangFiles
 
         const char* Text(std::size_t a_index) const
         {
-            return loaded_.load(std::memory_order_acquire) ? texts_[a_index].c_str() : table_[a_index].text;
+            const auto* texts = current_.load(std::memory_order_acquire);
+            return texts ? (*texts)[a_index].c_str() : table_[a_index].text;
         }
 
-        bool Loaded() const { return loaded_.load(std::memory_order_acquire); }
+        bool Loaded() const { return current_.load(std::memory_order_acquire) != nullptr; }
 
-        /// Reads the files and keeps the texts; nullopt when already loaded (the first load stands)
+        /// Reads the files and keeps the texts; nullopt when already loaded (the first load stands - Refresh changes it)
         std::optional<LoadReport> Load(const std::filesystem::path& a_dir, std::string_view a_setting, std::string_view a_gameLanguage,
             std::string_view a_gameText = {})
         {
-            if (loaded_.load(std::memory_order_acquire)) return std::nullopt;
-            auto [texts, report] = Resolve(table_, a_dir, a_setting, a_gameLanguage, a_gameText);
-            texts_ = std::move(texts);
-            loaded_.store(true, std::memory_order_release);
-            return std::move(report);
+            const std::scoped_lock lock(lock_);
+            if (current_.load(std::memory_order_acquire)) return std::nullopt;
+            return Install(a_dir, a_setting, a_gameLanguage, a_gameText);
+        }
+
+        /// Resolves again when a_setting (NormalizedSetting) is not the one the texts were resolved with; nullopt when it is the
+        /// same or nothing was loaded yet (Load first). The new texts are kept beside the old ones (a straddling draw reads the old)
+        std::optional<LoadReport> Refresh(const std::filesystem::path& a_dir, std::string_view a_setting, std::string_view a_gameLanguage,
+            std::string_view a_gameText = {})
+        {
+            const std::scoped_lock lock(lock_);
+            if (!current_.load(std::memory_order_acquire) || NormalizedSetting(a_setting) == setting_) return std::nullopt;
+            return Install(a_dir, a_setting, a_gameLanguage, a_gameText);
+        }
+
+        /// How many sets of texts were resolved this session (Load and each Refresh that changed them)
+        std::size_t Generations() const
+        {
+            const std::scoped_lock lock(lock_);
+            return generations_.size();
         }
 
     private:
+        LoadReport Install(const std::filesystem::path& a_dir, std::string_view a_setting, std::string_view a_gameLanguage, std::string_view a_gameText)
+        {
+            auto [texts, report] = Resolve(table_, a_dir, a_setting, a_gameLanguage, a_gameText);
+            generations_.push_back(std::make_unique<const Texts>(std::move(texts)));
+            setting_ = NormalizedSetting(a_setting);
+            current_.store(generations_.back().get(), std::memory_order_release);
+            return std::move(report);
+        }
+
         const std::array<Entry, N>& table_;
-        std::array<std::string, N> texts_;
-        std::atomic<bool> loaded_{ false };
+        mutable std::mutex lock_;
+        std::vector<std::unique_ptr<const Texts>> generations_;  // never shrinks: Text's pointers stay valid
+        std::string setting_;                                    // NormalizedSetting of the current texts
+        std::atomic<const Texts*> current_{ nullptr };
     };
 
     // ---------------------------------------------------------------------

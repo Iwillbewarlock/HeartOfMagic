@@ -507,3 +507,32 @@ block) messages. v1 and v2 add-ons are read as before. The contract is the heade
 - GPT re-review of 0420eed9: whether SkyUI placed the strip again is read from the panel's own origin (its _x/_y in its
   parent, what the host sets), not from its visible children. A button hidden inside it moves the children but is not a
   new layout. (The per-group homes and the STB / Keycap clip search of round 1 went with the one-clip redesign above.)
+
+## Settings tab and hidden blocks (2026-10-31)
+
+User: "SKSE메뉴에서 언어설정이랑 활성화할 블록창을 고를 수 있게 하자". SKSE Menu Framework is an optional dependency (user
+decision): with it a settings tab appears, without it everything works from the ini as before.
+
+- The tab (`SettingsTab.cpp`, core DLL only): section "Magic Menu Note", one item "Settings" (its name translated once, at
+  kDataLoaded; SKSE Menu Framework cannot rename an item). It needs SKSEMenuFramework.dll installed, loaded and exporting
+  every function the page calls (Spell Research Prisma's three checks); else no tab and one log line. The page writes
+  `SL_MagicMenu.ini` with `WritePrivateProfileStringW` at the reader's absolute path, only when a value changes, and touches
+  no game state from the render thread (it reads the registry's block list under its lock and the language tables, whose
+  texts are never freed).
+- Language: auto / English / 한국어 -> `[Display] sLanguage`. Both DLLs read the key again at each magic menu open
+  (`LangGame::Refresh`, before the widget is built) and resolve their tables again when it changed; every resolved set is
+  kept for the session, so a text pointer stays valid. HoM sends its key hints again with the new labels (the host relabels
+  the same block and key in place). Block titles keep the language the game started with: the host copied them at the
+  registration and Block API v3 has no title update. With Korean chosen (or auto resolving to Korean) the page shows
+  "If Korean shows as boxes, set EnableKorean = true in SKSEMenuFramework.ini" in English.
+- Blocks: one checkbox per block the menu knows (the preview, the spell card, every registered add-on block by its title and
+  id) -> `[Blocks] sHidden`, comma-separated ids (`HiddenBlocks.h`: trimmed, empty items and repeats dropped, unknown ids kept
+  so an add-on that is gone comes back hidden; a retired id is read as the final id that took it over). Read at plugin load
+  and at each menu open (`BlockHiding.cpp`), applied to that menu: a hidden block is left out of the heights
+  (`BlockHeights`), so it is treated like an add-on that is not installed - no place (its place in the layout file kept, no
+  gap), no panel, no draw, no frame / key call, no key hint, not in the layout mode.
+  - A hidden preview: no box, and the over-pass and the place/fit pass are off for that menu - the game's own pass draws the
+    spell's 3D where the game puts it.
+  - A hidden spell card: neither our card nor a moved SkyUI card - SkyUI's item card stays where SkyUI puts it.
+  - Heart of Magic's progress and node cards are driven by the tree block's frame call: with only the tree hidden they get no
+    updates (an add-on matter, not the host's).

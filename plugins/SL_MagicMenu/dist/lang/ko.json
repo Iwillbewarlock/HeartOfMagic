@@ -29,5 +29,16 @@
   "layout_gear_enter": "편집 모드 {key}",
   "layout_gear_leave": "보기 모드로 {key}",
   "hint_layout": "편집 모드",
-  "hint_layout_leave": "보기 모드로"
+  "hint_layout_leave": "보기 모드로",
+  "settings_item": "설정",
+  "settings_language": "언어",
+  "settings_lang_auto": "자동 (게임 언어)",
+  "settings_lang_other": "기타: {code}",
+  "settings_lang_note": "다음에 마법 메뉴를 열 때 적용됩니다.",
+  "settings_lang_titles": "추가 블록의 제목과 이 탭의 이름은 게임을 다시 시작하면 바뀝니다.",
+  "settings_blocks": "블록",
+  "settings_blocks_note": "체크를 끈 블록은 마법 메뉴에서 빠집니다. 배치 안의 자리는 그대로 남습니다. 다음에 마법 메뉴를 열 때 적용됩니다.",
+  "settings_block_preview": "3D 미리보기",
+  "settings_block_spellcard": "주문 카드",
+  "settings_blocks_builtin": "주문 카드를 끄면 SkyUI의 아이템 카드가 원래 자리에 나옵니다. 3D 미리보기를 끄면 주문의 3D는 게임이 직접 그립니다."
 }

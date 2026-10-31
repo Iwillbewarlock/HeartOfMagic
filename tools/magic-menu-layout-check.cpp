@@ -13,6 +13,8 @@
 //
 //   magic-menu-layout-check     one PASS/FAIL line per check, a total line
 //
+// [Blocks] sHidden (2026-10-31, magic-menu-layout-check-hidden.cpp): HiddenBlocks.h's parse and toggle, the layout without hidden blocks.
+//
 // Task 8 (review fixes): the strip read once a button's bounds keep failing (R1, BlockRules::ReadStrip), the gear's row with an
 // earlier menu's strip size (R2), the strip left out of the board (R3), and the in-game self-test verdicts' rules (L8 last, L9, L1).
 //
@@ -42,6 +44,11 @@
 #include <string>
 #include <string_view>
 #include <vector>
+
+namespace HiddenCheck
+{
+    void Run(void (*a_expect)(bool, const std::string&));  // magic-menu-layout-check-hidden.cpp: [Blocks] sHidden
+}
 
 namespace
 {
@@ -1760,6 +1767,7 @@ int main()
     AddonHeightChange();
     VisibleUnionAfterFails();
     StripChecks();
+    HiddenCheck::Run(Expect);
     std::printf("layout-check: %d PASS, %d FAIL\n", g_pass, g_fail);
     return g_fail == 0 ? kExitOk : kExitFail;
 }

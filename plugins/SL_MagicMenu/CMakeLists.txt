@@ -36,6 +36,8 @@ add_commonlibsse_plugin(${PROJECT_NAME}
         src/KeyHints.cpp
         src/Preview.cpp
         src/Input.cpp
+        src/BlockHiding.cpp
+        src/SettingsTab.cpp
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE

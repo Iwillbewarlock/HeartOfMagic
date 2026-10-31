@@ -251,10 +251,11 @@ target_link_libraries(magic-menu-tree-check PRIVATE
 # =============================================================================
 # The SL_MagicMenu plugin's own Layout.cpp (no game types): the two snapping columns,
 # hidden and fill blocks, the drop slot and move, scroll clamp and the layout JSON,
-# and BlockRegistry.cpp (the add-on block registration checks, Task 6) on made-up cases. One PASS/FAIL line per check and a total; exit 1 when any fails.
+# BlockRegistry.cpp (the add-on block registration checks, Task 6) and HiddenBlocks.h ([Blocks] sHidden) on made-up cases. One PASS/FAIL line per check and a total; exit 1 when any fails.
 
 add_executable(magic-menu-layout-check
     magic-menu-layout-check.cpp
+    magic-menu-layout-check-hidden.cpp
     ${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu/src/Layout.cpp
     ${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu/src/BlockRegistry.cpp
 )

@@ -29,5 +29,16 @@
   "layout_gear_enter": "Edit mode {key}",
   "layout_gear_leave": "View mode {key}",
   "hint_layout": "Edit mode",
-  "hint_layout_leave": "View mode"
+  "hint_layout_leave": "View mode",
+  "settings_item": "Settings",
+  "settings_language": "Language",
+  "settings_lang_auto": "Auto (the game's language)",
+  "settings_lang_other": "Other: {code}",
+  "settings_lang_note": "Applies the next time the magic menu opens.",
+  "settings_lang_titles": "Add-on block titles and this tab's name change after the game restarts.",
+  "settings_blocks": "Blocks",
+  "settings_blocks_note": "Unticked blocks are left out of the magic menu; their places in the layout are kept. Applies the next time the magic menu opens.",
+  "settings_block_preview": "3D preview",
+  "settings_block_spellcard": "Spell card",
+  "settings_blocks_builtin": "Without the spell card, SkyUI's own item card shows in its usual place; without the 3D preview, the game draws the spell's 3D itself."
 }
