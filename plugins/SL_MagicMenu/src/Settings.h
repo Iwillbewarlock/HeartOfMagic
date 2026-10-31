@@ -113,7 +113,8 @@ namespace Settings
 
     /// Writes the layout file (plan D10): a .tmp in the same folder (every write, flush and close checked), then the old file
     /// copied to SL_MagicMenu_Layout.json.bak and the .tmp moved over it (MoveFileExW REPLACE_EXISTING; not ReplaceFileW, which
-    /// made the file vanish under MO2's usvfs, game run 2026-10-31), or a plain move when there is no file yet. A file that failed to read at load is copied to .bad first; a newer build's file
+    /// made the file vanish under MO2's usvfs, game run 2026-10-31), or a plain move when there is no file yet. A file that
+    /// failed to read is not copied over the .bak (kept as .bad instead), and a failed move over it keeps the .tmp. A file that failed to read at load is copied to .bad first; a newer build's file
     /// is never written. Called from the menu's frame handler (the layout mode); not thread-safe.
     SaveResult SaveLayout(const Layout::State& a_state, std::string* a_why);
 

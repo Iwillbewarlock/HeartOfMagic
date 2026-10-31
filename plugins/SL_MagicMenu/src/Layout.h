@@ -273,9 +273,11 @@ namespace Layout
     {
         bool refuse = false;        // nothing written (a newer build's file)
         bool copyBadFirst = false;  // the unreadable file copied to <file>.bad first; the save fails if that copy fails
-        bool replace = false;       // the file exists: copied to <file>.bak, then MoveFileExW of the .tmp over it (not
-                                    // ReplaceFileW: under MO2's usvfs it made the file vanish, game run 2026-10-31);
-                                    // false: no file yet, MoveFileExW of the .tmp alone
+        bool replace = false;       // the file exists: MoveFileExW of the .tmp over it (not ReplaceFileW: under MO2's
+                                    // usvfs it made the file vanish, game run 2026-10-31); false: no file yet, the move alone
+        bool keepBak = false;       // replace a read file: it is copied to <file>.bak first. Not for an unreadable one
+                                    // (kBroken: kept as .bad; GPT P1 on a3b810a5): the .bak - perhaps the layout loaded
+                                    // from - is left as it is until a new file is in place
 
         bool operator==(const SavePlan&) const = default;
     };
@@ -295,15 +297,18 @@ namespace Layout
     enum class FailedPut
     {
         kFileThere,   // the layout file is in place (as it was): the .tmp is removed
+        kFileBroken,  // the unreadable file is in place (as it was): the .tmp (the edited layout) is kept, the .bak untouched
         kRestoreBak,  // no file, the replace left the old one as .bak: .bak moved back to the file's name
         kNoFile,      // no file and nothing to restore (a first save): the .tmp is removed
     };
 
-    /// a_replace: the save planned a replace (there was a file); a_fileThere / a_bakThere: the layout file and its .bak exist now
-    FailedPut AfterFailedPut(bool a_replace, bool a_fileThere, bool a_bakThere);
+    /// a_replace: the save planned a replace (there was a file); a_fileThere / a_bakThere: the layout file and its .bak exist now;
+    /// a_fileGood: the file in place reads as a layout (not kBroken: a failed put leaves it as it was)
+    FailedPut AfterFailedPut(bool a_replace, bool a_fileThere, bool a_bakThere, bool a_fileGood);
 
-    /// The .tmp is kept (not removed) after a failed save: only when .bak had to be moved back and that failed too - the .tmp
-    /// then holds the edited layout and .bak the old one, and the log names both
+    /// The .tmp is kept (not removed) after a failed save: when .bak had to be moved back and that failed too (the .tmp then
+    /// holds the edited layout and .bak the old one), and when the file left in place is the unreadable one (kFileBroken: the
+    /// .tmp is the only good copy of the edited layout); the log names where each is
     bool KeepTmp(FailedPut a_put, bool a_restored);
 
     /// LoadLayout reads <file>.bak instead: the layout file is missing (a save that lost the file between its replace and its

@@ -298,16 +298,17 @@ namespace Settings
             return true;
         }
 
-        // The written .tmp put in the file's place (the plan's replace: the old file kept as .bak). A replace copies the old file
-        // to .bak (overwriting the last one), then moves the .tmp over the file. Not ReplaceFileW (D10's first choice until
+        // The written .tmp put in the file's place. a_keepBak (the plan's: a read file is replaced) copies the old file to .bak
+        // (overwriting the last one) first; an unreadable file is not copied there (it is kept as .bad; GPT P1 on a3b810a5:
+        // the .bak may be the layout loaded from). Then the .tmp is moved over the file. Not ReplaceFileW (D10's first choice until
         // 2026-10-31): under MO2's usvfs it made the file vanish - game run 2026-10-31, the saves logged "written (the old file
         // kept as .bak)" at 11:01:43 and 11:02:50 read back "not found" in the same session (SelfTest L3 FAIL) while the file
         // and its .bak on disk were right; the first save's plain MoveFileExW (11:02:36) read back fine. The old file is never
         // moved away here: a failed copy fails the save with the file as it was, and a failed move leaves it in place too
-        bool PutInPlace(const std::filesystem::path& a_path, const std::filesystem::path& a_tmp, bool a_replace, std::string* a_why)
+        bool PutInPlace(const std::filesystem::path& a_path, const std::filesystem::path& a_tmp, bool a_keepBak, std::string* a_why)
         {
             const auto bak = WithSuffix(a_path, L".bak");
-            if (a_replace && !CopyFileW(a_path.c_str(), bak.c_str(), kCopyOverwrite)) {
+            if (a_keepBak && !CopyFileW(a_path.c_str(), bak.c_str(), kCopyOverwrite)) {
                 *a_why = std::format("the old file could not be kept as {} (CopyFileW error {}) - nothing written", Shown(bak), REX::W32::GetLastError());
                 return false;
             }
@@ -321,14 +322,15 @@ namespace Settings
         // After PutInPlace failed (final review): the old file moved back from .bak when no file is left (Layout::AfterFailedPut;
         // the copy-then-move replace never moves the old file away, so this is kept for a file gone some other way). False: the .tmp must be kept - .bak could not be moved back, the log and a_why name where
         // the old and the edited layout are. True: the .tmp may be removed (the caller does, as before)
-        bool RecoverFailedPut(const std::filesystem::path& a_path, const std::filesystem::path& a_tmp, bool a_replace, std::string* a_why)
+        bool RecoverFailedPut(const std::filesystem::path& a_path, const std::filesystem::path& a_tmp, bool a_replace, bool a_fileGood,
+            std::string* a_why)
         {
             const auto bak = WithSuffix(a_path, L".bak");
             std::error_code fileError, bakError;
             // an exists() error counts as "there": nothing is moved over what could not be checked
             const bool fileThere = std::filesystem::exists(a_path, fileError) || fileError;
             const bool bakThere = std::filesystem::exists(bak, bakError) && !bakError;
-            const auto put = Layout::AfterFailedPut(a_replace, fileThere, bakThere);
+            const auto put = Layout::AfterFailedPut(a_replace, fileThere, bakThere, a_fileGood);
             bool restored = false;
             if (put == Layout::FailedPut::kRestoreBak) {
                 restored = MoveFileExW(bak.c_str(), a_path.c_str(), kMoveReplaceExisting | kMoveWriteThrough) != 0;
@@ -339,6 +341,13 @@ namespace Settings
                 }
             }
             if (!Layout::KeepTmp(put, restored)) return true;
+            if (put == Layout::FailedPut::kFileBroken) {
+                logger::error("Settings: layout save - {} is still the unreadable file: the edited layout is kept in {}, the .bak is left as "
+                              "it is (the next save tries again; or rename {} to {} by hand)",
+                    Shown(a_path), Shown(a_tmp), Shown(a_tmp), Shown(a_path));
+                *a_why += std::format("; the edited layout kept in {} ({} is still the unreadable file)", Shown(a_tmp), Shown(a_path));
+                return false;
+            }
             logger::error("Settings: layout save - {} is gone: the saved layout is in {}, the edited one in {} (kept; the next load reads the "
                           ".bak, or rename either to {} by hand)",
                 Shown(a_path), Shown(bak), Shown(a_tmp), Shown(a_path));
@@ -502,17 +511,20 @@ namespace Settings
         const auto tmp = WithSuffix(path, L".tmp");
         // the file keeps the retired ids (design G-e): an older SL_MagicMenu reads it as before
         const bool tmpWritten = WriteTemp(tmp, Layout::ToJson(Layout::ToLegacy(a_state, g_legacyAliases)), &why);
-        const bool written = tmpWritten && PutInPlace(path, tmp, plan.replace, &why);
+        const bool written = tmpWritten && PutInPlace(path, tmp, plan.keepBak, &why);
+        const bool fileGood = g_fileState != Layout::FileState::kBroken;  // a failed put leaves the file as it was
         g_fileState = Layout::AfterSave(g_fileState, written);
         if (!written) {
-            if (tmpWritten && !RecoverFailedPut(path, tmp, plan.replace, &why)) return done(SaveResult::kFailed);
+            if (tmpWritten && !RecoverFailedPut(path, tmp, plan.replace, fileGood, &why)) return done(SaveResult::kFailed);
             std::error_code removeError;
             if (std::filesystem::exists(tmp, removeError)) std::filesystem::remove(tmp, removeError);
             if (removeError) why += std::format("; {} left behind ({})", Shown(tmp), removeError.message());
             return done(SaveResult::kFailed);
         }
         g_layout = a_state;
-        why = std::format("{} written{}", Shown(path), plan.replace ? " (the old file kept as .bak)" : " (a new file)");
+        why = std::format("{} written{}", Shown(path), plan.keepBak ? " (the old file kept as .bak)" :
+                                                       plan.replace  ? " (over the unreadable file, kept as .bad; the .bak left as it was)" :
+                                                                       " (a new file)");
         return done(SaveResult::kSaved);
     }
 

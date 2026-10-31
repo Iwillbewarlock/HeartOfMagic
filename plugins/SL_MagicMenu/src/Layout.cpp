@@ -678,6 +678,7 @@ namespace Layout
         }
         plan.copyBadFirst = a_state == FileState::kBroken && !a_badKept && a_fileExists;
         plan.replace = a_fileExists;
+        plan.keepBak = a_fileExists && a_state != FileState::kBroken;
         return plan;
     }
 
@@ -686,15 +687,15 @@ namespace Layout
         return a_written ? FileState::kRead : a_state;
     }
 
-    FailedPut AfterFailedPut(bool a_replace, bool a_fileThere, bool a_bakThere)
+    FailedPut AfterFailedPut(bool a_replace, bool a_fileThere, bool a_bakThere, bool a_fileGood)
     {
-        if (a_fileThere) return FailedPut::kFileThere;
+        if (a_fileThere) return a_fileGood ? FailedPut::kFileThere : FailedPut::kFileBroken;
         return a_replace && a_bakThere ? FailedPut::kRestoreBak : FailedPut::kNoFile;
     }
 
     bool KeepTmp(FailedPut a_put, bool a_restored)
     {
-        return a_put == FailedPut::kRestoreBak && !a_restored;
+        return a_put == FailedPut::kFileBroken || (a_put == FailedPut::kRestoreBak && !a_restored);
     }
 
     bool ReadBackup(FileState a_file, bool a_bakThere)

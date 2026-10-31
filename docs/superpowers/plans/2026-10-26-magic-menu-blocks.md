@@ -185,7 +185,8 @@ D9 Add-on API: `struct Registration { std::uint32_t apiVersion; std::uint32_t st
 D10 Layout file safety: write to `SL_MagicMenu_Layout.json.tmp` in the same folder, check every write/flush/close, then
    copy the old file to `SL_MagicMenu_Layout.json.bak` (CopyFileW, overwriting) and move the `.tmp` over it (MoveFileExW
    REPLACE_EXISTING | WRITE_THROUGH; no file yet: the move alone). ReplaceFileW, the first plan, made the file vanish under
-   MO2's usvfs in the 2026-10-31 game run. A missing or unreadable file is read from `.bak` at load; a file that fails
+   MO2's usvfs in the 2026-10-31 game run. A missing or unreadable file is read from `.bak` at load; an unreadable file
+   is never copied over `.bak` (it goes to `.bad`), and a failed move over it keeps the `.tmp`; a file that fails
    to read is copied to `.bad` before a save may overwrite it; a schema `"version": 1` (future versions: read-only,
    not overwritten); a failed save logs, does not claim success, and keeps the mode's State to retry.
 D11 Redraw: moves and scrolls only change transforms; a confirmed width change (border released, block dropped in the

@@ -823,13 +823,14 @@ namespace
         using Layout::FileState;
         using Layout::SavePlan;
         const auto plan = [](FileState a_state, bool a_kept, bool a_exists) { return Layout::PlanSave(a_state, a_kept, a_exists); };
-        Expect(plan(FileState::kRead, false, true) == SavePlan{ false, false, true }, "normal file: write .tmp, replace keeping .bak");
-        Expect(plan(FileState::kMissing, false, false) == SavePlan{ false, false, false }, "no file yet: write .tmp, move it in (no .bak)");
-        Expect(plan(FileState::kRead, false, false) == SavePlan{ false, false, false }, "file gone since it was read: move only");
-        Expect(plan(FileState::kMissing, false, true) == SavePlan{ false, false, true }, "a file appeared since load: replace keeping .bak");
-        Expect(plan(FileState::kBroken, false, true) == SavePlan{ false, true, true }, "failed read: copy to .bad first, then replace");
-        Expect(plan(FileState::kBroken, true, true) == SavePlan{ false, false, true }, "failed read, .bad kept already (a retry): no second copy");
-        Expect(plan(FileState::kBroken, false, false) == SavePlan{ false, false, false }, "failed read, file gone: nothing to keep, move only");
+        Expect(plan(FileState::kRead, false, true) == SavePlan{ false, false, true, true }, "normal file: write .tmp, replace keeping .bak");
+        Expect(plan(FileState::kMissing, false, false) == SavePlan{ false, false, false, false }, "no file yet: write .tmp, move it in (no .bak)");
+        Expect(plan(FileState::kRead, false, false) == SavePlan{ false, false, false, false }, "file gone since it was read: move only");
+        Expect(plan(FileState::kMissing, false, true) == SavePlan{ false, false, true, true }, "a file appeared since load: replace keeping .bak");
+        Expect(plan(FileState::kBroken, false, true) == SavePlan{ false, true, true, false },
+            "failed read: copy to .bad first, then replace - the broken file is not copied over the .bak");
+        Expect(plan(FileState::kBroken, true, true) == SavePlan{ false, false, true, false }, "failed read, .bad kept already (a retry): no second copy");
+        Expect(plan(FileState::kBroken, false, false) == SavePlan{ false, false, false, false }, "failed read, file gone: nothing to keep, move only");
         Expect(plan(FileState::kNewer, false, true).refuse && plan(FileState::kNewer, true, false).refuse, "newer build's file: never written");
         Expect(Layout::AfterSave(FileState::kBroken, false) == FileState::kBroken &&
                    plan(Layout::AfterSave(FileState::kBroken, false), false, true) == plan(FileState::kBroken, false, true),
@@ -840,16 +841,26 @@ namespace
 
         // final review: the .tmp could not be put in place
         using Layout::FailedPut;
-        Expect(Layout::AfterFailedPut(true, true, true) == FailedPut::kFileThere && Layout::AfterFailedPut(true, true, false) == FailedPut::kFileThere,
+        Expect(Layout::AfterFailedPut(true, true, true, true) == FailedPut::kFileThere && Layout::AfterFailedPut(true, true, false, true) == FailedPut::kFileThere,
             "a failed put with the file still there (the .bak copy or the move over the file failed): nothing to restore");
-        Expect(Layout::AfterFailedPut(true, false, true) == FailedPut::kRestoreBak,
+        Expect(Layout::AfterFailedPut(true, false, true, true) == FailedPut::kRestoreBak && Layout::AfterFailedPut(true, false, true, false) == FailedPut::kRestoreBak,
             "the file found gone after a failed put with a .bak there: .bak moved back");
-        Expect(Layout::AfterFailedPut(true, false, false) == FailedPut::kNoFile, "no file and no .bak: nothing to restore");
-        Expect(Layout::AfterFailedPut(false, false, true) == FailedPut::kNoFile,
+        Expect(Layout::AfterFailedPut(true, false, false, true) == FailedPut::kNoFile, "no file and no .bak: nothing to restore");
+        Expect(Layout::AfterFailedPut(false, false, true, true) == FailedPut::kNoFile,
             "a first save (no replace) with an old .bak lying there: the .bak is not moved in");
         Expect(!Layout::KeepTmp(FailedPut::kRestoreBak, true), "the .bak moved back: the .tmp is removed");
         Expect(Layout::KeepTmp(FailedPut::kRestoreBak, false), "the .bak could not be moved back: the .tmp (the edited layout) is kept");
         Expect(!Layout::KeepTmp(FailedPut::kFileThere, false) && !Layout::KeepTmp(FailedPut::kNoFile, false), "otherwise the .tmp is removed");
+        // GPT P1 on a3b810a5: a broken file and a good .bak (the layout was loaded from it), a save whose move fails
+        {
+            const auto broken = plan(FileState::kBroken, false, true);
+            const auto put = Layout::AfterFailedPut(broken.replace, true, true, false);
+            Expect(broken.copyBadFirst && broken.replace && !broken.keepBak && put == FailedPut::kFileBroken && Layout::KeepTmp(put, false) &&
+                       Layout::AfterSave(FileState::kBroken, false) == FileState::kBroken,
+                "broken file + good .bak, the move fails: the broken file kept as .bad, the .bak not written over, the .tmp kept, the retry plans the same");
+            Expect(plan(Layout::AfterSave(FileState::kBroken, true), true, true).keepBak,
+                "after that file is replaced by a written one: the next save keeps it as .bak again");
+        }
         Expect(Layout::ReadBackup(FileState::kMissing, true), "load: no file but a .bak - the .bak is read");
         Expect(!Layout::ReadBackup(FileState::kMissing, false), "load: no file and no .bak - the default");
         Expect(Layout::ReadBackup(FileState::kBroken, true) && !Layout::ReadBackup(FileState::kBroken, false),
@@ -857,7 +868,7 @@ namespace
         Expect(!Layout::ReadBackup(FileState::kRead, true) && !Layout::ReadBackup(FileState::kNewer, true),
             "load: a file there (read, broken or newer) - the .bak is never read instead");
         // the next save after a load from .bak: the file is missing, so it is created (move only), the .bak left alone
-        Expect(plan(FileState::kMissing, false, false) == SavePlan{ false, false, false }, "after a .bak load: the next save moves the .tmp in");
+        Expect(plan(FileState::kMissing, false, false) == SavePlan{ false, false, false, false }, "after a .bak load: the next save moves the .tmp in");
     }
 
     // final review: the layout mode's on/off as the input sees it - the newest request wins
