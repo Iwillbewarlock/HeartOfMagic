@@ -5037,13 +5037,26 @@ namespace Widget
             if (!button.IsDisplayObject() || !g_menu.gearLast) return;
             RE::GFxValue inner, mask;
             if (g_menu.resetFullW <= 0.0) {  // made once a menu: the box at its full width, its mask grows over it
+                // GPT on 8897d3db (Draw::NextDepth can fail): made whole or not at all - a part that did not come is removed with the
+                // rest and the whole button tried again next frame, never kept as a clickable box with no label
+                const auto unmake = [&] {
+                    Draw::Remove(button, "inner");
+                    Draw::Remove(button, "mask");
+                };
                 inner = Draw::Clip(button, "inner");
                 mask = Draw::Clip(button, "mask");
-                if (!inner.IsDisplayObject() || !mask.IsDisplayObject()) return;
+                if (!inner.IsDisplayObject() || !mask.IsDisplayObject()) {
+                    unmake();
+                    return;
+                }
                 const double h = kGearSize;
                 auto field = Draw::Text(a_movie, inner, "label", kResetPadX, (h - TextFit::FieldH(Metrics(), kResetTextSize)) / 2, kTooltipW, TextFit::FieldH(Metrics(), kResetTextSize),
                     Text(Str::kLayoutReset), kLabelColor, kResetTextSize);
-                g_menu.resetFullW = (field.IsDisplayObject() ? TextW(field) : kTooltipW) + 2 * kResetPadX;
+                if (!field.IsDisplayObject()) {
+                    unmake();
+                    return;
+                }
+                g_menu.resetFullW = TextW(field) + 2 * kResetPadX;
                 Draw::Box(inner, g_menu.resetFullW, h, kPanelFill, kResetAlpha, kPanelEdge, kEdgeWidth);
                 SetHandler(a_movie, inner, "onRelease", g_resetClick.get());
                 inner.SetMember("useHandCursor", false);

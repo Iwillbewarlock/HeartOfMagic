@@ -49,8 +49,10 @@ namespace HomAddon
         // the column's visible part, in the tree box's coordinates (the content clip sits at pad, title strip + pad in it); none of it
         // shows: no tooltip
         const double pad = menu.treeInset.pad, titleH = menu.treeInset.titleH, offX = pad, offY = titleH + pad;
-        menu.tooltipFor = hovered;  // also with nothing shown (fix round 1 M5: not removed again every frame; a scroll makes a new overlay)
-        if (!(a_context.viewBottom > a_context.viewTop) || !(a_context.viewRight > a_context.viewLeft)) return;
+        if (!(a_context.viewBottom > a_context.viewTop) || !(a_context.viewRight > a_context.viewLeft)) {
+            menu.tooltipFor = hovered;  // done with nothing shown (fix round 1 M5: not removed again every frame; a scroll makes a new overlay)
+            return;
+        }
         const auto [boxW, boxH] = menu.treeBox;
         const auto [originX, originY] = menu.treeOrigin;  // where RedrawTree put the drawing's 0,0 (the body's centre)
         const auto& node = Data().tree.nodes[hovered];
@@ -82,6 +84,8 @@ namespace HomAddon
         // inside the tree window (its registered height: it does not fit its content) and inside the column's visible part (review
         // round 2: the column mask would cut it), above its node when it would run past the visible bottom
         y = BlockRules::TooltipY(y, h, titleH, boxH - pad - h, ny - off - h, a_context.viewTop + offY, a_context.viewBottom + offY);
+        // GPT on 8897d3db (Draw::NextDepth can fail): the tooltip counts as drawn for this hover only once its clip and every line came;
+        // a part that did not come removes the rest, and tooltipFor stays -1, so the next frame tries again
         auto tip = Draw::Clip(*a_overlay, kTooltipName);
         if (!tip.IsDisplayObject()) return;
         tip.SetMember("_x", x - offX);
@@ -89,9 +93,14 @@ namespace HomAddon
         Draw::Box(tip, w, h, kPanelFill, kTooltipAlpha, kPanelEdge, kEdgeWidth);
         for (std::size_t i = 0; i < lines.size(); ++i) {
             const auto name = std::format("t{}", i);
-            FitLine(a_movie, tip, name.c_str(), kTooltipPad, kTooltipPad + static_cast<double>(i) * lineH, w - 2 * kTooltipPad, size, lines[i].first,
-                lines[i].second);
+            const auto field = FitLine(a_movie, tip, name.c_str(), kTooltipPad, kTooltipPad + static_cast<double>(i) * lineH, w - 2 * kTooltipPad, size,
+                lines[i].first, lines[i].second);
+            if (!field.IsDisplayObject()) {
+                Draw::Remove(*a_overlay, kTooltipName);
+                return;
+            }
         }
+        menu.tooltipFor = hovered;
         Q2State("tree_tooltip", std::format("{} - {}", lines[0].first, lines[2].first));
     }
 }
