@@ -86,8 +86,20 @@ namespace HomAddon
         y = BlockRules::TooltipY(y, h, titleH, boxH - pad - h, ny - off - h, a_context.viewTop + offY, a_context.viewBottom + offY);
         // GPT on 8897d3db (Draw::NextDepth can fail): the tooltip counts as drawn for this hover only once its clip and every line came;
         // a part that did not come removes the rest, and tooltipFor stays -1, so the next frame tries again
+        // fix round 1 M3: one warning per menu once the making keeps failing (it is still tried every frame)
+        const auto failed = [&] {
+            Draw::Remove(*a_overlay, kTooltipName);
+            if (++menu.tooltipFails == kTooltipFailWarnFrames) {
+                logger::warn("HoM block: the tree's tooltip could not be made in {} frames this menu (its clip or a line did not come) - still tried "
+                             "each frame, not logged again this menu",
+                    kTooltipFailWarnFrames);
+            }
+        };
         auto tip = Draw::Clip(*a_overlay, kTooltipName);
-        if (!tip.IsDisplayObject()) return;
+        if (!tip.IsDisplayObject()) {
+            failed();
+            return;
+        }
         tip.SetMember("_x", x - offX);
         tip.SetMember("_y", y - offY);
         Draw::Box(tip, w, h, kPanelFill, kTooltipAlpha, kPanelEdge, kEdgeWidth);
@@ -96,7 +108,7 @@ namespace HomAddon
             const auto field = FitLine(a_movie, tip, name.c_str(), kTooltipPad, kTooltipPad + static_cast<double>(i) * lineH, w - 2 * kTooltipPad, size,
                 lines[i].first, lines[i].second);
             if (!field.IsDisplayObject()) {
-                Draw::Remove(*a_overlay, kTooltipName);
+                failed();
                 return;
             }
         }

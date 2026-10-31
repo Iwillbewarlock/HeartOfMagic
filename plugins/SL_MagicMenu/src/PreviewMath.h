@@ -24,6 +24,15 @@
 
 namespace PreviewMath
 {
+    /// A PostDisplay with no box to draw in (nothing chosen, the Powers hide): every model up is hidden (P7.2) while place/fit is on
+    /// (bMovePreview=1) and the preview block is there, and on the Powers tab with bHidePowers3D (a_hide3D) whatever the rest says.
+    /// Fix round 1 (GPT P2): a preview block hidden by [Blocks] sHidden counts as bMovePreview=0 - the game's own 3D stays, and the
+    /// caller gives back what the Powers hide hid when it ends (before, the tab hide went on and the model stayed hidden)
+    constexpr bool HidesForTab(bool a_movePreview, bool a_previewBlockHidden, bool a_hide3D)
+    {
+        return (a_movePreview && !a_previewBlockHidden) || a_hide3D;
+    }
+
     inline constexpr float kGameShare = 0.45f;     // share of the screen height the game's own preview takes (IR)
     inline constexpr float kFill = 0.92f;          // what is seen of a model fills this share of the box
     inline constexpr float kGrowMost = 3.0f;       // and grows at most this many times the game's size

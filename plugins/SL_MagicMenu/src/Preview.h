@@ -82,7 +82,9 @@ namespace Preview
     /// bHidePowers3D=1, spec v13 B1: the caller passes a_active false):
     /// every model up is hidden while it lasts, given back when the box shows or at close. a_hide3D: the tab is Powers -
     /// hidden there even with bMovePreview=0 (review v13 #3; without the box otherwise bMovePreview=0 changes nothing).
-    bool OnPostDisplay(RE::Inventory3DManager& a_manager, bool a_fit, bool a_overPass, bool a_active, bool a_noBox, bool a_hide3D);
+    /// a_blockHidden (fix round 1, GPT P2): [Blocks] sHidden hides the preview block this menu - treated as bMovePreview=0, so the
+    /// game's own 3D stays on the tabs without the box and what the Powers hide hid is given back when it ends (PreviewMath::HidesForTab)
+    bool OnPostDisplay(RE::Inventory3DManager& a_manager, bool a_fit, bool a_overPass, bool a_active, bool a_noBox, bool a_hide3D, bool a_blockHidden);
 
     /// Puts the game's preview place back and gives back what it hid (no-op when nothing was changed); main thread.
     void OnMenuClose();

@@ -385,6 +385,19 @@ namespace
         Expect(hidden && hidden->empty(), Text("[Blocks] sHidden= (empty: every block shown; found %s)", hidden ? "yes" : "no"));
     }
 
+    // Fix round 1 I2: the settings tab writes the player's SL_MagicMenu_User.ini (never shipped); a key there wins over the shipped
+    // SL_MagicMenu.ini, an empty value included (LangFiles::Layered, the order LangGame::IniString reads them in)
+    void UserFileOrder()
+    {
+        std::printf("the player's SL_MagicMenu_User.ini before the shipped SL_MagicMenu.ini\n");
+        using Value = std::optional<std::string>;
+        Expect(Layered(Value("ko"), Value("auto")) == "ko", "both files have the key: the player's file wins");
+        Expect(Layered(Value(""), Value("preview")) == "", "the player's file has the key empty (every block ticked on again): empty, not the shipped value");
+        Expect(Layered(std::nullopt, Value("auto")) == "auto", "the player's file lacks the key (or is not there): the shipped value");
+        Expect(Layered(std::nullopt, std::nullopt).empty(), "neither file has it: \"\"");
+        Expect(Layered(Value("en"), std::nullopt) == "en", "only the player's file has it: the player's value");
+    }
+
     int Run()
     {
         const fs::path coreDir = MM_CORE_LANG_DIR, homDir = MM_HOM_LANG_DIR;
@@ -401,6 +414,7 @@ namespace
         Refreshes("core", WidgetText::kStrings, coreDir);
         Refreshes("hom", HomStrings::kStrings, homDir);
         DistIni();
+        UserFileOrder();
         std::printf("lang-check: %d PASS, %d FAIL\n", g_pass, g_fail);
         return g_fail == 0 ? kExitOk : kExitFail;
     }

@@ -3323,7 +3323,7 @@ float4 PSMain(float4 position : SV_Position) : SV_Target
     // -> scissor restored -> hide (the scissor only when this frame's place/fit succeeded). FitAll skips hidden models,
     // so the give-back comes first; the hide comes after our Render, so the game's next own pass (before the next movie)
     // has nothing of the selection to draw
-    bool OnPostDisplay(RE::Inventory3DManager& a_manager, bool a_fit, bool a_overPass, bool a_active, bool a_noBox, bool a_hide3D)
+    bool OnPostDisplay(RE::Inventory3DManager& a_manager, bool a_fit, bool a_overPass, bool a_active, bool a_noBox, bool a_hide3D, bool a_blockHidden)
     {
         if (!GameThread::On()) {
             static std::atomic<bool> logged{ false };  // g_state is main-thread only
@@ -3393,7 +3393,8 @@ float4 PSMain(float4 position : SV_Position) : SV_Target
             // and given back when the box shows again or the menu closes (OnMenuClose)
             // bMovePreview=0 (the way back) changes nothing here either (reviewer: Preview.h promises it), except on the
             // Powers tab (a_hide3D): no 3D there whatever bMovePreview says (spec v13 B1, review v13 #3)
-            const bool hideForTab = current && ours && a_noBox && !g_closing && (Settings::Get().movePreview || a_hide3D);
+            // fix round 1 (GPT P2): a preview block hidden by [Blocks] sHidden counts as bMovePreview=0 here (PreviewMath::HidesForTab)
+            const bool hideForTab = current && ours && a_noBox && !g_closing && PreviewMath::HidesForTab(Settings::Get().movePreview, a_blockHidden, a_hide3D);
             // review v13 round 2 #2: Powers -> a state without the box with bMovePreview=0: no tab hide follows here, so what Powers hid
             // is given back now (both tabs are not active: the give-back below is never reached); with bMovePreview=1 the
             // tab hide goes on and its give-back stays the one below

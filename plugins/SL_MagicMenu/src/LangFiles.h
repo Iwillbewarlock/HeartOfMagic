@@ -340,6 +340,14 @@ namespace LangFiles
         return { std::move(texts), std::move(report) };
     }
 
+    /// Fix round 1 I2: a key's value read from the player's file (SL_MagicMenu_User.ini, the settings tab's) and the shipped
+    /// SL_MagicMenu.ini (nullopt: that file has no such key): the player's when it has the key - an empty value too (the player
+    /// cleared it) -, else the shipped file's, else ""
+    inline std::string Layered(const std::optional<std::string>& a_user, const std::optional<std::string>& a_shipped)
+    {
+        return a_user ? *a_user : a_shipped.value_or(std::string{});
+    }
+
     /// [Display] sLanguage as a Catalog compares it: trimmed, lower case, "" read as auto
     inline std::string NormalizedSetting(std::string_view a_setting)
     {

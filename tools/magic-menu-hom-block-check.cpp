@@ -238,6 +238,39 @@ namespace
         Expect(!Selection::DropPick(4, 4, Source::kList, 0, 0), "no change: kept");
     }
 
+    // Fix round 1 I1 (2026-10-31): the shared per-frame work runs once per host frame, in the first HoM frame call of that frame -
+    // the tree's while it shows, a card's with the tree hidden ([Blocks] sHidden); an older host (no frameSeq) leaves it to the tree
+    void SharedFrameRule()
+    {
+        std::printf("frame: the shared work once per host frame (fix round 1 I1)\n");
+        using Selection::TakesSharedWork;
+        std::uint32_t last = 0;
+        // frame 1: tree, progress, node card (registration order)
+        const bool tree1 = TakesSharedWork(last, 1, true), progress1 = TakesSharedWork(last, 1, false), node1 = TakesSharedWork(last, 1, false);
+        Expect(tree1 && !progress1 && !node1, "all three shown: the tree's call does it, the cards' calls of the same frame skip");
+        // frame 2: the tree hidden - the progress card is first
+        const bool progress2 = TakesSharedWork(last, 2, false), node2 = TakesSharedWork(last, 2, false);
+        Expect(progress2 && !node2, "the tree hidden: the progress card's call does it, the node card's skips");
+        // frame 3: only the node card shown (the progress card hidden too); frame 4 the same
+        Expect(TakesSharedWork(last, 3, false) && TakesSharedWork(last, 4, false), "only the node card shown: its call does it, every frame");
+        Expect(!TakesSharedWork(last, 4, false), "a second call in frame 4: skipped (never twice a frame)");
+        // a new menu: the state starts at 0 again, the host's frameSeq from 1
+        std::uint32_t fresh = 0;
+        Expect(TakesSharedWork(fresh, 1, false), "a new menu (state 0): the first call of frame 1 does it");
+        // an older host sends no frameSeq: the tree as before, never a card
+        std::uint32_t old = 0;
+        Expect(TakesSharedWork(old, 0, true) && TakesSharedWork(old, 0, true) && !TakesSharedWork(old, 0, false),
+            "frameSeq 0 (an older host): the tree's call every time, a card's never");
+        BlockApi::Context context;
+        context.frameSeq = 7;
+        Expect(Selection::FrameSeqOf(context) == 7, "a Context of this header: frameSeq read");
+        context.structSize = BlockApi::kContextFrameSeqNeeded - 1;
+        Expect(Selection::FrameSeqOf(context) == 0, "a Context whose structSize stops before frameSeq (an older host): 0, not read");
+        Expect(Selection::ProgressHides(false, false) && !Selection::ProgressHides(true, false),
+            "the progress card hides with no school, shows with one (another block does the shared work)");
+        Expect(!Selection::ProgressHides(false, true), "the tree and the node card hidden: the progress card stays shown with no school (its frame is the only driver)");
+    }
+
     // Task 7: the frame's order (U and G recorded by the key callback, acted on after the list change) and one request for G + the
     // button (Task 6 review items 1-3)
     void FrameOrder()
@@ -697,6 +730,7 @@ int main(int a_argc, char** a_argv)
     SettingsDistIni();
     SettingsValues();
     SelectionRules();
+    SharedFrameRule();
     FrameOrder();
     ShownSettle();
     TreeWindowRules();

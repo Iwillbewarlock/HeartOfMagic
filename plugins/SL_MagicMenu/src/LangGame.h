@@ -6,6 +6,7 @@
 
 #include <array>
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -34,23 +35,39 @@ namespace LangGame
         return ec ? std::filesystem::path(a_relative) : dir / a_relative;
     }
 
-    /// a_key of a_section in SL_MagicMenu.ini as written (up to a_maxChars), "" when not set; non-ASCII reads as '?' (no code or
-    /// id holds it), a ';' or '#' and what follows is a comment
-    inline std::string IniString(std::string_view a_section, std::string_view a_key, std::uint32_t a_maxChars = kValueChars)
+    // fix round 1 I2 (2026-10-31): the player's own file, written by the settings tab and never shipped, so a mod update (which
+    // replaces SL_MagicMenu.ini) keeps the choices; under MO2 it lands in Overwrite, as SL_MagicMenu_Layout.json does
+    inline constexpr const char* kUserIniRelative = "Data/SKSE/Plugins/SL_MagicMenu_User.ini";
+
+    namespace Detail
     {
-        std::vector<wchar_t> buffer(a_maxChars + 1, L'\0');
-        const auto path = GamePath(kIniRelative).wstring();
-        const std::wstring section(a_section.begin(), a_section.end());
-        const std::wstring key(a_key.begin(), a_key.end());
-        const auto length = REX::W32::GetPrivateProfileStringW(section.c_str(), key.c_str(), L"", buffer.data(), static_cast<std::uint32_t>(buffer.size()),
-            path.c_str());
-        std::string text;
-        for (std::uint32_t i = 0; i < length; ++i) text.push_back(buffer[i] < 0x80 ? static_cast<char>(buffer[i]) : '?');
-        if (const auto comment = text.find_first_of(";#"); comment != std::string::npos) text.resize(comment);
-        return text;
+        /// a_key of a_section in one ini file as written (up to a_maxChars), nullopt when the file or the key is not there; non-ASCII
+        /// reads as '?' (no code or id holds it), a ';' or '#' and what follows is a comment
+        inline std::optional<std::string> ReadKey(const char* a_relative, std::string_view a_section, std::string_view a_key, std::uint32_t a_maxChars)
+        {
+            constexpr std::wstring_view kAbsent = L"\x01";  // the default when the key is not there: no value can be it
+            std::vector<wchar_t> buffer(a_maxChars + 1, L'\0');
+            const auto path = GamePath(a_relative).wstring();
+            const std::wstring section(a_section.begin(), a_section.end());
+            const std::wstring key(a_key.begin(), a_key.end());
+            const auto length = REX::W32::GetPrivateProfileStringW(section.c_str(), key.c_str(), kAbsent.data(), buffer.data(),
+                static_cast<std::uint32_t>(buffer.size()), path.c_str());
+            if (std::wstring_view(buffer.data(), length) == kAbsent) return std::nullopt;
+            std::string text;
+            for (std::uint32_t i = 0; i < length; ++i) text.push_back(buffer[i] < 0x80 ? static_cast<char>(buffer[i]) : '?');
+            if (const auto comment = text.find_first_of(";#"); comment != std::string::npos) text.resize(comment);
+            return text;
+        }
     }
 
-    /// [Display] sLanguage of SL_MagicMenu.ini as written, "" when not set
+    /// a_key of a_section as the player set it: SL_MagicMenu_User.ini's when that file has the key (an empty value too), else
+    /// SL_MagicMenu.ini's, else "" (LangFiles::Layered)
+    inline std::string IniString(std::string_view a_section, std::string_view a_key, std::uint32_t a_maxChars = kValueChars)
+    {
+        return LangFiles::Layered(Detail::ReadKey(kUserIniRelative, a_section, a_key, a_maxChars), Detail::ReadKey(kIniRelative, a_section, a_key, a_maxChars));
+    }
+
+    /// [Display] sLanguage as the player set it (IniString), "" when not set
     inline std::string IniLanguage()
     {
         return IniString(LangFiles::kIniSection, LangFiles::kIniKey);

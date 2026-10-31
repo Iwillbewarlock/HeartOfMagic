@@ -2,7 +2,9 @@
 
 #include "AddonState.h"
 
+#include "HiddenBlocks.h"
 #include "HomSettings.h"
+#include "LangGame.h"
 #include "Selection.h"
 #include "SpellSchool.h"
 #include "TreeMarks.h"
@@ -18,6 +20,21 @@ namespace HomAddon
         MenuState g_menu;
         std::atomic<std::uint64_t> g_openGeneration{ 0 };
         std::atomic<bool> g_buttonPressed{ false };
+        // fix round 1 I1: [Blocks] sHidden hides the tree and the node card this menu - the progress card's frame is the only one left
+        // to do the shared work, so it never hides itself (Selection::ProgressHides)
+        std::atomic<bool> g_progressAlone{ false };
+
+        // The host's [Blocks] sHidden read the same way (the player's SL_MagicMenu_User.ini first): both other blocks named, by their
+        // final or their retired id
+        bool ProgressAlone()
+        {
+            const auto ids = HiddenBlocks::Parse(LangGame::IniString(HiddenBlocks::kSection, HiddenBlocks::kKey, static_cast<std::uint32_t>(HiddenBlocks::kMaxChars)));
+            const auto hidden = [&](BlockKind a_kind) {
+                const auto index = Index(a_kind);
+                return std::ranges::find(ids, kBlockIds[index]) != ids.end() || std::ranges::find(ids, kLegacyIds[index]) != ids.end();
+            };
+            return hidden(BlockKind::kTree) && hidden(BlockKind::kNodeCard);
+        }
 
         // A string game setting, empty when there is none
         std::string GameString(const char* a_setting)
@@ -47,6 +64,7 @@ namespace HomAddon
     void OnMenuOpen()
     {
         g_buttonPressed = false;
+        g_progressAlone = ProgressAlone();
         ++g_openGeneration;
         ReadHomStyle();
     }
@@ -218,7 +236,7 @@ namespace HomAddon
     // frame is shown (fix round 1 I1)
     void SyncProgressShown()
     {
-        const bool want = !g_session.school.empty();
+        const bool want = !Selection::ProgressHides(!g_session.school.empty(), g_progressAlone);
         if (g_menu.progressShown.value_or(true) != want) {
             RequestVisible(BlockKind::kProgress, want);
             logger::info("HoM block: the progress card {} ({})", want ? "shown again" : "hidden", want ? "a school" : "no school yet");

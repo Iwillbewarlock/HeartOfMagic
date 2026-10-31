@@ -19,6 +19,7 @@
 #include "Preview.h"
 #include "SelectionRule.h"
 #include "Settings.h"
+#include "SettingsTab.h"
 #include "SpellSchool.h"
 #include "TextFit.h"
 #include "WidgetText.h"
@@ -257,12 +258,15 @@ namespace Widget
         };
 
         // Reset on every menu open
+        constexpr int kMakeFailWarnFrames = 30;  // fix round 1 M3: a clip that keeps failing to be made is warned about once per menu after this
+
         struct MenuState
         {
             bool firstFrame = true;
             // 2026-10-31 (the settings tab): [Blocks] sHidden as this menu applies it (HiddenBlocks::Effective, set at AttachWidget):
             // these blocks are absent this menu, as an add-on that is not installed (BlockHeights leaves them out)
             std::set<std::string> hidden;
+            int resetFails = 0;  // fix round 1 M3: frames the reset button's making failed this menu (one warning at kMakeFailWarnFrames)
             bool powersHideLogged = false;   // spec v13 B1: the Powers tab's line, once per menu
             Committed sel;                   // spec v12 G2
             std::uint64_t selSeq = 0;        // bumped by every change of sel
@@ -452,6 +456,9 @@ namespace Widget
         // (this menu: widget attached, IR not active, not VR - where Preview touches nothing) and once more after it
         std::atomic<bool> g_powersHideCalls{ false };
         std::atomic<bool> g_powersHidePending{ false };
+        // fix round 1 (GPT P2): this menu's preview block is hidden by [Blocks] sHidden - Preview treats it as bMovePreview=0 (no tab
+        // hide; what the Powers hide hid is given back when it ends)
+        std::atomic<bool> g_previewBlockHidden{ false };
         std::atomic<bool> g_overPassLogged{ false };  // the first over-pass of this menu is logged
         bool g_postDisplayHooked = false;           // set once at kDataLoaded
 
@@ -3272,6 +3279,7 @@ namespace Widget
             context.rowSize = static_cast<float>(g_menu.rowSize);
             context.lineFirst = static_cast<float>(g_menu.lineFirst);
             context.linePitch = static_cast<float>(g_menu.linePitch);
+            context.frameSeq = static_cast<std::uint32_t>(g_menu.frame) + 1;  // one value per UI frame (AddonFrames runs after ++g_menu.frame)
             return context;
         }
 
@@ -5078,6 +5086,12 @@ namespace Widget
                 const auto unmake = [&] {
                     Draw::Remove(button, "inner");
                     Draw::Remove(button, "mask");
+                    // fix round 1 M3: one warning per menu once it keeps failing (it is still tried every frame)
+                    if (++g_menu.resetFails == kMakeFailWarnFrames) {
+                        logger::warn("Widget: the layout reset button could not be made in {} frames this menu (a clip or its label did not come) - "
+                                     "still tried each frame, not logged again this menu",
+                            kMakeFailWarnFrames);
+                    }
                 };
                 inner = Draw::Clip(button, "inner");
                 mask = Draw::Clip(button, "mask");
@@ -6287,7 +6301,7 @@ namespace Widget
                 const bool active = g_previewShown && !g_hide3D && !g_closing && ourMovie;
                 const bool noBox = (!g_previewShown || g_hide3D) && !g_closing && ourMovie;
                 const bool hide3D = g_hide3D && !g_closing && ourMovie;  // review v13 #3: Powers hides even with bMovePreview=0
-                if (!Preview::OnPostDisplay(*manager, fit, over, active, noBox, hide3D)) return;
+                if (!Preview::OnPostDisplay(*manager, fit, over, active, noBox, hide3D, g_previewBlockHidden)) return;
                 if (!g_overPassLogged.exchange(true)) {
                     logger::info("Widget: preview over-pass drew the 3D preview after the menu movie (thread {})",
                         REX::W32::GetCurrentThreadId());
@@ -6408,6 +6422,7 @@ namespace Widget
             g_attachedMovie = movie;
             // [Blocks] sHidden holds the preview: no box this menu, and the game's own pass draws its 3D where the game puts it
             const bool previewHidden = g_menu.hidden.contains(Layout::kPreview);
+            g_previewBlockHidden = previewHidden;
             g_overPass = settings.drawPreviewOver && g_postDisplayHooked && !g_menu.irActive && !previewHidden;
             logger::info("Widget: preview over-pass {} ({})", g_overPass ? "ON" : "off",
                 previewHidden             ? "the preview block is hidden ([Blocks] sHidden)" :
@@ -6487,6 +6502,7 @@ namespace Widget
                     // here, before the UI task that builds the widget
                     LangGame::Refresh(WidgetText::g_catalog, WidgetText::kLangDir);
                     BlockHiding::Read("menu open");
+                    SettingsTab::OnMenuOpen();  // fix round 1 M2: the page follows a hand edit
                     CloseRegistry();  // blocks plan Task 6: the first open ends add-on registration (before the widget is made)
                     SKSE::GetTaskInterface()->AddUITask([] { AttachWidget(); });
                 } else {

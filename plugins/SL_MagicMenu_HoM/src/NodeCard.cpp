@@ -315,7 +315,7 @@ namespace HomAddon
     // kHeightWaitFrames)
     void NodeCardFrame(RE::GFxMovieView* a_movie, RE::GFxValue& a_content, RE::GFxValue*, const BlockApi::Context& a_context, void*)
     {
-        EnsureMenu();
+        CardSharedFrame(BlockKind::kNodeCard, a_context);  // fix round 1 I1: the shared work when the tree is not shown this frame
         auto& menu = Menu();
         if (menu.buttonChecked || !HomSettings::Get().selfTest || !a_movie || a_context.layoutMode) return;
         if (a_context.contentGeneration != menu.nodeContentGeneration) {

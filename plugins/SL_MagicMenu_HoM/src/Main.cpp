@@ -134,7 +134,8 @@ namespace
             .legacyId = HomAddon::kLegacyIds[index] };
         switch (a_kind) {
         case BlockKind::kTree:
-            // Task 7 draws the tree window (own mouse: its node clips' handlers); its frame and key drive all three blocks
+            // Task 7 draws the tree window (own mouse: its node clips' handlers); its key callback takes U and G for all three, and its
+            // frame does their shared per-frame work while it shows (fix round 1 I1: a card's frame does it with the tree hidden)
             reg.title = g_treeTitle.c_str();
             reg.drawSelection = HomAddon::DrawTreeBlock;
             reg.frame = HomAddon::TreeFrame;
@@ -143,6 +144,7 @@ namespace
             break;
         case BlockKind::kProgress:
             reg.drawSelection = HomAddon::DrawProgressBlock;
+            reg.frame = HomAddon::ProgressFrame;  // fix round 1 I1: the shared per-frame work when the tree is hidden
             reg.pad = static_cast<float>(HomAddon::kCardPad);
             reg.flags = kFlagKeepWhenEmpty;
             break;
@@ -191,7 +193,7 @@ namespace
         const auto heights = HomSettings::BlockHeights(HomSettings::Get());
         g_heights = { heights.tree, heights.progress, heights.nodeCard };
         g_treeTitle = HomStrings::Text(HomStrings::Str::kTreeTitle);
-        // the tree block's frame and key drive all three: without it the cards would never update, so none is registered
+        // the tree block carries the keys and their hints (and is the first to do the shared frame work): without it no card is registered
         if (!RegisterOne(messaging, HomAddon::BlockKind::kTree)) {
             logger::error("SL_MagicMenu_HoM: the tree block was not accepted - the progress and node cards are not registered either");
             return false;

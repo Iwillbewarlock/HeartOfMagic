@@ -4,8 +4,9 @@
 // centre part (W:7645-7686), WatchSelection's HoM part (W:7747-7788), DoNext
 // (W:7818-7842), DoSetTarget (W:7844-7857), LogAvailability, WatchSnapshotCover,
 // RequestState (W:8118-8122) and the frame handler's U / G / polling lines
-// (W:8182-8199). The tree block's frame drives it (it shows on every tab the
-// three blocks show on and is never hidden by 'SLMV'), keys come through the tree
+// (W:8182-8199). Since fix round 1 I1 (2026-10-31) the first frame call of each
+// host frame drives it - the tree's, or a card's when [Blocks] sHidden hides the
+// tree (Context::frameSeq, Selection::TakesSharedWork); keys come through the tree
 // block's key callback (keys go to every v3 block that has one: one is enough),
 // which only records them: U and G are acted on in the frame after the list
 // change, as at f83dc6f3 (Task 7, Task 6 review 1-2). The tree window's own work
@@ -225,57 +226,105 @@ namespace HomAddon
         }
     }
 
-    // The tree block's frame: the per-frame work of all three blocks (once per UI frame - only this block has a frame that does it).
-    // The order: the tab, the list selection, the tree click, U, G and the button (one request), the polling, the hover and the
-    // tooltip. f83dc6f3 took the click before the list selection, so its own list change was seen in the same frame; that change
-    // now comes a frame later through the host's 'SLMS' (OwnRequest keeps the pick), and a click after a player's list change of
-    // the same frame is the newer act (Task 7)
+    namespace
+    {
+        // Fix round 1 I1 (2026-10-31, [Blocks] sHidden can hide the tree): the work all three blocks depend on runs once per host
+        // frame, in the first frame call of that frame - the tree's when it shows (the host calls in registration order: tree,
+        // progress, node card), else a card's - so the cards stay updated without the tree (Selection::TakesSharedWork)
+        bool SharedDue(BlockKind a_kind, const BlockApi::Context& a_context)
+        {
+            return Selection::TakesSharedWork(Menu().sharedFrameSeq, Selection::FrameSeqOf(a_context), a_kind == BlockKind::kTree);
+        }
+
+        // The shared work's first part: the host's view, the metrics, the tab, the list selection, a key pick under another form
+        void SharedStart(const BlockApi::Context& a_context, const Spells::Snapshot& a_snapshot)
+        {
+            auto& menu = Menu();
+            WatchTab(a_context, a_snapshot);
+            WatchSelection(a_context, a_snapshot);
+            // fix round 1 M3: a key pick made under another form goes now (the draws already treat it as dropped: G and the card agree;
+            // since I1 the first draw for the form has dropped it, so this is left for a form change no draw saw)
+            const Selection::Pick held{ menu.selected, menu.selectedByKey };
+            if (const auto kept = Selection::PickForShown(held, menu.pickShown, a_context.shown); kept != held) {
+                menu.selected = kept.node;
+                menu.selectedByKey = kept.byKey;
+                menu.dirty = true;
+            }
+            menu.firstFrame = false;
+        }
+
+        // The context fields, the metrics and HoM's own state change, before the snapshot is taken
+        void SharedContext(const BlockApi::Context& a_context)
+        {
+            auto& menu = Menu();
+            if (menu.firstFrame) {
+                logger::info("HoM block: first frame on thread {} (main thread {}); HoM is read by main-thread tasks", REX::W32::GetCurrentThreadId(),
+                    GameThread::Id());
+            }
+            menu.layoutMode = a_context.layoutMode;
+            menu.shown = a_context.shown;
+            menu.selectionSeq = a_context.selectionSeq;
+            TakeMetrics(a_context);
+            // our own SetLearningTarget ran: ask for HoM's state now, not at the next poll
+            if (Hom::TakeStateChanged()) menu.refresh = true;
+        }
+
+        // The shared work's second part: U, G and the node card's button (one request), the polling, a new snapshot, its cover
+        void SharedEnd(const Spells::Snapshot& a_snapshot)
+        {
+            auto& menu = Menu();
+            // the keys the host handed over right before the tree's call (only while the tree shows): acted on in this frame
+            const auto keys = Selection::TakeKeys(menu.keys);
+            if (keys.next) DoNext(a_snapshot);
+            const bool key = keys.setTarget;
+            const bool button = TakeButton();
+            SetTargetIfChosen(key, button, a_snapshot);
+            if (++menu.frame % kPollFrames == 0) menu.refresh = true;
+            if (menu.refresh) RequestState();
+            if (a_snapshot.epoch != menu.epoch) {
+                menu.epoch = a_snapshot.epoch;
+                menu.dirty = true;
+                SettleProvisionalCentre(a_snapshot);
+                LogAvailability(a_snapshot);
+            }
+            WatchSnapshotCover(a_snapshot);
+            SyncProgressShown();
+        }
+    }
+
+    // The tree block's frame: the shared work of all three blocks when it is this frame's first call (always, while the tree shows),
+    // and the tree's own. The order: the tab, the list selection, the tree click, U, G and the button (one request), the polling, the
+    // hover and the tooltip. f83dc6f3 took the click before the list selection, so its own list change was seen in the same frame;
+    // that change now comes a frame later through the host's 'SLMS' (OwnRequest keeps the pick), and a click after a player's list
+    // change of the same frame is the newer act (Task 7)
     void TreeFrame(RE::GFxMovieView* a_movie, RE::GFxValue& a_content, RE::GFxValue* a_overlay, const BlockApi::Context& a_context, void*)
     {
         EnsureMenu();
-        auto& menu = Menu();
-        if (menu.firstFrame) {
-            logger::info("HoM block: first frame on thread {} (main thread {}); HoM is read by main-thread tasks", REX::W32::GetCurrentThreadId(),
-                GameThread::Id());
-        }
-        menu.layoutMode = a_context.layoutMode;
-        menu.shown = a_context.shown;
-        menu.selectionSeq = a_context.selectionSeq;
-        TakeMetrics(a_context);
-        // our own SetLearningTarget ran: ask for HoM's state now, not at the next poll
-        if (Hom::TakeStateChanged()) menu.refresh = true;
+        const bool shared = SharedDue(BlockKind::kTree, a_context);
+        if (shared) SharedContext(a_context);
         const auto snapshot = Spells::Current();
-        WatchTab(a_context, *snapshot);
-        WatchSelection(a_context, *snapshot);
-        // fix round 1 M3: a key pick made under another form goes now (the draws already treat it as dropped: G and the card agree;
-        // since I1 the first draw for the form has dropped it, so this is left for a form change no draw saw)
-        const Selection::Pick held{ menu.selected, menu.selectedByKey };
-        if (const auto kept = Selection::PickForShown(held, menu.pickShown, a_context.shown); kept != held) {
-            menu.selected = kept.node;
-            menu.selectedByKey = kept.byKey;
-            menu.dirty = true;
-        }
-        menu.firstFrame = false;
+        if (shared) SharedStart(a_context, *snapshot);
         TakeNodeClick(a_movie, a_content, a_context, *snapshot);
-        // the keys the host handed over right before this call (only while the tree shows): acted on in this frame
-        const auto keys = Selection::TakeKeys(menu.keys);
-        if (keys.next) DoNext(*snapshot);
-        const bool key = keys.setTarget;
-        const bool button = TakeButton();
-        SetTargetIfChosen(key, button, *snapshot);
-        if (++menu.frame % kPollFrames == 0) menu.refresh = true;
-        if (menu.refresh) RequestState();
-        if (snapshot->epoch != menu.epoch) {
-            menu.epoch = snapshot->epoch;
-            menu.dirty = true;
-            SettleProvisionalCentre(*snapshot);
-            LogAvailability(*snapshot);
-        }
-        WatchSnapshotCover(*snapshot);
-        SyncProgressShown();
+        if (shared) SharedEnd(*snapshot);
         DropStaleHover(a_movie, a_content);  // review v11 #10
         RedrawTooltip(a_movie, a_overlay, a_context, *snapshot);  // the hover changes no tree: outside the dirty gate (spec v10 T6)
         SendRedraws();
+    }
+
+    void CardSharedFrame(BlockKind a_kind, const BlockApi::Context& a_context)
+    {
+        EnsureMenu();
+        if (!SharedDue(a_kind, a_context)) return;
+        SharedContext(a_context);
+        const auto snapshot = Spells::Current();
+        SharedStart(a_context, *snapshot);
+        SharedEnd(*snapshot);
+        SendRedraws();
+    }
+
+    void ProgressFrame(RE::GFxMovieView*, RE::GFxValue&, RE::GFxValue*, const BlockApi::Context& a_context, void*)
+    {
+        CardSharedFrame(BlockKind::kProgress, a_context);
     }
 
     // U and G (the core's Input.cpp at f83dc6f3 queued them for the frame handler; the host hands us the key on the frame, before

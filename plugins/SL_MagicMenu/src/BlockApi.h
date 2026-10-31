@@ -137,7 +137,9 @@
 // clip's part inside its column's visible area, in content clip coordinates (all 0 when none of it shows); rowSize: the SkyUI
 // list's row text size in stage units (0 until measured; every v3 block is drawn again once it is known); lineFirst /
 // linePitch: the game font's first line height and its step per further line, per size unit (measured at the menu's
-// open, else the host's fallback 1.25).
+// open, else the host's fallback 1.25). frameSeq (added 2026-10-31 at the end; read it only when structSize reaches
+// kContextFrameSeqNeeded): the host's UI frame number this menu, the same for every frame call of one frame and new each
+// frame, from 1 (0 = a host that does not send it) - an add-on with several blocks does its shared work once per frame.
 //
 // kMessageShowSpell ('SLMS'): add-on -> SL_MagicMenu, data = a ShowSpellRequest, dataLen its size: show this spell as a
 // click on it in the add-on's block would - selected in the list when it is there, else on the menu's card (and in the 3D
@@ -250,6 +252,7 @@ namespace BlockApi
         std::uint32_t contentGeneration = 0;  // bumped each time the block is drawn into a new content clip
         float viewLeft = 0.0f, viewTop = 0.0f, viewRight = 0.0f, viewBottom = 0.0f;  // the visible part, content clip coordinates
         float rowSize = 0.0f, lineFirst = 0.0f, linePitch = 0.0f;  // the SkyUI list's text metrics, 0 until measured
+        std::uint32_t frameSeq = 0;           // 2026-10-31: the host's UI frame number this menu (from 1; 0 = not sent)
     };
 
     /// a_clip: the lent content clip; a_width / a_height: its drawable size in stage units; a_user: Registration::user
@@ -341,7 +344,10 @@ namespace BlockApi
     static_assert(offsetof(Registration, frame) >= kRegistrationV2Size);
     inline constexpr std::uint32_t kRegistrationV3Size = sizeof(Registration);
     static_assert(sizeof(void*) != 8 || kRegistrationV3Size == 104, "the v3 layout of x64 builds is 104 bytes");
-    static_assert(sizeof(void*) != 8 || sizeof(Context) == 80, "the v3 Context of x64 builds is 80 bytes");
+    static_assert(sizeof(void*) != 8 || offsetof(Context, frameSeq) == 80, "the v3 Context of x64 builds was 80 bytes; frameSeq follows it");
+    static_assert(sizeof(void*) != 8 || sizeof(Context) == 88, "the v3 Context of x64 builds is 88 bytes with frameSeq");
+    /// structSize a Context needs for frameSeq to be read (an older host sends 80)
+    inline constexpr std::uint32_t kContextFrameSeqNeeded = offsetof(Context, frameSeq) + sizeof(std::uint32_t);
 
     enum class Status : std::uint32_t
     {

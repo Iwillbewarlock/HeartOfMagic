@@ -124,17 +124,17 @@ namespace WidgetText
         // language names themselves, English and 한국어, are not translated), the block checkboxes and their notes
         { Str::kSetItem, "settings_item", "Settings" },
         { Str::kSetLanguage, "settings_language", "Language" },
-        { Str::kSetLangAuto, "settings_lang_auto", "Auto (the game's language)" },
+        { Str::kSetLangAuto, "settings_lang_auto", "Auto (game language)" },
         { Str::kSetLangOther, "settings_lang_other", "Other: {code}" },
         { Str::kSetLangNote, "settings_lang_note", "Applies the next time the magic menu opens." },
-        { Str::kSetLangTitles, "settings_lang_titles", "Add-on block titles and this tab's name change after the game restarts." },
+        { Str::kSetLangTitles, "settings_lang_titles", "Add-on block titles and this tab's name change after restarting the game." },
         { Str::kSetBlocks, "settings_blocks", "Blocks" },
         { Str::kSetBlocksNote, "settings_blocks_note",
-            "Unticked blocks are left out of the magic menu; their places in the layout are kept. Applies the next time the magic menu opens." },
+            "Unticked blocks are hidden in the magic menu, but keep their positions in the layout. Applies the next time the magic menu opens." },
         { Str::kSetBlockPreview, "settings_block_preview", "3D preview" },
         { Str::kSetBlockSpellCard, "settings_block_spellcard", "Spell card" },
         { Str::kSetBlocksBuiltIn, "settings_blocks_builtin",
-            "Without the spell card, SkyUI's own item card shows in its usual place; without the 3D preview, the game draws the spell's 3D itself." },
+            "When Spell card is off, SkyUI's item card appears in its usual place; when 3D preview is off, the game shows the spell's 3D model in its default place." },
     });
 
     consteval bool StringsInOrder()

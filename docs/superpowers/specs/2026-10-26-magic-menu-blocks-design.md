@@ -534,5 +534,16 @@ decision): with it a settings tab appears, without it everything works from the 
   - A hidden preview: no box, and the over-pass and the place/fit pass are off for that menu - the game's own pass draws the
     spell's 3D where the game puts it; the board is edge-only then (no fill over that 3D).
   - A hidden spell card: neither our card nor a moved SkyUI card - SkyUI's item card stays where SkyUI puts it.
-  - Heart of Magic's progress and node cards are driven by the tree block's frame call: with only the tree hidden they get no
-    updates (an add-on matter, not the host's).
+- Fix round 1 (reviewer, GPT):
+  - The tab writes only the player's `SL_MagicMenu_User.ini` (never shipped: a mod update keeps it; under MO2 it lands in
+    Overwrite). Both keys are read from that file first and from `SL_MagicMenu.ini` when it lacks the key
+    (`LangFiles::Layered`, `LangGame::IniString`). The page takes the values again when a menu open reads other ones (a hand
+    edit). The tab needs SKSEMenuFramework.dll loaded; whether the file exists only words the log line.
+  - A hidden preview counts as bMovePreview=0 for Preview's tab hide (`PreviewMath::HidesForTab`): leaving the Powers tab
+    gives back the model its hide hid.
+  - Context gained `frameSeq` at its end (the host's frame number this menu, from 1; read only when structSize covers it).
+    Heart of Magic's shared per-frame work (tab, selection, U/G and the node card's button, polling, redraws) runs once per
+    host frame in the first of its blocks' frame calls - the tree's while it shows, else the progress card's or the node
+    card's - so the cards stay updated with the tree hidden. With the tree and the node card both hidden the progress card
+    never hides itself for want of a school (its frame is then the only one). The keys and their hints stay with the tree: with it hidden U and
+    G do nothing and show no hint.

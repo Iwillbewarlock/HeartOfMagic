@@ -48,6 +48,7 @@ namespace HomAddon
     inline constexpr const char* kIndexMember = "mmxIndex";  // a node clip's tree index, read by its handlers
     inline constexpr const char* kFocusChild = "focus";      // a node clip's hover outline (spec v11 R6)
     inline constexpr const char* kTooltipName = "mmxTreeTooltip";  // the tooltip's clip in the overlay
+    inline constexpr int kTooltipFailWarnFrames = 30;  // fix round 1 M3: a tooltip that keeps failing to be made is warned about once per menu
     inline constexpr const char* kPanelName = "panel";     // the lent content clip's child at the box's top-left
     inline constexpr const char* kTreeContent = "content";  // the panel's child at the drawing's centre (the core's content clip)
 

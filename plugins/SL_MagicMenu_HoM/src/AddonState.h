@@ -93,6 +93,7 @@ namespace HomAddon
         std::uint64_t generation = 0;  // the open it belongs to
         bool firstFrame = true;        // no frame call seen yet this menu
         int frame = 0;
+        std::uint32_t sharedFrameSeq = 0;  // fix round 1 I1: the host frame whose shared work ran (Selection::TakesSharedWork)
         bool refresh = true;           // ask Spells for HoM's state at the end of this frame
         bool dirty = true;             // the cards are drawn again ('SLMD')
         std::uint64_t epoch = 0;       // the snapshot drawn last
@@ -135,6 +136,7 @@ namespace HomAddon
         int tooltipFor = -1;                      // the node the tooltip shows (-1: none)
         bool tooltipDue = false;                  // the tree was drawn again: the tooltip is drawn again too
         std::uint32_t tooltipGeneration = 0;      // Context::overlayGeneration of the overlay the tooltip was drawn into
+        int tooltipFails = 0;                     // fix round 1 M3: frames the tooltip's making failed (one warning at kTooltipFailWarnFrames)
         std::vector<TreeData::PlacedNode> drawn;      // every node of the last tree draw
         std::vector<TreeData::PlacedNode> clickable;  // the clickable ones
         std::pair<double, double> treeOrigin{};   // the drawing's 0,0 in the tree box (TreeContent's centre)

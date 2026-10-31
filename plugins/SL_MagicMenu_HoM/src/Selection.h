@@ -139,6 +139,30 @@ namespace Selection
         return keys;
     }
 
+    /// Fix round 1 I1 (2026-10-31): whether this frame call does the three blocks' shared per-frame work - the first call of each
+    /// host frame (a_frameSeq new; a_last keeps the last one done), whichever block it is, so the cards stay updated with the tree
+    /// hidden. A host that sends no frameSeq (0): the tree's call only, as before. a_last starts at 0 each menu (frameSeq from 1)
+    constexpr bool TakesSharedWork(std::uint32_t& a_last, std::uint32_t a_frameSeq, bool a_tree)
+    {
+        if (a_frameSeq == 0) return a_tree;
+        if (a_frameSeq == a_last) return false;
+        a_last = a_frameSeq;
+        return true;
+    }
+
+    /// The progress card hides itself ('SLMV') while no school is chosen - unless it is the only HoM block left to do the shared work
+    /// (a_alone: [Blocks] sHidden hides the tree and the node card), whose frame the host would then never call again (fix round 1 I1)
+    constexpr bool ProgressHides(bool a_school, bool a_alone)
+    {
+        return !a_school && !a_alone;
+    }
+
+    /// a_context's frameSeq when its structSize covers it (BlockApi::kContextFrameSeqNeeded), else 0 (an older host)
+    constexpr std::uint32_t FrameSeqOf(const BlockApi::Context& a_context)
+    {
+        return a_context.structSize >= BlockApi::kContextFrameSeqNeeded ? a_context.frameSeq : 0;
+    }
+
     /// The set-target requests of one frame: the G key and the node card's button in the same frame are one request (f83dc6f3
     /// W:8186-8189), none when nothing is chosen (a_acts: SetTargetActs)
     constexpr int SetTargetRequests(bool a_key, bool a_button, bool a_acts)

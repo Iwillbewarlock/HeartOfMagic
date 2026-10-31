@@ -11,6 +11,8 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
+#include <cstdint>
 #include <mutex>
 #include <string>
 #include <string_view>
@@ -60,32 +62,37 @@ namespace SettingsTab
         };
         constexpr std::array<Language, 3> kLanguages{ { { "auto", nullptr }, { "en", "English" }, { "ko", "\xED\x95\x9C\xEA\xB5\xAD\xEC\x96\xB4" } } };  // 한국어
 
-        // Taken at Register (game thread), copied by the page at its first draw (render thread)
+        // Taken at Register and again at each magic menu open when the ini changed (game thread), copied by the page (render thread)
         struct Setup
         {
-            std::wstring iniPath;
+            std::wstring iniPath;              // SL_MagicMenu_User.ini (fix round 1 I2: the tab writes only the player's file)
             std::string autoCode;
-            std::string language;              // [Display] sLanguage as read at Register
-            std::vector<std::string> hidden;   // [Blocks] sHidden as read at plugin load
+            std::string language;              // [Display] sLanguage as last read (LangGame::IniLanguage)
+            std::vector<std::string> hidden;   // [Blocks] sHidden as last read (BlockHiding::Setting)
         };
         std::mutex g_setupLock;
         Setup g_setup;
-        bool g_registered = false;  // game thread
+        std::atomic<std::uint64_t> g_setupGeneration{ 1 };  // bumped when a menu open read other values (fix round 1 M2)
+        bool g_registered = false;                          // game thread
+        std::atomic<bool> g_added{ false };                 // the tab is in SKSE Menu Framework
 
         // The page's own copy of the two values (render thread only): the setup's, then what the page wrote
         struct Page
         {
-            bool ready = false;
+            std::uint64_t generation = 0;  // the setup it was copied from (0: none yet)
             Setup values;
         };
         Page g_page;
 
+        // fix round 1 M2: the setup again when a menu open read other values (a hand edit of the ini), so the next tick does not
+        // write the page's older copy over it
         void EnsurePage()
         {
-            if (g_page.ready) return;
+            const auto generation = g_setupGeneration.load(std::memory_order_acquire);
+            if (g_page.generation == generation) return;
             const std::scoped_lock lock(g_setupLock);
             g_page.values = g_setup;
-            g_page.ready = true;
+            g_page.generation = generation;
         }
 
         // One line of text in the page's width (ImGui's TextWrapped is not used: the wrap position works with TextDisabled too)
@@ -96,17 +103,17 @@ namespace SettingsTab
             ImGui::PopTextWrapPos();
         }
 
-        /// One key of SL_MagicMenu.ini written by the Win32 call (the reader's absolute path): the other lines stay as they are.
-        /// True when written; a failure is logged and the page keeps the old value
+        /// One key of SL_MagicMenu_User.ini written by the Win32 call (the readers' absolute path; the file is made when missing): the
+        /// other lines stay as they are. True when written; a failure is logged and the page keeps the old value
         bool WriteIni(std::string_view a_section, std::string_view a_key, const std::string& a_value)
         {
             const std::wstring section(a_section.begin(), a_section.end()), key(a_key.begin(), a_key.end());
             const auto value = SKSE::stl::utf8_to_utf16(a_value).value_or(std::wstring{});
             if (::WritePrivateProfileStringW(section.c_str(), key.c_str(), value.c_str(), g_page.values.iniPath.c_str())) {
-                logger::info("Settings tab: [{}] {} = '{}' written to SL_MagicMenu.ini - applied at the next magic menu open", a_section, a_key, a_value);
+                logger::info("Settings tab: [{}] {} = '{}' written to SL_MagicMenu_User.ini - applied at the next magic menu open", a_section, a_key, a_value);
                 return true;
             }
-            logger::warn("Settings tab: [{}] {} = '{}' could NOT be written to SL_MagicMenu.ini (Windows error {}) - the file is unchanged; is it read-only?",
+            logger::warn("Settings tab: [{}] {} = '{}' could NOT be written to SL_MagicMenu_User.ini (Windows error {}) - the file is unchanged; is it read-only?",
                 a_section, a_key, a_value, ::GetLastError());
             return false;
         }
@@ -177,12 +184,15 @@ namespace SettingsTab
             BlockRows();
         }
 
-        // Why the tab cannot be added ("" = it can): not installed, installed but not loaded, or too old (an export missing)
+        // Why the tab cannot be added ("" = it can): not loaded, or too old (an export missing). Fix round 1 M1: the loaded module
+        // decides; the file check only words the line (a DLL loaded from elsewhere still gets the tab)
         std::string Refusal()
         {
-            if (!SKSEMenuFramework::IsInstalled()) return "SKSE Menu Framework is not installed";
             const auto module = SKSEMenuFramework_Module();
-            if (!module) return "SKSEMenuFramework.dll is installed but not loaded (wrong game version or a load error)";
+            if (!module) {
+                return SKSEMenuFramework::IsInstalled() ? "SKSEMenuFramework.dll is installed but not loaded (wrong game version or a load error)" :
+                                                          "SKSE Menu Framework is not installed";
+            }
             std::string missing;
             for (const char* name : kExports) {
                 if (!GetProcAddress(module, name)) missing += (missing.empty() ? "" : ", ") + std::string(name);
@@ -195,17 +205,33 @@ namespace SettingsTab
     {
         if (std::exchange(g_registered, true)) return;
         if (const auto why = Refusal(); !why.empty()) {
-            logger::info("Settings tab: none - {}; [Display] sLanguage and [Blocks] sHidden in SL_MagicMenu.ini work as before", why);
+            logger::info("Settings tab: none - {}; [Display] sLanguage and [Blocks] sHidden in the ini files work as before", why);
             return;
         }
         {
             const std::scoped_lock lock(g_setupLock);
-            g_setup = { LangGame::GamePath(LangGame::kIniRelative).wstring(), a_autoCode, LangGame::IniLanguage(), BlockHiding::Setting() };
+            g_setup = { LangGame::GamePath(LangGame::kUserIniRelative).wstring(), a_autoCode, LangGame::IniLanguage(), BlockHiding::Setting() };
         }
+        g_added = true;
         // the names are fixed once added: the item's name is the language of this start (the page's texts follow later changes)
         const std::string item = Text(Str::kSetItem);
         SKSEMenuFramework::SetSection(kSection);
         SKSEMenuFramework::AddSectionItem(item, RenderSettings);
-        logger::info("Settings tab: \"{}/{}\" added to SKSE Menu Framework (language and blocks; auto is '{}' on this game)", kSection, item, a_autoCode);
+        logger::info("Settings tab: \"{}/{}\" added to SKSE Menu Framework (language and blocks, written to SL_MagicMenu_User.ini; auto is '{}' on "
+                     "this game)",
+            kSection, item, a_autoCode);
+    }
+
+    void OnMenuOpen()
+    {
+        if (!g_added) return;
+        auto language = LangGame::IniLanguage();
+        auto hidden = BlockHiding::Setting();
+        const std::scoped_lock lock(g_setupLock);
+        if (language == g_setup.language && hidden == g_setup.hidden) return;
+        g_setup.language = std::move(language);
+        g_setup.hidden = std::move(hidden);
+        g_setupGeneration.fetch_add(1, std::memory_order_release);
+        logger::info("Settings tab: the ini's language or hidden blocks changed outside the page - the page shows them from now on");
     }
 }

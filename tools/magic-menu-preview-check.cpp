@@ -437,6 +437,19 @@ namespace
         Expect(LayoutMath::LinesFit(0.0, metrics.FieldH(size), lineH) == 1, "no room: still one line (DrawHtmlText's floor)");
     }
 
+    // fix round 1 (GPT P2): which PostDisplay with no box hides every model up - a preview block hidden by [Blocks] sHidden counts as
+    // bMovePreview=0, so leaving the Powers tab gives its hidden model back instead of hiding on
+    void TabHide()
+    {
+        std::printf("the tab hide without the box (PreviewMath::HidesForTab)\n");
+        using PreviewMath::HidesForTab;
+        Expect(HidesForTab(true, false, false), "bMovePreview=1, the preview block shown, not Powers: every model hidden (P7.2)");
+        Expect(!HidesForTab(false, false, false), "bMovePreview=0, not Powers: nothing hidden (the game's own 3D)");
+        Expect(!HidesForTab(true, true, false),
+            "bMovePreview=1 but the preview block hidden ([Blocks] sHidden), leaving Powers: no tab hide - the Powers hide's give-back runs");
+        Expect(HidesForTab(true, true, true) && HidesForTab(false, false, true), "on Powers with bHidePowers3D: hidden whatever the rest says");
+    }
+
     void ArtShapes()
     {
         std::printf("spell art shapes: backdrop disc and glow (spec v7 P7.1)\n");
@@ -785,6 +798,7 @@ int main()
     ScreenBoxChoice();
     MotionWhileHidden();
     FitMath();
+    TabHide();
     ArtShapes();
     PixelDecode();
     DarkCompare();
