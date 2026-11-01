@@ -95,7 +95,8 @@ namespace Settings
         // is the spell card block's (width-limited: 321 / 468 = 0.686 of SkyUI's 468 x 300 card background); its bottom ends
         // the columns. HoM add-on plan Task 5: the tree window's, progress card's and node card's rects (fTree*, fProgress*,
         // fNodeCard*), fTreeScale, fTreeMarkScale, iMaxSteps, iMaxNodes and [Debug] fDebugExtraHeight are the Heart of Magic
-        // block's (MagicMenuRewrite_HoM reads them from this ini); the core reads fTreeRight alone - the right column's right edge
+        // block's (MagicMenuRewrite_HoM reads them from this ini); the core reads fTreeRight alone - the right column's right edge.
+        // Nexus report 2026-11-01: these are the ini's place; each menu may move the area past SkyUI's list (Widget: g_menu.place)
         Rect preview{ 648, 67, 969, 297 };
         Rect itemCard{ 648, 417, 969, 623 };
         double treeRight = 1238.0;  // [Layout] fTreeRight: where the two columns end on the right (Layout::DefaultFrames)

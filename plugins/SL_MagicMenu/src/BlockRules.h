@@ -476,6 +476,59 @@ namespace BlockRules
             std::min(a_columns.bottom + a_pad, a_visible.bottom) };
     }
 
+    // Nexus report 2026-11-01 (kesnit, rubbrt): on another setup the ini's columns lay over SkyUI's list. The columns' area is
+    // placed past the list, the way SkyUI places its item card (ItemMenu.as:453-458) and Inventory Reforged its panel
+    inline constexpr double kListGap = 8.0;        // between SkyUI's list background and the columns (the ini's place on this PC:
+                                                   // the background ends at 640, the columns start at 648 - unchanged there)
+    inline constexpr double kScreenMargin = 14.0;  // kept clear at the visible stage's right edge (Inventory Reforged's MARGIN,
+                                                   // its panel/source/30-panel.as:4)
+
+    struct ColumnsSpan
+    {
+        double left{}, right{};
+
+        bool operator==(const ColumnsSpan&) const = default;
+    };
+
+    /// This menu's columns' area for the ini's a_left .. a_right. Unchanged when SkyUI's list background ends (a_listEdge) at
+    /// least kListGap left of it, or a value is not finite. Else it starts at a_listEdge + kListGap, at its ini width while that
+    /// fits left of the visible stage's right edge less kScreenMargin (never left of a_right); with less room its right edge
+    /// stays there and it is narrower, down to a_minWidth (two columns at their least) - with less room than that it keeps
+    /// a_minWidth and the list stays under its left part. Never left of the ini's place. O(1)
+    inline ColumnsSpan ColumnsPlace(double a_left, double a_right, double a_listEdge, double a_visibleRight, double a_minWidth)
+    {
+        const ColumnsSpan ini{ a_left, a_right };
+        if (!std::isfinite(a_left) || !std::isfinite(a_right) || !std::isfinite(a_listEdge) || !std::isfinite(a_visibleRight) ||
+            !std::isfinite(a_minWidth) || a_right <= a_left) {
+            return ini;
+        }
+        const double start = a_listEdge + kListGap;
+        if (start <= a_left) return ini;
+        const double width = a_right - a_left;
+        const double limit = std::max(a_right, a_visibleRight - kScreenMargin);
+        if (start + width <= limit) return { start, start + width };
+        const double least = std::min(std::max(a_minWidth, 0.0), width);
+        return { std::min(start, limit - least), limit };
+    }
+
+    /// An ini x mapped onto a_place (the columns' area this menu): its share of the ini's a_left .. a_right kept. Identity when
+    /// the ini's span is empty
+    inline double ToPlace(double a_x, double a_left, double a_right, const ColumnsSpan& a_place)
+    {
+        if (!(a_right > a_left)) return a_x;
+        return a_place.left + (a_x - a_left) * (a_place.right - a_place.left) / (a_right - a_left);
+    }
+
+    /// The reverse of ToPlace, rounded to 1/100 (the layout file's border then reads back as the ini's own value - review
+    /// 2026-11-01: (x + s) - s is not x in doubles)
+    inline double FromPlace(double a_x, double a_left, double a_right, const ColumnsSpan& a_place)
+    {
+        constexpr double kHundredths = 100.0;
+        const double width = a_place.right - a_place.left;
+        if (!(a_right > a_left) || !(width > 0.0)) return a_x;
+        return std::round((a_left + (a_x - a_place.left) * (a_right - a_left) / width) * kHundredths) / kHundredths;
+    }
+
     /// A block's look while nothing is chosen (the columns stay up then)
     enum class EmptyLook
     {

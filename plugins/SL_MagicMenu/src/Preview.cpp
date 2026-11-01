@@ -3087,7 +3087,9 @@ float4 PSMain(float4 position : SV_Position) : SV_Target
             // only brightens, so a pixel that got darker is either a draw that is not additive or one with the wrong blend
             // (review v10: from the delay on, once per selection, so a frame with nothing drawn yet only postpones it). With
             // it, the target and blend state at Render() entry and exit (spec v11 H1/R9; boundary state, not per draw)
-            const bool darkCheck = drawn > 0 && clip.darkChecks < kDarkChecksMost && clip.selectionFrame > 0 &&
+            // audit 2026-11-01: only with bSelfTest - its verdicts go to SelfTest alone, and the GPU read-backs (staging copy + Map)
+            // stall the CPU for nothing in play
+            const bool darkCheck = Settings::Get().selfTest && drawn > 0 && clip.darkChecks < kDarkChecksMost && clip.selectionFrame > 0 &&
                                    clip.frame >= clip.selectionFrame + kDarkCheckDelay && clip.darkCheckedFor != clip.selectionFrame;
             // spec v13 A2: the box's alpha saved before Render() (nullopt: bKeepPanelAlpha=0, the restore off, or a target it
             // does not handle, A1). Every frame, not only P8's: the art raises the panel's alpha whenever it is drawn. Not

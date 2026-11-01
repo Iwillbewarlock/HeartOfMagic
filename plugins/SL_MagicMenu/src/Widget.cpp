@@ -263,6 +263,17 @@ namespace Widget
         struct MenuState
         {
             bool firstFrame = true;
+            // Nexus report 2026-11-01: this menu's columns' area - the ini's moved right (and narrowed when the room is short) past
+            // SkyUI's list (BlockRules::ColumnsPlace; set at AttachWidget before anything is arranged, again while WatchListEdge sees
+            // the list's edge move). Every frame and layout this menu uses is in its space (Frames, savedLayout / defaultLayout); the
+            // layout file keeps the ini's (Unshifted). Empty (right <= left) until set: the ini's then (Place)
+            BlockRules::ColumnsSpan place;
+            int placeMoves = 0;           // WatchListEdge's moves of the area after the attach, this menu
+            bool placePending = false;    // a new place WatchListEdge holds back while the layout mode is on (applied after it)
+            Layout::State savedLayout;    // Settings::SavedLayout() with its border in this menu's space (RefreshLayoutCopies)
+            Layout::State defaultLayout;  // Settings::DefaultLayout() with its border in this menu's space
+            bool layoutCopies = false;    // the two above are set (CurrentLayout falls back to Settings' own until then)
+            std::optional<double> listEdge;  // SkyUI's list background's right edge in _root, as last read (nullopt: not read)
             // 2026-10-31 (the settings tab): [Blocks] sHidden as this menu applies it (HiddenBlocks::Effective, set at AttachWidget):
             // these blocks are absent this menu, as an add-on that is not installed (BlockHeights leaves them out)
             std::set<std::string> hidden;
@@ -1331,26 +1342,86 @@ namespace Widget
             return why;
         }
 
+        // Nexus report 2026-11-01: the columns' frames and the layouts in this menu's space - the ini's area placed at g_menu.place.
+        // The layout file and Settings keep the ini's space: a state goes in through Shifted and out (SaveLayout) through Unshifted
+        BlockRules::ColumnsSpan IniSpan()
+        {
+            const auto frame = Layout::DefaultFrames(Settings::Get())[0];  // both frames span the whole two-column area
+            return { frame.left, frame.right };
+        }
+
+        BlockRules::ColumnsSpan Place()
+        {
+            return g_menu.place.right > g_menu.place.left ? g_menu.place : IniSpan();
+        }
+
+        double ToMenuX(double a_x)  // an ini x in this menu's space
+        {
+            const auto ini = IniSpan();
+            return BlockRules::ToPlace(a_x, ini.left, ini.right, Place());
+        }
+
+        std::array<Layout::Frame, Layout::kColumns> Frames()
+        {
+            auto frames = Layout::DefaultFrames(Settings::Get());
+            const auto place = Place();
+            for (auto& frame : frames) {
+                frame.left = place.left;
+                frame.right = place.right;
+            }
+            return frames;
+        }
+
+        Layout::State Shifted(Layout::State a_state)
+        {
+            a_state.border = ToMenuX(a_state.border);
+            return a_state;
+        }
+
+        Layout::State Unshifted(Layout::State a_state)
+        {
+            const auto ini = IniSpan();
+            a_state.border = BlockRules::FromPlace(a_state.border, ini.left, ini.right, Place());
+            return a_state;
+        }
+
+        // after the place is set or moved (AttachWidget, WatchListEdge) and after every save (the saved layout changed)
+        void RefreshLayoutCopies()
+        {
+            g_menu.savedLayout = Shifted(Settings::SavedLayout());
+            g_menu.defaultLayout = Shifted(Settings::DefaultLayout());
+            g_menu.layoutCopies = true;
+        }
+
+        const Layout::State& SavedLayoutShifted()
+        {
+            return g_menu.layoutCopies ? g_menu.savedLayout : Settings::SavedLayout();  // before the first attach: no shift yet
+        }
+
+        const Layout::State& DefaultLayoutShifted()
+        {
+            return g_menu.layoutCopies ? g_menu.defaultLayout : Settings::DefaultLayout();
+        }
+
         // The layout the panels follow (blocks plan Task 4): the layout mode's working copy while the mode is on, the default
         // layout in the safety-net states, else the saved one
         const Layout::State& CurrentLayout()
         {
             if (g_menu.layout.active) return g_menu.layout.working;
             if (!SafetyNetReason().empty()) {
-                return Settings::DefaultLayout();  // with the add-on blocks (Task 6)
+                return DefaultLayoutShifted();  // with the add-on blocks (Task 6)
             }
-            return Settings::SavedLayout();
+            return SavedLayoutShifted();
         }
 
         // UNSCROLLED stage rects (Arrange's, plan D4): the scroll is the column clip's (PlaceColumns), BlockRect adds it. a_fits:
         // the blocks' heights this menu (g_menu.fitHeight; false: every block at its full height, g_menu.blocksMax)
         std::map<BlockId, Settings::Rect> ArrangeBlocks(const Arrangement& a_arrangement, bool a_fits = true)
         {
-            const auto& settings = Settings::Get();
             auto heights = BlockHeights();
             auto fill = a_arrangement.fill;
             if (a_fits) BlockRules::ApplyFits(heights, fill, g_menu.fitHeight, g_menu.layout.active);
-            return Layout::Arrange(CurrentLayout(), heights, a_arrangement.hidden, fill, Layout::DefaultFrames(settings));
+            return Layout::Arrange(CurrentLayout(), heights, a_arrangement.hidden, fill, Frames());
         }
 
         // The current layout's column holding the block (nullopt: not in the layout - Repair keeps every known block in it)
@@ -1367,13 +1438,13 @@ namespace Widget
         // and the node clicks' hit area, the 3D preview's column clip. Fixed on screen: it does not scroll
         Settings::Rect ColumnViewport(int a_column)
         {
-            return Layout::ColumnArea(CurrentLayout(), a_column, Layout::DefaultFrames(Settings::Get()));
+            return Layout::ColumnArea(CurrentLayout(), a_column, Frames());
         }
 
         // The column's content height (this tab's arranged blocks, unscrolled) and its visible height
         std::pair<double, double> ColumnHeights(int a_column)
         {
-            const auto content = Layout::ContentHeight(CurrentLayout(), g_menu.blocks, Layout::DefaultFrames(Settings::Get()));
+            const auto content = Layout::ContentHeight(CurrentLayout(), g_menu.blocks, Frames());
             const bool valid = a_column >= 0 && a_column < Layout::kColumns;
             return { valid ? content[a_column] : 0.0, ColumnViewport(a_column).Height() };
         }
@@ -1401,7 +1472,10 @@ namespace Widget
             if (const auto it = g_menu.blocks.find(a_id); it != g_menu.blocks.end()) return scrolled(it->second);
             if (const auto it = g_menu.blocksAll.find(a_id); it != g_menu.blocksAll.end()) return scrolled(it->second);
             if (Addon(a_id) || g_menu.hidden.contains(a_id)) return {};  // no arranged place (no usable height, or hidden): nothing to draw in
-            return IniRect(Settings::Get(), a_id);  // before the menu's first Rearrange (Repair keeps every block in the layout)
+            auto rect = IniRect(Settings::Get(), a_id);  // before the menu's first Rearrange (Repair keeps every block in the layout)
+            rect.left = ToMenuX(rect.left);
+            rect.right = ToMenuX(rect.right);
+            return rect;
         }
 
         // The block is laid out on this tab (D6); ApplyVisibility adds "something chosen"
@@ -3366,10 +3440,13 @@ namespace Widget
         Settings::Rect CoreRect(bool a_own, const BlockId& a_id)
         {
             const auto& s = Settings::Get();
-            if (a_id == Layout::kPreview) return s.preview;
+            // Nexus report 2026-11-01: the x span is the default layout's left column in this menu's place, its border clamped as
+            // Arrange clamps it (GPT round 2: a plain map of the ini rects missed the clamp of a narrowed area)
+            const auto column = Layout::ColumnArea(DefaultLayoutShifted(), 0, Frames());
+            if (a_id == Layout::kPreview) return { column.left, s.preview.top, column.right, s.preview.bottom };
             const auto& card = s.itemCard;
             const double top = s.preview.bottom + s.panelGap;
-            return { card.left, top, card.right, a_own ? card.bottom : top + card.Height() };
+            return { column.left, top, column.right, a_own ? card.bottom : top + card.Height() };
         }
 
         // SelfTest L1 (blocks plan Task 2, D6): each tab's arranged rects (our card and SkyUI's) logged, PASS when they are the
@@ -3382,7 +3459,7 @@ namespace Widget
         {
             static bool s_checked = false;
             if (!Settings::Get().selfTest || std::exchange(s_checked, true)) return;
-            const bool custom = !(CurrentLayout() == Settings::DefaultLayout());
+            const bool custom = !(CurrentLayout() == DefaultLayoutShifted());
             constexpr std::array kTabs{ Tab::kFollow, Tab::kSchool, Tab::kPowers, Tab::kEffects };
             for (const Tab tab : kTabs) {
                 for (const bool own : { true, false }) {
@@ -3862,7 +3939,8 @@ namespace Widget
         void WatchOwnCard(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
         {
             if (!OwnCard()) return;
-            if (std::ranges::find(kAreaDumpFrames, g_menu.frame) != kAreaDumpFrames.end()) DumpCardArea(a_movie);
+            // audit 2026-11-01: a past bug hunt's dump (hundreds of GFx calls a run) - only with bSelfTest
+            if (Settings::Get().selfTest && std::ranges::find(kAreaDumpFrames, g_menu.frame) != kAreaDumpFrames.end()) DumpCardArea(a_movie);
             auto pair = CardAndHolder(a_movie);
             RE::GFxValue info;
             bool faded = false;
@@ -4028,6 +4106,9 @@ namespace Widget
         constexpr const char* kButtonPanelPath = "_root.Menu_mc.bottomBar.buttonPanel";  // the key-hint strip (ItemMenu.as:73 navPanel)
         constexpr int kMaxStripMoveLogs = 5;
         constexpr int kClipDumpFrame = 30;                     // the frame of a menu the one-time clip dump runs at (SkyUI built by then)
+        constexpr int kListEdgeWatchFrames = 120;              // Nexus report 2026-11-01: WatchListEdge reads the list edge each frame up to this one
+        void PlaceColumnsArea(RE::GFxMovieView* a_movie, RE::GFxValue& a_root);  // below, after AttachWidget
+        void WatchListEdge(RE::GFxMovieView* a_movie, RE::GFxValue& a_root, RE::GFxValue& a_widget);
         constexpr const char* kOverlayName = "layoutOverlay";  // the drag ghost, the insertion line, the border guide: on top
         constexpr const char* kCoverPrefix = "mmxCover_";      // a block's drag cover, in its column clip above the panels
         constexpr const char* kCoverBlock = "mmxBlock";        // a cover's block id
@@ -5049,7 +5130,7 @@ namespace Widget
         Layout::Slot SlotAt(const BlockId& a_dragged, double a_x, double a_y)
         {
             const auto& state = CurrentLayout();
-            const auto frames = Layout::DefaultFrames(Settings::Get());
+            const auto frames = Frames();
             const int column = Layout::SnapSlot(state, a_dragged, a_x, a_y + g_menu.scroll[0], g_menu.blocks, frames).column;
             return Layout::SnapSlot(state, a_dragged, a_x, a_y + g_menu.scroll[column], g_menu.blocks, frames);
         }
@@ -5058,7 +5139,7 @@ namespace Widget
         // last shown block (the dragged one left out), else the column's top
         double SlotLineY(const Layout::Slot& a_slot, const BlockId& a_dragged)
         {
-            return Layout::SlotLineY(CurrentLayout(), a_slot, a_dragged, g_menu.blocks, Layout::DefaultFrames(Settings::Get()));
+            return Layout::SlotLineY(CurrentLayout(), a_slot, a_dragged, g_menu.blocks, Frames());
         }
 
         void DrawSlotLine(RE::GFxValue& a_widget, const Layout::Slot& a_slot, const BlockId& a_dragged)
@@ -5123,7 +5204,7 @@ namespace Widget
             double top = 0.0, bottom = 0.0;
             if (focus.target) {
                 column = focus.target->column;
-                const double y = Layout::SlotLineY(CurrentLayout(), *focus.target, *focus.focus, g_menu.blocks, Layout::DefaultFrames(Settings::Get()));
+                const double y = Layout::SlotLineY(CurrentLayout(), *focus.target, *focus.focus, g_menu.blocks, Frames());
                 top = y - kLineViewMargin;
                 bottom = y + kLineViewMargin;
             } else {
@@ -5246,7 +5327,7 @@ namespace Widget
             }
             const auto at = MouseAt(a_movie);
             if (!at) return;
-            const auto frames = Layout::DefaultFrames(Settings::Get());
+            const auto frames = Frames();
             const double border = Layout::ClampBorder(at->first - *m.borderGrab, frames[0], frames[1]);
             if (m.guideAt && std::abs(*m.guideAt - border) <= kRectTolerance) return;
             m.guideAt = border;
@@ -5264,7 +5345,7 @@ namespace Widget
         {
             auto& m = g_menu.layout;
             if (!m.borderGrab) return;
-            const auto frames = Layout::DefaultFrames(Settings::Get());
+            const auto frames = Frames();
             const auto at = MouseAt(a_movie);
             const double border = at ? Layout::ClampBorder(at->first - *m.borderGrab, frames[0], frames[1]) : m.guideAt.value_or(m.working.border);
             m.borderGrab.reset();
@@ -5305,7 +5386,7 @@ namespace Widget
             }
             m.active = true;
             ++g_menu.layoutModeChanges;  // Block API v2: a press in an add-on block is cancelled
-            m.entry = m.working = Settings::SavedLayout();
+            m.entry = m.working = SavedLayoutShifted();
             ++m.entered;
             // Task 5: entered with the gamepad, the first visible block has the focus at once (there is no pointer); otherwise the
             // first arrow / D-pad press gives it, so a mouse user sees no outline
@@ -5333,11 +5414,11 @@ namespace Widget
             m.guideAt.reset();
             ClearOverlay(a_widget, "guide");
             if (a_save) {
-                if (m.working == Settings::SavedLayout()) {
+                if (m.working == SavedLayoutShifted()) {
                     logger::info("Layout: mode OFF by {} - the layout is unchanged, nothing written", a_why);
                 } else {
                     std::string detail;
-                    const auto result = Settings::SaveLayout(m.working, &detail);
+                    const auto result = Settings::SaveLayout(Unshifted(m.working), &detail);
                     if (result == Settings::SaveResult::kFailed) {
                         logger::error("Layout: save FAILED - {}. The layout mode stays on with the edited layout ({} again to retry, "
                                       "Esc to leave without saving)",
@@ -5345,18 +5426,20 @@ namespace Widget
                         SelfTest(std::format("L3 layout saved FAIL - not written: {}", detail));
                         return;  // m.active stays true: the caller settles the mode on
                     }
+                    const auto onDisk = Unshifted(m.working);  // the file keeps the ini's space
                     if (result == Settings::SaveResult::kRefused) {
-                        Settings::SetSavedLayout(m.working);
+                        Settings::SetSavedLayout(onDisk);
                         logger::warn("Layout: not saved - {}; the edited layout is used until the game is closed", detail);
                         SelfTest(std::format("L3 layout saved SKIP - refused: {}", detail));
                     } else {
                         std::string why;
                         const auto back = Settings::ReadLayoutFile(&why);
-                        logger::info("Layout: mode OFF by {} - saved: {} - {}", a_why, detail, Describe(m.working));
-                        SelfTest(std::format("L3 layout saved {} - the file read again {} the layout ({}{})", back && *back == m.working ? "PASS" : "FAIL",
-                            back ? (*back == m.working ? "equals" : "differs from") : "does not read as", Describe(m.working),
-                            back ? (*back == m.working ? std::string{} : "; file: " + Describe(*back)) : "; " + why));
+                        logger::info("Layout: mode OFF by {} - saved: {} - {}", a_why, detail, Describe(onDisk));
+                        SelfTest(std::format("L3 layout saved {} - the file read again {} the layout ({}{})", back && *back == onDisk ? "PASS" : "FAIL",
+                            back ? (*back == onDisk ? "equals" : "differs from") : "does not read as", Describe(onDisk),
+                            back ? (*back == onDisk ? std::string{} : "; file: " + Describe(*back)) : "; " + why));
                     }
+                    RefreshLayoutCopies();  // the saved layout changed (both paths set it)
                 }
             } else {
                 if (!(m.working == m.entry)) ApplyLayout(a_movie, a_widget, m.entry);
@@ -5368,7 +5451,7 @@ namespace Widget
             ++g_menu.layoutModeChanges;  // Block API v2: a press in an add-on block is cancelled
             if (HeightsFitted() || AddonsCloseUp()) Rearrange(a_movie, a_widget);  // the fitted heights and the closed-up add-ons back
             if (!a_save) {
-                const bool same = CurrentLayout() == m.entry && Settings::SavedLayout() == m.entry;
+                const bool same = CurrentLayout() == m.entry && SavedLayoutShifted() == m.entry;
                 const auto diffs = PanelDiffs();
                 logger::info("Layout: mode OFF by {} - cancelled, the entry layout is back", a_why);
                 SelfTest(std::format("L4 cancel {} - the layout {} the entry layout ({}), the panels' rects {}{}", same && diffs.empty() ? "PASS" : "FAIL",
@@ -5414,7 +5497,7 @@ namespace Widget
                 ++m.padIgnored;  // one move at a time: the mouse drag goes on; B / Esc still leaves
                 return;
             }
-            const auto frames = Layout::DefaultFrames(Settings::Get());
+            const auto frames = Frames();
             const auto visible = VisibleBlocks();
             const auto before = Layout::Normalize(m.working, g_layoutFocus, visible);  // as Navigate sees it (a drop's slot)
             const auto result = Layout::Navigate(m.working, g_layoutFocus, a_nav, m.active, visible, g_menu.blocks, frames);
@@ -5524,7 +5607,7 @@ namespace Widget
             m.guideAt.reset();
             m.borderPressDue = m.borderReleaseDue = false;
             ClearOverlay(a_widget, "guide");
-            const auto reset = Settings::DefaultLayout();
+            const auto reset = DefaultLayoutShifted();
             if (reset == m.working) {
                 ++m.resetSame;
                 logger::info("Layout: {} - the layout is the default already, nothing to reset", a_why);
@@ -5938,6 +6021,10 @@ namespace Widget
                 InstallWheel(movie, widget);  // blocks plan Task 3 (D7)
                 WatchHeldShrinks();           // user 2026-10-30: a shrink that has waited its delay draws its block again
                 if (!g_menu.selWrapped) FollowHighlight(movie);
+                // Nexus report 2026-11-01: the columns' area follows SkyUI's list edge - before the tab, card, add-ons and strip of
+                // this frame (GPT round 2: after them, a narrower area cut the old content for a frame); past the watched frames
+                // only while a new place waits for the layout mode's end
+                if (g_menu.frame <= kListEdgeWatchFrames || g_menu.placePending) WatchListEdge(movie, root, widget);
                 WatchTab(movie, widget);  // first: the item card's slot depends on the tab
                 WatchChosen(movie, widget);
                 FitItemCard(movie, root);
@@ -6107,6 +6194,7 @@ namespace Widget
             if (root.GetMember(kRootName, &existing) && existing.IsDisplayObject()) return;  // already on this movie
 
             g_menu = MenuState{};
+            PlaceColumnsArea(movie, root);  // Nexus report 2026-11-01: before anything is arranged in this menu
             ApplyHiddenSetting();  // 2026-10-31: [Blocks] sHidden as the menu sink read it, before anything is arranged
             KeyHints::OnMenuOpen();
             {
@@ -6231,6 +6319,86 @@ namespace Widget
             const auto area = movie->GetVisibleFrameRect();
             logger::info("Widget: attached on thread {} (visible stage x {:.0f}..{:.0f} y {:.0f}..{:.0f}, {} add-on block(s))",
                 REX::W32::GetCurrentThreadId(), area.left, area.right, area.top, area.bottom, g_addons.size());
+        }
+
+        // Nexus report 2026-11-01 (kesnit, rubbrt: the blocks lay over SkyUI's list on their setup): the right edge of SkyUI's list
+        // background in _root, the columns' space. SkyUI places its item card from inventoryLists._x + getContentBounds' x + width + 25
+        // (ItemMenu.as:453-458; 25: "the final offset after the animation of the panel container"); _width there counts the
+        // background's shape from its left end (-21 on this PC), so this takes the shape's right end instead: ListBackground's bounds
+        // in panelContainer (InventoryLists.as:303) + 25, in inventoryLists' own space, mapped to _root. Geometry only, so a slide-in
+        // under way does not change it. nullopt when SkyUI's clips are not there (another menu SWF): the ini's place is kept
+        std::optional<double> ListEdge(RE::GFxMovieView* a_movie, RE::GFxValue& a_root)
+        {
+            constexpr double kSlideIn = 25.0;
+            RE::GFxValue lists, container, background;
+            if (!a_movie->GetVariable(&lists, kListsPath) || !lists.IsDisplayObject() || !lists.GetMember("panelContainer", &container) ||
+                !container.IsDisplayObject() || !container.GetMember("ListBackground", &background) || !background.IsDisplayObject()) {
+                return std::nullopt;
+            }
+            const auto shape = GetBounds(background, container);
+            if (!shape || !std::isfinite(shape->xMax)) return std::nullopt;
+            const auto edge = MapPoint(a_movie, lists, a_root, shape->xMax + kSlideIn, 0.0);
+            if (!edge || !std::isfinite(edge->first)) return std::nullopt;
+            return edge->first;
+        }
+
+        // This menu's columns' area for a_edge (BlockRules::ColumnsPlace); a_note says what it is next to the ini's
+        BlockRules::ColumnsSpan PlaceFor(RE::GFxMovieView* a_movie, const std::optional<double>& a_edge, std::string& a_note)
+        {
+            const auto ini = IniSpan();
+            const auto visible = a_movie->GetVisibleFrameRect();
+            const auto& s = Settings::Get();
+            const double least = 2 * Layout::kMinColumn + s.panelGap;
+            if (!a_edge) {
+                a_note = std::format("SkyUI's list edge not read ({}.panelContainer.ListBackground) - the ini's x {:.0f}..{:.0f}", kListsPath, ini.left, ini.right);
+                return ini;
+            }
+            const auto place = BlockRules::ColumnsPlace(ini.left, ini.right, *a_edge, visible.right, least);
+            const double start = *a_edge + BlockRules::kListGap;
+            a_note = std::format("SkyUI's list ends at x {:.0f}, the visible stage at {:.0f}: ", *a_edge, visible.right) +
+                     (place == ini ? std::format("the ini's x {:.0f}..{:.0f}", ini.left, ini.right) :
+                         std::format("x {:.0f}..{:.0f} (the ini's {:.0f}..{:.0f} {}){}", place.left, place.right, ini.left, ini.right,
+                             place.right - place.left < ini.right - ini.left - BlockRules::kListGap / 2 ? "moved and narrowed" : "moved",
+                             place.left < start - 0.5 ? std::format(" - NOT ENOUGH ROOM: {:.0f} still over the list", start - place.left) : ""));
+            return place;
+        }
+
+        // At AttachWidget, before anything is arranged: this menu's g_menu.place and the layouts in its space
+        void PlaceColumnsArea(RE::GFxMovieView* a_movie, RE::GFxValue& a_root)
+        {
+            g_menu.listEdge = ListEdge(a_movie, a_root);
+            std::string note;
+            g_menu.place = PlaceFor(a_movie, g_menu.listEdge, note);
+            RefreshLayoutCopies();
+            logger::info("Layout: columns' area at the open - {}", note);
+        }
+
+        // The review of 2026-11-01: SkyUI widens its list once its config is read (ItemMenu.setConfig -> applyDynamicWidth,
+        // InventoryLists.as:416), which can be after the attach - so the edge is read each frame up to kListEdgeWatchFrames, and a
+        // new place is applied (the columns, the board and the layout chrome made again). Not while the layout mode is on (a drag
+        // must not jump): it waits for the mode's end. SelfTest L11 at the last frame. Cost: a few GFx calls a frame, 2 s a menu
+        void WatchListEdge(RE::GFxMovieView* a_movie, RE::GFxValue& a_root, RE::GFxValue& a_widget)
+        {
+            constexpr double kTolerance = 0.5;
+            constexpr int kMaxMoveLogs = 4;
+            const auto edge = ListEdge(a_movie, a_root);
+            std::string note;
+            const auto place = PlaceFor(a_movie, edge, note);
+            const bool moved = std::abs(place.left - g_menu.place.left) > kTolerance || std::abs(place.right - g_menu.place.right) > kTolerance;
+            g_menu.placePending = moved && g_menu.layout.active;  // GPT round 2: held, not dropped, while the mode is on
+            if (moved && !g_menu.layout.active) {
+                g_menu.listEdge = edge;
+                g_menu.place = place;
+                RefreshLayoutCopies();
+                Rearrange(a_movie, a_widget);
+                DrawBoard(a_movie, a_widget);
+                PlaceLayoutChrome(a_movie, a_widget);
+                if (++g_menu.placeMoves <= kMaxMoveLogs) logger::info("Layout: columns' area moved at frame {} - {}", g_menu.frame, note);
+            }
+            if (g_menu.frame == kListEdgeWatchFrames) {
+                SelfTest(std::format("L11 list edge {} - {}; moved {} time(s) after the open{}", moved ? "FAIL" : "PASS", note, g_menu.placeMoves,
+                    moved ? " (still moving at the last watched frame, or held by the layout mode)" : ""));
+            }
         }
 
         class MenuSink final : public RE::BSTEventSink<RE::MenuOpenCloseEvent>

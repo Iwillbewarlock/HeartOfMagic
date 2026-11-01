@@ -1518,6 +1518,31 @@ namespace
             Expect(Near(board.left, 632) && Near(board.top, 51) && Near(board.right, 1254) && Near(board.bottom, 639), Text("board: the columns + 16 (%s)", Show(board).c_str()));
             const auto cut = BlockRules::BoardRect(Settings::Rect{ 0, -40, 1275, 755 }, BlockRules::kBoardPad, visible1610);
             Expect(Near(cut.left, 0) && Near(cut.top, -40) && Near(cut.right, 1280) && Near(cut.bottom, 760), Text("board cut to the visible stage (%s)", Show(cut).c_str()));
+            // Nexus report 2026-11-01 (kesnit, rubbrt): the columns' area placed past SkyUI's list background, within the visible stage
+            {
+                using BlockRules::ColumnsPlace;
+                using BlockRules::ColumnsSpan;
+                constexpr double kNaN = std::numeric_limits<double>::quiet_NaN();
+                constexpr double kMin = 2 * 240.0 + 9.0;  // two kMinColumn columns and the gap
+                const auto spans = [](const ColumnsSpan& a, double l, double r) { return Near(a.left, l) && Near(a.right, r); };
+                Expect(spans(ColumnsPlace(648, 1238, 640, 1280, kMin), 648, 1238),
+                    "ColumnsPlace: this PC (list background to 640, columns at 648 = 640 + the gap) - unchanged");
+                Expect(spans(ColumnsPlace(648, 1238, 600, 1280, kMin), 648, 1238), "ColumnsPlace: the list ends further left - unchanged (never moved left)");
+                Expect(spans(ColumnsPlace(648, 1238, 700, 1920, kMin), 708, 1298), "ColumnsPlace: room enough - moved right whole, its width kept");
+                Expect(spans(ColumnsPlace(648, 1238, 700, 1280, kMin), 708, 1266), "ColumnsPlace: 16:9 / 16:10 - right edge at 1280 - 14, narrowed (558 wide)");
+                Expect(spans(ColumnsPlace(648, 1238, 900, 1280, kMin), 1266 - kMin, 1266), "ColumnsPlace: too little room - kept at the least width, at the edge");
+                Expect(spans(ColumnsPlace(648, 1300, 700, 1280, kMin), 708, 1300), "ColumnsPlace: the ini area ends past the margin - its right edge kept");
+                const auto nan = ColumnsPlace(kNaN, 1238, 700, 1920, kMin);
+                Expect(spans(ColumnsPlace(648, 1238, kNaN, 1280, kMin), 648, 1238) && spans(ColumnsPlace(648, 1238, 700, kNaN, kMin), 648, 1238) &&
+                           std::isnan(nan.left) && Near(nan.right, 1238) && spans(ColumnsPlace(648, 648, 700, 1920, kMin), 648, 648),
+                    "ColumnsPlace: a value not finite or an empty ini span - unchanged");
+                const ColumnsSpan moved{ 708.3, 1266.0 };
+                Expect(Near(BlockRules::ToPlace(648, 648, 1238, moved), 708.3) && Near(BlockRules::ToPlace(1238, 648, 1238, moved), 1266),
+                    "ToPlace: the ini edges go to the place's edges");
+                Expect(BlockRules::FromPlace(BlockRules::ToPlace(969, 648, 1238, moved), 648, 1238, moved) == 969.0,
+                    "FromPlace(ToPlace(969)) is 969 exactly (the saved border reads back as the default)");
+                Expect(BlockRules::FromPlace(800.0, 648, 1238, ColumnsSpan{ 648, 1238 }) == 800.0, "FromPlace: the ini's own place - unchanged");
+            }
             using BlockRules::EmptyLook;
             Expect(BlockRules::EmptyLookOf(Layout::kPreview, true, false) == EmptyLook::kLineCentred &&
                        BlockRules::EmptyLookOf(Layout::kSpellCard, true, false) == EmptyLook::kLineOnly &&
