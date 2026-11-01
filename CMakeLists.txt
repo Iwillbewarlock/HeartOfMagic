@@ -64,7 +64,7 @@ set(DIST_VERSION_DIR "${DIST_DIR}/${DIST_NAME}_${PROJECT_VERSION}")
 # The magic menu (plugins/SL_MagicMenu and its add-on blocks, shipped as Magic Menu Rewrite:
 # MagicMenuRewrite*.dll) ships apart, with its own version: the three plugins' DLL version,
 # fomod_magicmenu's info.xml and dist/MagicMenuRewrite_<version>
-set(MAGIC_MENU_VERSION "1.0.0")
+set(MAGIC_MENU_VERSION "1.0.1")
 set(MAGIC_MENU_DIST_VERSION_DIR "${DIST_DIR}/MagicMenuRewrite_${MAGIC_MENU_VERSION}")
 
 add_subdirectory(plugins/spelllearning)
