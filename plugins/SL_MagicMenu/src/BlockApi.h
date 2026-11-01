@@ -19,7 +19,7 @@
 // later is refused with a reason ("update MagicMenuRewrite").
 //
 // Registering:
-//   1. At SKSE load, listen for MagicMenuRewrite's answer:
+//   1. At kPostLoad (a listener for another plugin takes only once that plugin is loaded), listen for MagicMenuRewrite's answer:
 //        SKSE::GetMessagingInterface()->RegisterListener(BlockApi::kPluginName, OnBlockResult);
 //   2. At kPostPostLoad, kInputLoaded or kDataLoaded (MagicMenuRewrite starts listening at kPostLoad; registration closes at
 //      the first magic menu open after kDataLoaded - later ones are refused with a reason), send one message per block:
@@ -49,7 +49,7 @@
 // the movie or anything made in it past the return (the movie dies when the menu closes), and do not put AS2 handlers
 // (onPress ...) on it - use click. Do not throw out of a callback (an exception is caught and logged, and the block is not
 // drawn or clicked again in that menu). Messages to MagicMenuRewrite (registration, kMessageRedraw, kMessageHeight,
-// kMessageShowSpell, kMessageVisible) may come from any thread.
+// kMessageShowSpell, kMessageVisible, kMessageKeyHint) may come from any thread.
 //
 // When the block is drawn (draw, or drawSelection when it is set - then draw is never called): once after the menu opens,
 // again when the block's size changes or it is moved to the other column, and on a kMessageRedraw for it - each time into a
@@ -68,7 +68,9 @@
 // kMessageHeight ('SLMH'): add-on -> MagicMenuRewrite, data = a HeightRequest (below), dataLen its size: the block's height for
 // this menu, for content that needs less room than the block registered with. The registered height is the block's maximum
 // and its size in the layout mode; every magic menu opens at it. On the next UI frame the columns are laid out again with the
-// new height (the blocks below move up or down, the column's scroll follows) and the block is drawn again into its new size
+// new height - a smaller height than the block has waits about 150 ms first (the host's shrink delay, so a block that grows
+// back at once does not jump; a larger height, or the present one, applies at once and drops a waiting shrink; in the layout
+// mode every height applies at once) - (the blocks below move up or down, the column's scroll follows) and the block is drawn again into its new size
 // (and its click area follows), as for any size change - so do not send it again from that draw unless the height you need
 // changed, or the block resizes every frame. Several requests for one block before that frame: the last one counts. The
 // struct only needs to live for the Dispatch call (the id is copied). Ignored while the magic menu is closed and for an id
@@ -82,8 +84,8 @@
 // draw used), once, on the frame after the release. No call (the press is cancelled) when the release is outside the
 // content area or outside the column's visible part, when between press and release the column scrolled, the block was
 // drawn again or moved, or the layout mode was entered or left; never while the layout mode is on (it owns the mouse).
-// Keep the rects of your buttons from your last draw and act only when press and release fall in the same one. Mouse only
-// (no gamepad or keyboard input in v2).
+// Keep the rects of your buttons from your last draw and act only when press and release fall in the same one. Mouse only:
+// keyboard keys come through v3's key (below); there is no gamepad input.
 //
 // tabs: the SkyUI magic menu category tabs the block shows on (kTab* bits; kTabsAll = 0 = every tab, the v1 behaviour).
 // On the other tabs the block is hidden and the blocks below it in its column close up, as the tree, progress and node card
@@ -361,7 +363,8 @@ namespace BlockApi
         std::uint32_t apiVersion = kVersion;  // the version the registration was read as (kVersion when refused before that)
         std::uint32_t structSize = sizeof(Result);
         Status status = Status::kRefused;
-        const char* id = "";      // the block's final id (prefixed), or the id as sent when refused
+        const char* id = "";      // the block's final id (prefixed); when refused, the id as sent - or "" when refused before the id
+                                  // was read (registration closed, a bad apiVersion / structSize / message size, an id empty or too long)
         const char* reason = "";  // why it was refused ("" when accepted)
     };
 
