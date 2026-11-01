@@ -124,7 +124,9 @@
 //                       handlers (GFxFunctionHandler: onRelease, onRollOver, onRollOut, hitArea) on clips it draws. Those
 //                       handlers only record what happened; act on it in frame, and ignore events while the last
 //                       Context::layoutMode seen was true (the layout mode owns the mouse; its covers lie above the panels).
-//   kFlagKeepWhenEmpty  the block keeps its place and its box when the menu shows no spell.
+//   kFlagKeepWhenEmpty  the block keeps its place and its box when the menu shows no spell. Without it a block that sets
+//                       drawSelection closes up while no spell is shown (not drawn, the blocks below move up; every block
+//                       shows in the layout mode) - set it when the block has something to show without a spell.
 //
 // legacyId: one of MagicMenuRewrite's retired built-in block ids ("tree", "progress", "nodecard") that this block takes over:
 // a saved layout's place for that id becomes this block's place (the layout file keeps the retired id on disk, so an older

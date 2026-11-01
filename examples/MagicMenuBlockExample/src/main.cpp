@@ -294,7 +294,11 @@ namespace
             .drawSelection = DrawSelection,
             .click = Click,
             .tabs = BlockApi::kTabSpells,
-            .key = Key };
+            .key = Key,
+            // A drawSelection block closes up while the menu shows no spell, unless it keeps its box with this flag. This block
+            // has something to show without a spell ("Select a spell" and its button), so it keeps it. Leave the flag out
+            // for a block that only means something for a selected spell
+            .flags = BlockApi::kFlagKeepWhenEmpty };
         if (!messaging->Dispatch(BlockApi::kMessageRegister, &reg, sizeof(reg), BlockApi::kPluginName)) {
             logger::error("MagicMenuBlockExample: MagicMenuRewrite did not listen (not installed, or bEnabled=0) - no block");
             return;

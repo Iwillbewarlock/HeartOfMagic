@@ -283,7 +283,11 @@ Separately, `tabs` decides on which SkyUI tabs the block appears at all. `kTabsA
 not know (a menu mod's own). `kTabPowers`, `kTabShouts` and `kTabActiveEffects` are those tabs alone. On other tabs the
 block is hidden and the blocks below it close up. A bit outside `kTabsKnown` is refused.
 
-`kFlagKeepWhenEmpty` (v3): the block keeps its place and box when the menu shows no spell.
+`kFlagKeepWhenEmpty` (v3): the block keeps its place and box when the menu shows no spell. Without it, a block that sets
+`drawSelection` closes up (is not drawn, the blocks below move up) while no spell is selected - for example right after
+the menu opens - and shows again once one is (host code: BlockRulesV3.h `ClosesWhenEmpty`). In the layout mode every block
+shows, so it can be moved. If your block looks missing until you open the layout mode, this is why: set the flag when your
+block has something to show without a spell (the example sets it for its "Select a spell" line and its button).
 
 ## The frame callback and Context
 
