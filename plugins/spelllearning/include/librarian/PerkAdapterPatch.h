@@ -31,6 +31,10 @@ namespace Librarian::PerkAdapters
     // the feature is switched off, no catalog exists yet, or no file applies.
     void Apply(std::string_view reason);
 
+    // At kPostLoad: the catalog and the adapter files read on a worker, for
+    // the data loaded Apply to take (JsonPreread.h)
+    void ReadFilesAhead();
+
     // Puts back the keywords Apply added that are gone from their effects -
     // taken off by something that ran after kDataLoaded (KID, SkyPatcher and
     // FEC run before it: their DLLs load first). Called at kNewGame and

@@ -153,6 +153,11 @@ namespace DESTIntegration {
     // Event dispatch
     // =========================================================================
 
+    SpellTomeListenerSet& SpellTomeListeners()
+    {
+        return g_spellTomeEventRegs;
+    }
+
     void DispatchSpellTomeRead(RE::TESObjectBOOK* a_book,
                                RE::SpellItem*      a_spell,
                                RE::TESObjectREFR*  a_container)
@@ -207,86 +212,6 @@ namespace DESTIntegration {
         HudNotify::Show("hud.beginGrasp", "You begin to grasp {{spell}}...", { { "spell", spell->GetName() } });
 
         ProgressionNotify::ProgressRefresh(formIdStr);
-        return true;
-    }
-
-    // =========================================================================
-    // DEST_AliasExt Papyrus Native Functions
-    // =========================================================================
-    //
-    // These replicate the API that DontEatSpellTomes.dll exposes so ISL's
-    // unmodified Papyrus scripts work when our dummy DLL replaces the real one.
-    //
-    //   Scriptname DEST_AliasExt Hidden
-    //   Function RegisterForSpellTomeReadEvent(Alias akAlias) global native
-    //   Function UnregisterForSpellTomeReadEvent(Alias akAlias) global native
-    //
-    // =========================================================================
-
-    namespace DEST_Papyrus {
-
-        void RegisterForSpellTomeReadEvent(RE::StaticFunctionTag*,
-                                           RE::BGSBaseAlias* a_alias)
-        {
-            if (!a_alias) {
-                logger::warn("DEST_AliasExt: RegisterForSpellTomeReadEvent called with null alias");
-                return;
-            }
-
-            if (g_spellTomeEventRegs.Register(a_alias)) {
-                logger::info("DEST_AliasExt: Alias registered for OnSpellTomeRead events");
-            } else {
-                logger::warn("DEST_AliasExt: Failed to register alias (already registered?)");
-            }
-        }
-
-        void UnregisterForSpellTomeReadEvent(RE::StaticFunctionTag*,
-                                             RE::BGSBaseAlias* a_alias)
-        {
-            if (!a_alias) {
-                logger::warn("DEST_AliasExt: UnregisterForSpellTomeReadEvent called with null alias");
-                return;
-            }
-
-            if (g_spellTomeEventRegs.Unregister(a_alias)) {
-                logger::info("DEST_AliasExt: Alias unregistered from OnSpellTomeRead events");
-            }
-        }
-    }
-
-    // Also replicate DEST_UIExt (ISL uses it for notifications)
-    //   Scriptname DEST_UIExt Hidden
-    //   Function Notification(string, string, bool) global native
-    namespace DEST_UI_Papyrus {
-
-        void Notification(RE::StaticFunctionTag*,
-                          RE::BSFixedString a_text,
-                          [[maybe_unused]] RE::BSFixedString a_soundID,
-                          [[maybe_unused]] bool a_cancelIfQueued)
-        {
-            if (!a_text.empty()) {
-                RE::SendHUDMessage::ShowHUDMessage(a_text.c_str());
-            }
-        }
-    }
-
-    // =========================================================================
-    // Registration
-    // =========================================================================
-
-    bool RegisterDESTAliasExtFunctions(RE::BSScript::IVirtualMachine* vm)
-    {
-        if (!vm) return false;
-
-        // DEST_AliasExt — spell tome event registration
-        RegisterGameThreadNative<DEST_Papyrus::RegisterForSpellTomeReadEvent>(vm, "RegisterForSpellTomeReadEvent", "DEST_AliasExt");
-
-        RegisterGameThreadNative<DEST_Papyrus::UnregisterForSpellTomeReadEvent>(vm, "UnregisterForSpellTomeReadEvent", "DEST_AliasExt");
-
-        // DEST_UIExt — notification helper
-        RegisterGameThreadNative<DEST_UI_Papyrus::Notification>(vm, "Notification", "DEST_UIExt");
-
-        logger::info("DESTIntegration: Registered DEST_AliasExt + DEST_UIExt Papyrus native functions");
         return true;
     }
 
@@ -442,6 +367,8 @@ namespace DESTIntegration {
     void AutoRegisterISLAliases()
     {
         if (!g_destInstalled) return;
+        // The real DLL keeps ISL's registrations in its own co-save and set
+        if (RealDESTLoaded()) return;
 
         auto* dh = RE::TESDataHandler::GetSingleton();
         if (!dh) return;

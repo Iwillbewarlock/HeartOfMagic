@@ -3,15 +3,20 @@
 #include "FormIdText.h"
 #include "SpellScanner.h"
 #include "PathText.h"
+#include "ThreadUtils.h"
 
 #include <algorithm>
 #include <atomic>
 #include <cctype>
 #include <chrono>
 #include <filesystem>
+#include <format>
 #include <fstream>
+#include <future>
+#include <memory>
 #include <mutex>
 #include <string>
+#include <thread>
 #include <typeinfo>
 #include <unordered_map>
 #include <unordered_set>
@@ -35,8 +40,9 @@
 // from the template) and its race's, with leveled spell lists opened all the
 // way down - and the spells Spell Distribution Framework ini files hand to
 // vampires (a mod that adds its spells to vampires that way leaves no trace in
-// the records). Read once, on the first scan: none of it changes after the
-// game has loaded its data.
+// the records). Read once a session, in slices from the main menu on
+// (StepVampireCasters, VampirePrefetch in Main.cpp), or all at once by the
+// first IsCastByVampires that finds it unfinished.
 // =============================================================================
 
 namespace SpellScanner
@@ -52,10 +58,7 @@ namespace SpellScanner
         constexpr char kPluginSeparator = '~';
         constexpr std::size_t kSkippedLogMax = 10;   // skipped NPCs logged one by one; the rest only counted
 
-        std::once_flag g_vampireOnce;
-        std::unordered_set<RE::FormID> g_vampireSpells;
-        // How the one collection of the session went (VampireCastersState)
-        std::atomic<ScanRecordRules::Casters> g_vampireState{ ScanRecordRules::Casters::kNotRun };
+        using VampireSpells = std::unordered_set<RE::FormID>;
 
         std::string Trim(const std::string& text)
         {
@@ -84,7 +87,7 @@ namespace SpellScanner
 
         // "Spell = <form>|<string filters>|..." where the string filters name
         // Vampire (a keyword or an editor id; "," or "+" between entries)
-        std::size_t ReadDistrFile(const std::filesystem::path& path)
+        std::size_t ReadDistrFile(const std::filesystem::path& path, VampireSpells& vampireSpells)
         {
             std::ifstream file(path);
             std::size_t added = 0;
@@ -112,13 +115,13 @@ namespace SpellScanner
                 if (!vampire) continue;
 
                 if (auto* spell = ResolveDistrForm(Trim(rest.substr(0, bar)))) {
-                    added += g_vampireSpells.insert(spell->GetFormID()).second ? 1 : 0;
+                    added += vampireSpells.insert(spell->GetFormID()).second ? 1 : 0;
                 }
             }
             return added;
         }
 
-        std::size_t ReadDistrFiles()
+        std::size_t ReadDistrFiles(VampireSpells& vampireSpells)
         {
             std::size_t added = 0;
             std::error_code error;
@@ -134,7 +137,7 @@ namespace SpellScanner
                 try {
                     if (it->is_regular_file() &&
                         AsciiText::ToLower(PathText::Utf8(it->path().filename())).ends_with(kDistrSuffix)) {
-                        added += ReadDistrFile(it->path());
+                        added += ReadDistrFile(it->path(), vampireSpells);
                     }
                 } catch (const std::exception& e) {
                     logger::warn("SpellScanner: skipped a file in Data ({})", e.what());
@@ -150,27 +153,28 @@ namespace SpellScanner
             return added;
         }
 
-        void AddLeveled(RE::TESLevSpell* list, std::unordered_set<RE::FormID>& seenLists)
+        void AddLeveled(RE::TESLevSpell* list, std::unordered_set<RE::FormID>& seenLists, VampireSpells& vampireSpells)
         {
             if (!list || !seenLists.insert(list->GetFormID()).second) return;
             for (auto* form : list->GetContainedForms()) {
                 if (!form) continue;
                 if (auto* spell = form->As<RE::SpellItem>()) {
-                    g_vampireSpells.insert(spell->GetFormID());
+                    vampireSpells.insert(spell->GetFormID());
                 } else if (auto* nested = form->As<RE::TESLevSpell>()) {
-                    AddLeveled(nested, seenLists);
+                    AddLeveled(nested, seenLists, vampireSpells);
                 }
             }
         }
 
-        void AddSpellList(const RE::TESSpellList::SpellData* data, std::unordered_set<RE::FormID>& seenLists)
+        void AddSpellList(const RE::TESSpellList::SpellData* data, std::unordered_set<RE::FormID>& seenLists,
+            VampireSpells& vampireSpells)
         {
             if (!data) return;
             for (std::uint32_t i = 0; data->spells && i < data->numSpells; ++i) {
-                if (data->spells[i]) g_vampireSpells.insert(data->spells[i]->GetFormID());
+                if (data->spells[i]) vampireSpells.insert(data->spells[i]->GetFormID());
             }
             for (std::uint32_t i = 0; data->levSpells && i < data->numlevSpells; ++i) {
-                AddLeveled(data->levSpells[i], seenLists);
+                AddLeveled(data->levSpells[i], seenLists, vampireSpells);
             }
         }
 
@@ -229,6 +233,7 @@ namespace SpellScanner
             std::vector<RE::TESRace*> ownRace;
             std::vector<RE::TESRace*> vampireRaces;
             std::size_t vampires = 0;
+            VampireSpells spells;
         };
 
         void AddIfVampire(RE::TESNPC* npc, VampireWalk& walk)
@@ -254,88 +259,158 @@ namespace SpellScanner
             // template's NPCs are in this loop themselves, so their spells are not lost
             const bool spellsFromTemplate = npc->UsesTemplate() && npc->baseTemplateForm &&
                 npc->actorData.templateUseFlags.any(RE::ACTOR_BASE_DATA::TEMPLATE_USE_FLAG::kSpells);
-            if (!spellsFromTemplate) AddSpellList(npc->actorEffects, walk.seenLists);
+            if (!spellsFromTemplate) AddSpellList(npc->actorEffects, walk.seenLists, walk.spells);
             for (auto* race : walk.vampireRaces) {
-                if (walk.seenRaces.insert(race->GetFormID()).second) AddSpellList(race->actorEffects, walk.seenLists);
+                if (walk.seenRaces.insert(race->GetFormID()).second) AddSpellList(race->actorEffects, walk.seenLists, walk.spells);
             }
         }
 
-        // True when the walk got through the NPCs. One NPC that cannot be read (a
-        // fault in its record or its template's, caught under /EHa) is skipped and
-        // logged with its FormID (the first kSkippedLogMax), and the rest are still
-        // read: a load order with one broken NPC would otherwise be scanned again at
-        // every game start. More than half of them skipped is a failed walk
-        // (ScanRecordRules::CasterWalkFailed). The race and template caches take an
-        // entry only once it is worked out whole, so a fault leaves none behind.
-        bool CollectVampireSpellsImpl()
-        {
-            auto* dataHandler = RE::TESDataHandler::GetSingleton();
-            if (!dataHandler) {
-                logger::warn("SpellScanner: no data handler - the spells vampires cast are not known");
-                return false;
-            }
-            const auto started = std::chrono::steady_clock::now();
+        using Clock = std::chrono::steady_clock;
+        using ScanRecordRules::Casters;
 
-            VampireWalk walk;
-            const auto& races = walk.races;
-            std::size_t npcs = 0;
-            std::size_t skipped = 0;
-            for (auto* npc : dataHandler->GetFormArray<RE::TESNPC>()) {
-                if (!npc) continue;
-                ++npcs;
-                RE::FormID formId = 0;
+        double MsBetween(Clock::time_point from, Clock::time_point to)
+        {
+            return std::chrono::duration<double, std::milli>(to - from).count();
+        }
+
+        // The walk in slices (StepVampireCasters): the NPCs by index, the race, template and list caches
+        // kept between slices, the SPID files read in a slice of their own after them. One NPC that
+        // cannot be read (a fault in its record or its template's, caught under /EHa) is skipped and
+        // logged with its FormID (the first kSkippedLogMax), and the rest are still read: a load order
+        // with one broken NPC would otherwise be scanned again at every game start. More than half of
+        // them skipped is a failed walk (ScanRecordRules::CasterWalkFailed). The race and template
+        // caches take an entry only once it is worked out whole, so a fault leaves none behind.
+        class VampireCollection
+        {
+        public:
+            explicit VampireCollection(bool log) : m_log(log) {}
+
+            // True once done, complete or failed. An NPC is read whole within one slice, so a slice
+            // can run past its deadline by one NPC's walk.
+            bool Step(Clock::time_point deadline)
+            {
+                if (m_phase == Phase::kDone) return true;
+                const auto started = Clock::now();
+                if (m_phase == Phase::kStart) m_started = started;
+                ++m_slices;
+                // What the vampire check adds is a bonus tag: when reading it fails the scan goes on
+                // without it, and the session does not try again (a broken file is not hit on every
+                // scan). A failed collection makes every full scan of the session incomplete
+                // (VampireCastersState, ScanRecordRules.h): its catalog is written but not recorded,
+                // so the next game start scans again.
                 try {
-                    formId = npc->GetFormID();
-                    AddIfVampire(npc, walk);
-                } catch (...) {
-                    if (++skipped <= kSkippedLogMax) {
-                        logger::warn("SpellScanner: skipped NPC {:08X} while collecting the spells vampires cast (its "
-                                     "record could not be read){}", formId,
-                            skipped == kSkippedLogMax ? " - further skipped NPCs are only counted" : "");
+                    StepImpl(deadline, started);
+                } catch (const std::exception& e) {
+                    if (m_log) {
+                        logger::error("SpellScanner: could not collect the spells vampires cast ({}: {}) - the list is "
+                                      "INCOMPLETE, {} spells found before it", typeid(e).name(), e.what(), m_walk.spells.size());
                     }
+                    m_state = Casters::kFailed;
+                    m_phase = Phase::kDone;
+                } catch (...) {
+                    if (m_log) logger::error("SpellScanner: could not collect the spells vampires cast (a fault outside one NPC)");
+                    m_state = Casters::kFailed;
+                    m_phase = Phase::kDone;
                 }
+                m_workMs += MsBetween(started, Clock::now());
+                return m_phase == Phase::kDone;
             }
-            if (ScanRecordRules::CasterWalkFailed(npcs, skipped)) {
-                logger::error("SpellScanner: {} of {} NPCs could not be read - the spells vampires cast are not known",
-                    skipped, npcs);
-                return false;
-            }
-            const std::size_t vampires = walk.vampires;
-            const auto byKeyword = std::ranges::count_if(races, [](const auto& r) { return r.second == VampireRace::kKeyword; });
-            const auto byName = std::ranges::count_if(races, [](const auto& r) { return r.second == VampireRace::kName; });
-            // auto-scan's file-level skips (a file that faults is skipped and logged); a fault outside them fails
-            // the collection in CollectVampireSpells (kFailed: the scan is incomplete, not recorded)
-            const std::size_t distributed = ReadDistrFiles();
-            const auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::steady_clock::now() - started).count();
-            logger::info("SpellScanner: {} vampire NPCs carry {} spells ({} more handed out by SPID ini files); "
-                         "vampire races: {} by the Vampire keyword, {} by an editor id holding \"vamp\"; "
-                         "{} NPCs skipped; {} ms",
-                vampires, g_vampireSpells.size(), distributed, byKeyword, byName, skipped, elapsedMs);
-            return true;
-        }
-    }
 
-    namespace
-    {
-        // What the vampire check adds is a bonus tag: when reading it fails the scan goes on without it
-        // (and the next scan this session does not try again, so a broken file is not hit on every
-        // scan). A failed collection makes every full scan of the session incomplete
-        // (VampireCastersState, ScanRecordRules.h): its catalog is written but not recorded, so the
-        // next game start scans again.
-        void CollectVampireSpells()
-        {
-            using ScanRecordRules::Casters;
-            Casters state = Casters::kFailed;
-            try {
-                if (CollectVampireSpellsImpl()) state = Casters::kComplete;
-            } catch (const std::exception& e) {
-                logger::error("SpellScanner: could not collect the spells vampires cast ({}: {}) - the list is "
-                              "INCOMPLETE, {} spells found before it", typeid(e).name(), e.what(), g_vampireSpells.size());
-            } catch (...) {
-                logger::error("SpellScanner: could not collect the spells vampires cast (a fault outside one NPC)");
+            [[nodiscard]] Casters State() const noexcept { return m_state; }
+            [[nodiscard]] const VampireSpells& Spells() const noexcept { return m_walk.spells; }
+
+        private:
+            enum class Phase { kStart, kNpcs, kDistr, kDone };
+
+            void StepImpl(Clock::time_point deadline, Clock::time_point sliceStarted)
+            {
+                auto* dataHandler = RE::TESDataHandler::GetSingleton();
+                if (!dataHandler) {
+                    if (m_log) logger::warn("SpellScanner: no data handler - the spells vampires cast are not known");
+                    m_state = Casters::kFailed;
+                    m_phase = Phase::kDone;
+                    return;
+                }
+                if (m_phase == Phase::kStart) m_phase = Phase::kNpcs;
+                if (m_phase == Phase::kNpcs) {
+                    // By index, its size read again each slice: the walk sees the array as it is then
+                    const auto& npcs = dataHandler->GetFormArray<RE::TESNPC>();
+                    while (m_index < npcs.size()) {
+                        auto* npc = npcs[m_index++];
+                        if (!npc) continue;
+                        ++m_npcs;
+                        RE::FormID formId = 0;
+                        try {
+                            formId = npc->GetFormID();
+                            AddIfVampire(npc, m_walk);
+                        } catch (...) {
+                            if (++m_skipped <= kSkippedLogMax && m_log) {
+                                logger::warn("SpellScanner: skipped NPC {:08X} while collecting the spells vampires cast (its "
+                                             "record could not be read){}", formId,
+                                    m_skipped == kSkippedLogMax ? " - further skipped NPCs are only counted" : "");
+                            }
+                        }
+                        if (Clock::now() >= deadline) return;
+                    }
+                    if (ScanRecordRules::CasterWalkFailed(m_npcs, m_skipped)) {
+                        if (m_log) {
+                            logger::error("SpellScanner: {} of {} NPCs could not be read - the spells vampires cast are not known",
+                                m_skipped, m_npcs);
+                        }
+                        m_state = Casters::kFailed;
+                        m_phase = Phase::kDone;
+                        return;
+                    }
+                    m_phase = Phase::kDistr;
+                    if (Clock::now() >= deadline) return;
+                }
+                // auto-scan's file-level skips (a file that faults is skipped and logged); a fault outside them
+                // fails the collection in Step (kFailed: the scan is incomplete, not recorded)
+                const auto distrStarted = Clock::now();
+                const std::size_t distributed = ReadDistrFiles(m_walk.spells);
+                const auto finished = Clock::now();
+                m_state = Casters::kComplete;
+                m_phase = Phase::kDone;
+                if (!m_log) return;
+                const auto& races = m_walk.races;
+                const auto byKeyword = std::ranges::count_if(races, [](const auto& r) { return r.second == VampireRace::kKeyword; });
+                const auto byName = std::ranges::count_if(races, [](const auto& r) { return r.second == VampireRace::kName; });
+                logger::info("SpellScanner: {} vampire NPCs carry {} spells ({} more handed out by SPID ini files); "
+                             "vampire races: {} by the Vampire keyword, {} by an editor id holding \"vamp\"; "
+                             "{} NPCs skipped; {:.0f} ms of work in {} slices (SPID files {:.0f}), {:.0f} ms from first to last",
+                    m_walk.vampires, m_walk.spells.size(), distributed, byKeyword, byName, m_skipped,
+                    m_workMs + MsBetween(sliceStarted, finished), m_slices,
+                    MsBetween(distrStarted, finished), MsBetween(m_started, finished));
             }
-            g_vampireState.store(state);
+
+            bool m_log;
+            Phase m_phase = Phase::kStart;
+            Casters m_state = Casters::kNotRun;
+            VampireWalk m_walk;
+            std::uint32_t m_index = 0;   // BSTArray size_type
+            std::size_t m_npcs = 0;
+            std::size_t m_skipped = 0;
+            std::size_t m_slices = 0;
+            double m_workMs = 0.0;
+            Clock::time_point m_started;
+        };
+
+        // The session's collection. Stepped under the mutex (game thread, and a Papyrus scan's thread);
+        // read without it once done, when it no longer changes.
+        std::mutex g_vampireMutex;
+        VampireCollection g_vampires{ true };
+        std::atomic<bool> g_vampiresDone{ false };
+        // How the one collection of the session went (VampireCastersState)
+        std::atomic<Casters> g_vampireState{ Casters::kNotRun };
+
+        bool StepSessionCollection(Clock::time_point deadline)
+        {
+            if (g_vampiresDone.load(std::memory_order_acquire)) return true;
+            std::lock_guard lock(g_vampireMutex);
+            if (!g_vampires.Step(deadline)) return false;
+            g_vampireState.store(g_vampires.State());
+            g_vampiresDone.store(true, std::memory_order_release);
+            return true;
         }
     }
 
@@ -344,9 +419,87 @@ namespace SpellScanner
         return g_vampireState.load();
     }
 
+    bool StepVampireCasters(std::chrono::steady_clock::time_point deadline)
+    {
+        return StepSessionCollection(deadline);
+    }
+
+    void StartVampirePrefetch()
+    {
+        constexpr auto kSlice = std::chrono::milliseconds(4);           // AutoScan's default slice
+        constexpr auto kBetweenPosts = std::chrono::milliseconds(2);
+        constexpr auto kGiveUpAfter = std::chrono::seconds(60);         // a slice not run by then: no task queue
+        static std::atomic<bool> s_started{ false };
+        if (s_started.exchange(true)) return;
+        // Only a head start: a failure anywhere here leaves IsCastByVampires to walk the rest at once
+        const auto run = [=] {
+            try {
+                auto lastStamp = std::make_shared<std::uint32_t>(0);
+                while (!g_vampiresDone.load(std::memory_order_acquire)) {
+                    auto answer = std::make_shared<std::promise<void>>();
+                    auto future = answer->get_future();
+                    AddTaskToGameThread("VampirePrefetch", [answer, lastStamp, kSlice]() {
+                        // One slice a frame: a task run twice in the frame of the last slice does nothing
+                        const std::uint32_t stamp = RE::GetDurationOfApplicationRunTime();
+                        if (stamp != *lastStamp) {
+                            *lastStamp = stamp;
+                            StepSessionCollection(Clock::now() + kSlice);
+                        }
+                        answer->set_value();
+                    });
+                    if (future.wait_for(kGiveUpAfter) != std::future_status::ready) {
+                        logger::warn("SpellScanner: the vampire walk's slices stopped running - the first scan walks the rest");
+                        return;
+                    }
+                    std::this_thread::sleep_for(kBetweenPosts);
+                }
+            } catch (const std::exception& e) {
+                logger::warn("SpellScanner: the vampire walk's slices stopped ({}) - the first scan walks the rest", e.what());
+            }
+        };
+        try {
+            std::thread(run).detach();
+        } catch (const std::exception& e) {
+            logger::warn("SpellScanner: no thread for the vampire walk's slices ({}) - the first scan walks it", e.what());
+        }
+    }
+
     bool IsCastByVampires(RE::FormID spellFormId)
     {
-        std::call_once(g_vampireOnce, CollectVampireSpells);
-        return g_vampireSpells.contains(spellFormId);
+        StepSessionCollection(Clock::time_point::max());
+        return g_vampires.Spells().contains(spellFormId);
+    }
+
+    bool VampireCastersMatchOneGo(std::string& detail)
+    {
+        if (!g_vampiresDone.load(std::memory_order_acquire)) {
+            detail = "the session's collection is not done";
+            return false;
+        }
+        VampireCollection oneGo{ false };
+        oneGo.Step(Clock::time_point::max());
+        const auto& stepped = g_vampires.Spells();
+        const auto& again = oneGo.Spells();
+        std::size_t onlyStepped = 0;
+        std::size_t onlyAgain = 0;
+        RE::FormID first = 0;
+        for (const auto id : stepped) {
+            if (!again.contains(id)) {
+                ++onlyStepped;
+                if (!first) first = id;
+            }
+        }
+        for (const auto id : again) {
+            if (!stepped.contains(id)) {
+                ++onlyAgain;
+                if (!first) first = id;
+            }
+        }
+        const bool same = onlyStepped == 0 && onlyAgain == 0 && oneGo.State() == g_vampireState.load();
+        detail = std::format("stepped {} spells, one go {} spells; only stepped {}, only one go {}{}; state {} / {}",
+            stepped.size(), again.size(), onlyStepped, onlyAgain,
+            first ? std::format(" (first {:08X})", first) : std::string(),
+            static_cast<int>(g_vampireState.load()), static_cast<int>(oneGo.State()));
+        return same;
     }
 }

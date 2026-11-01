@@ -75,6 +75,7 @@ add_commonlibsse_plugin(${PROJECT_NAME}
     src/librarian/LibrarianRules.cpp
     src/librarian/LibrarianClassify.cpp
     src/librarian/LibrarianCatalog.cpp
+    src/librarian/LibrarianJsonPreread.cpp
     src/librarian/LibrarianTraits.cpp
     src/librarian/LibrarianAdapters.cpp
     src/librarian/LibrarianAdapterMatch.cpp
@@ -103,6 +104,7 @@ add_commonlibsse_plugin(${PROJECT_NAME}
     src/ProgressionNotify.cpp
     src/ProgressionNotifySelfTest.cpp
     src/ISLIntegration.cpp
+    src/DESTPapyrusApi.cpp
     src/SpellCastXPSource.cpp
     src/PassiveLearningSource.cpp
     src/spelleffectiveness/SpellEffectivenessHookCore.cpp

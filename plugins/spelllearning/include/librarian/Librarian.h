@@ -317,6 +317,8 @@ namespace Librarian
 
     // Reads the catalog back. Returns false when it is missing or unreadable.
     bool LoadCatalog(json& catalog);
+    // Where the catalog lives (for a reader that reads it ahead, JsonPreread.h)
+    [[nodiscard]] std::filesystem::path CatalogFilePath();
 
     // =========================================================================
     // TREE TRAITS - the catalog handed on to the tree builder and spell card

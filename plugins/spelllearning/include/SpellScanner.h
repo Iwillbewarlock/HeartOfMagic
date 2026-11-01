@@ -15,6 +15,17 @@
 namespace SpellScanner
 {
     using json = nlohmann::json;
+    // Where BuildSpellJson's time goes, in ms summed over the spells, for a caller
+    // that asks (FieldConfig::times; specs/003-load-time/plan.md, Phase 6d)
+    struct SpellJsonTimes {
+        double name = 0;       // form ids and the spell's own name
+        double tier = 0;       // school, tier and the optional plain fields
+        double effects = 0;    // each effect's JSON and its item evidence
+        double keywords = 0;
+        double evidence = 0;   // AppendSpellEvidence
+        double traits = 0;
+    };
+
     // Field output configuration
     struct FieldConfig {
         bool editorId = true;
@@ -31,6 +42,16 @@ namespace SpellScanner
         // Only has an effect when effects is also on. This is the evidence the
         // librarian classifies on, so it is off unless asked for.
         bool effectDetails = false;
+        // castByVampires (IsCastByVampires below). Off where nothing reads it, so the
+        // walk behind it is not paid there (the perk adapters' LoadOrderSource).
+        bool castByVampires = true;
+        // traits (BuildSpellTraits). Off where nothing reads it (LoadOrderSource).
+        bool traits = true;
+        SpellJsonTimes* times = nullptr;   // when set, BuildSpellJson adds its parts' time here
+        // When set, each base effect's JSON (BuildBaseEffectJson: the MGEF alone) is built once
+        // and copied into every spell that uses it. Only for a caller whose pass sees no change
+        // to the effects' records or to the perk adapters' keywords in between (LoadOrderSource).
+        std::unordered_map<RE::FormID, json>* baseEffects = nullptr;
     };
 
     // Scan configuration (fields + user prompt)
@@ -189,11 +210,21 @@ namespace SpellScanner
     json BuildSpellJson(RE::SpellItem* spell, RE::FormID formId, const FieldConfig& fields);
 
     // True when a vampire NPC carries the spell (SpellScannerCasters.cpp) -
-    // the tag librarian reads it as evidence of blood magic.
+    // the tag librarian reads it as evidence of blood magic. Finishes the
+    // session's collection first, all at once, if the slices have not.
     bool IsCastByVampires(RE::FormID spellFormId);
-    // How this session's collection behind IsCastByVampires went (collected
-    // once, at its first call): kNotRun before that. Any thread.
+    // One slice of the session's collection, until `deadline` (one NPC's walk
+    // can run past it); true once it is done. Game thread.
+    bool StepVampireCasters(std::chrono::steady_clock::time_point deadline);
+    // After data load: a worker posts 4 ms slices, one a frame, until the
+    // collection is done, so a scan normally finds it ready. Once a session.
+    void StartVampirePrefetch();
+    // How this session's collection behind IsCastByVampires went: kNotRun
+    // until it is done. Any thread.
     ScanRecordRules::Casters VampireCastersState() noexcept;
+    // Self-test: walks again in one go and compares with the session's set
+    // (false before that is done). Game thread.
+    bool VampireCastersMatchOneGo(std::string& detail);
 
     // What the tree goes by (SpellScannerCopies.cpp): the scan keeps every spell
     // and marks taughtByTome, voiceSlot, freeSpell, tomeUnreachable (TomeReach) and

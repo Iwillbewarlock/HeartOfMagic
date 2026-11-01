@@ -8,6 +8,7 @@
 
 #include <optional>
 #include <set>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -82,8 +83,8 @@ namespace SpellScanner
         // The loaded plugin a persistentId names (PluginNames.h): the game's own
         // lookup by raw bytes, then, for a non-ASCII name, the converted names.
         // TESDataHandler::files holds inactive plugins too, so both ask IfLoaded
-        const RE::TESFile* FindPlugin(RE::TESDataHandler* dataHandler, PluginLookup& lookup,
-                                      const std::string& pluginName)
+        const RE::TESFile* FindPluginUncached(RE::TESDataHandler* dataHandler, PluginLookup& lookup,
+                                              const std::string& pluginName)
         {
             return lookup.Find(
                 pluginName,
@@ -93,6 +94,19 @@ namespace SpellScanner
                         if (IfLoaded(file)) visit(file->fileName, file);
                     }
                 });
+        }
+
+        const RE::TESFile* FindPlugin(RE::TESDataHandler* dataHandler, PluginLookup& lookup,
+                                      const std::string& pluginName)
+        {
+            // The game's lookup walks every file (4,330 in TAKEALOOK: 3,773 catalog ids took 48 ms
+            // at data load). A loaded file stays loaded and keeps its address all session, so each name
+            // found is kept per thread; a name not found is asked again (it costs the walk).
+            thread_local std::unordered_map<std::string, const RE::TESFile*> t_found;
+            if (const auto known = t_found.find(pluginName); known != t_found.end()) return known->second;
+            const RE::TESFile* found = FindPluginUncached(dataHandler, lookup, pluginName);
+            if (found) t_found.emplace(pluginName, found);
+            return found;
         }
 
         // ResolvePersistentFormId with the caller's lookup (one per tree pass). Logs at trace:

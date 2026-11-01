@@ -12,6 +12,7 @@
 #include "JsonText.h"
 #include "PathText.h"
 #include "SpellScanner.h"
+#include "StepTimes.h"
 #include "SpellTomes.h"
 #include "tomereach/TomeReach.h"
 #include "ProgressionNotify.h"
@@ -373,16 +374,20 @@ namespace Librarian::SpellResearchPatch
             }
 
             const auto started = std::chrono::steady_clock::now();
+            StepTimes steps;
             json catalog;
             if (!LoadCatalog(catalog) || !catalog.is_object() || !catalog.contains("spells") || !catalog["spells"].is_object()) {
                 logger::info("SpellResearch: {} - no catalog yet, a full scan makes one", reason);
                 SetStatus("noCatalog", reason);
                 return;
             }
+            steps.Mark("catalog");
             const Registered registered = ReadRegistered();
             const auto tomes = SpellScanner::TomesBySpell();
+            steps.Mark("registered and tomes");
             Skipped skipped;
             const json missing = MissingSpells(catalog["spells"], registered, tomes, skipped);
+            steps.Mark("missing");
             if (skipped.voiceSlot || skipped.gateOut || skipped.duplicate || skipped.unreachable || skipped.playerLeftOut) {
                 logger::info("SpellResearch: {} - left out as the tree leaves them: {} voice slot spells, "
                              "{} the spell gate leaves out, {} copies from another plugin, {} whose tomes nothing hands out, "
@@ -425,6 +430,7 @@ namespace Librarian::SpellResearchPatch
                 return list && spell && list->HasForm(spell);
             };
             const Adapters::Plan plan = Adapters::BuildPlan(files, source);
+            steps.Mark("plan");
             const SR::Registrations registrations = SR::Build(g_lists, plan, missing, [&](const std::string& id) {
                 const auto tome = tomes.find(SpellScanner::ResolvePersistentFormId(id));
                 return tome == tomes.end() ? std::string() : SpellScanner::GetPersistentFormId(tome->second->GetFormID());
@@ -441,6 +447,7 @@ namespace Librarian::SpellResearchPatch
                                   { "player", skipped.playerLeftOut } };
             const Totals totals = Register(registrations, report);
             g_lastSeen = CountRegistered();
+            steps.Mark("register");
 
             const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
                 std::chrono::steady_clock::now() - started).count();
@@ -456,6 +463,7 @@ namespace Librarian::SpellResearchPatch
                          "{} would not take, {} tome tiers out of step, in {} ms",
                 reason, totals.spells, totals.entries, totals.tomes, registered.spells.size(), totals.failed,
                 totals.tomeTiersSkipped, elapsed);
+            logger::info("SpellResearch: {} - stages (ms) - {}", reason, steps.Text());
 
             SetStatus(totals.spells > 0 ? "added" : "upToDate", reason, registered.spells.size() + totals.spells, totals.spells);
             // SR's own import quests say what they brought in ("Importing 46 Forms from

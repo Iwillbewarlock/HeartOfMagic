@@ -51,6 +51,25 @@ namespace
         }
     }
 
+    // The vampire set walked in slices against one walked in one go (Phase 6a)
+    bool CastersMatchOneGo(std::string& detail)
+    {
+        auto answer = std::make_shared<std::promise<std::pair<bool, std::string>>>();
+        auto future = answer->get_future();
+        AddTaskToGameThread("AutoScanSelfTestCasters", [answer]() {
+            std::string text;
+            const bool same = SpellScanner::VampireCastersMatchOneGo(text);
+            answer->set_value({ same, std::move(text) });
+        });
+        if (future.wait_for(kOneShotWait) != std::future_status::ready) {
+            detail = "the one-go walk did not answer";
+            return false;
+        }
+        auto [same, text] = future.get();
+        detail = std::move(text);
+        return same;
+    }
+
     // A run whose generation is behind the session's: its step must drop it
     // before it reads a form
     bool StaleRunIsDropped()
@@ -190,6 +209,9 @@ namespace AutoScan::Internal
         counts.Report("COMPLETE", incomplete.empty(),
             std::format("vampire casters {}, {}", CastersName(SpellScanner::VampireCastersState()),
                 incomplete.empty() ? std::string("every mark made") : incomplete));
+        std::string castersDetail;
+        const bool castersSame = CastersMatchOneGo(castersDetail);
+        counts.Report("CASTERS", castersSame, castersDetail);
         const std::string treeAfter = FileFingerprint(UIManager::GetTreeFilePath());
         const std::string treeRecordAfter = FileFingerprint(UIManager::GetTreeLoadOrderFilePath());
         // Unchanged, or changed by a graft whose checks passed (the tree-graft self-test has the rest)

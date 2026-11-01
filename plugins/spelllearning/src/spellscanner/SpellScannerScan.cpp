@@ -126,7 +126,7 @@ namespace SpellScanner
 
     struct FullScanCollector::State
     {
-        enum class Phase { Begin, Filter, Marks, Build, Wrap, Done };
+        enum class Phase { Begin, Filter, Marks, Casters, Build, Wrap, Done };
 
         ScanConfig config;
         Phase phase = Phase::Begin;
@@ -159,21 +159,16 @@ namespace SpellScanner
 
         static const char* Name(Phase p)
         {
-            switch (p) {
-                case Phase::Begin: return "begin";
-                case Phase::Filter: return "filter";
-                case Phase::Marks: return "marks";
-                case Phase::Build: return "build";
-                case Phase::Wrap: return "wrap";
-                case Phase::Done: return "done";
-            }
-            return "";
+            static constexpr const char* kNames[] = { "begin", "filter", "marks", "casters", "build", "wrap", "done" };  // Phase's order
+            static_assert(std::size(kNames) == static_cast<std::size_t>(Phase::Done) + 1);
+            return kNames[static_cast<std::size_t>(p)];
         }
 
         void Begin();
         void Filter(Clock::time_point deadline);
         bool FilterOne(RE::SpellItem* spell);
         void Marks();
+        void StepCasters(Clock::time_point deadline);
         void Build(Clock::time_point deadline);
         void Wrap();
     };
@@ -389,8 +384,14 @@ namespace SpellScanner
         }
         LogSpellsOutOfTree(spells, taught, unreachable);
         duplicates = FindDuplicateSpells(spells, taught, unreachable);
-        phase = Phase::Build;
+        phase = Phase::Casters;
         index = 0;
+    }
+
+    // castByVampires' walk in this scan's slices (VampirePrefetch has normally done it)
+    void FullScanCollector::State::StepCasters(Clock::time_point deadline)
+    {
+        if (!config.fields.castByVampires || StepVampireCasters(deadline)) phase = Phase::Build;
     }
 
     void FullScanCollector::State::Build(Clock::time_point deadline)
@@ -466,6 +467,7 @@ namespace SpellScanner
             case State::Phase::Begin: st.Begin(); break;
             case State::Phase::Filter: st.Filter(deadline); break;
             case State::Phase::Marks: st.Marks(); break;
+            case State::Phase::Casters: st.StepCasters(deadline); break;
             case State::Phase::Build: st.Build(deadline); break;
             case State::Phase::Wrap: st.Wrap(); break;
             case State::Phase::Done: break;

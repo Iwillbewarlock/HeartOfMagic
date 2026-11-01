@@ -1297,7 +1297,16 @@ the mod - always available. SpellTomeHook handles the core tome interception in 
 - `Initialize()` - Detect DEST/ISL plugins in the load order
 - `IsDESTInstalled()` / `IsISLInstalled()` / `IsActive()` - Status checks
 - `OnSpellTomeRead(book, spell, container)` - Legacy handler (non-ISL DEST setups)
-- `RegisterDESTAliasExtFunctions(vm)` / `RegisterPapyrusFunctions(vm)` - Papyrus native bindings
+- `RegisterDESTAliasExtFunctions(vm)` (`DESTPapyrusApi.cpp`) - the whole DEST 1.2.2 Papyrus API: `DEST`
+  (`GetAPIVersion` = 2, `SendSpellTomeReadEvent`), `DEST_AliasExt`, `DEST_FormExt`, `DEST_ActiveMagicEffectExt`
+  (register / unregister for `OnSpellTomeRead`, one listener set, the co-save's `DEST` record) and
+  `DEST_UIExt.Notification`. `DEST_ReferenceAliasExt` is a plain DEST script that calls `DEST_AliasExt` (Rite of
+  Arcana uses it). Registered only when `RealDESTLoaded()` is false: the shim exports `HeartOfMagic_IsDESTShim`
+  (an older shim is known by its SKSE version data's author, "Heart of Magic (compatibility shim)"; the real
+  DLL's is "Parapets", checked on DEST 1.2.2 and ISL-DESTified's copy). Both binding the same names, ours (later by load order) took the calls while the real
+  DLL sent the events from its own set (LoreRim with Rite of Arcana, 2026-11-02). `AutoRegisterISLAliases` also
+  stays out then
+- `RegisterPapyrusFunctions(vm)` - `SpellLearning_DEST` / `SpellLearning_ISL` natives
   (`SpellLearning_ISL.OnStudyProgress` / `OnStudyComplete` compute and apply the study XP)
 
 **Papyrus Scripts:**

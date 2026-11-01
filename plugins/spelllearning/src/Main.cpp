@@ -368,6 +368,11 @@ void OnDataLoaded()
     AutoScan::Install();
     steps.Mark("auto scan install");
 
+    // The NPC walk behind the scan's castByVampires, in slices from here on
+    // rather than all at once in the first spell built (SpellScannerCasters.cpp)
+    SpellScanner::StartVampirePrefetch();
+    steps.Mark("vampire prefetch start");
+
     // One spell from two plugins: the groups a copy's tome reads by, worked out
     // on the game thread once that pass is done, never on a cast's tome check
     // (SpellScannerDuplicates.cpp).
@@ -479,6 +484,8 @@ void MessageHandler(SKSE::MessagingInterface::Message* a_msg)
                 logger::error("SpellTomeHook failed to install - spell tomes will use vanilla behavior");
             }
             RisaMenu::Register(InputHandler::GetSingleton()->GetHotkeyCode());   // Risa's All In One Menu button
+            // The catalog and adapter files parsed on a worker while the game loads its data
+            Librarian::PerkAdapters::ReadFilesAhead();
             break;
         case SKSE::MessagingInterface::kPostPostLoad: {
             // Broadcast API to all listening plugins
@@ -543,9 +550,8 @@ SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
         papyrus->Register(PapyrusAPI::RegisterFunctions);
         logger::info("Papyrus API registered - other mods can call SpellLearning.OpenMenu() etc.");
         
-        // Register DEST_AliasExt native functions (ISL compatibility)
-        // This provides the same API that DontEatSpellTomes.dll exposes,
-        // allowing ISL's unmodified Papyrus scripts to work with our hook.
+        // The DEST API natives, standing in for DontEatSpellTomes.dll when the ISL
+        // patch's shim replaced it (none when the real DLL is loaded: DESTPapyrusApi.cpp)
         papyrus->Register(DESTIntegration::RegisterDESTAliasExtFunctions);
         papyrus->Register(DESTIntegration::RegisterPapyrusFunctions);
         logger::info("DEST/ISL Papyrus API registered - ISL compatibility active");

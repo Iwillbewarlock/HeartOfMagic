@@ -249,7 +249,18 @@ namespace SpellScanner
     json BuildEffectJson(const RE::Effect* effect, const FieldConfig& fields)
     {
         // The MGEF half, plus what this particular spell asks of it.
-        json effectJson = BuildBaseEffectJson(effect->baseEffect, fields);
+        json effectJson;
+        if (fields.baseEffects) {
+            const RE::FormID baseId = effect->baseEffect->GetFormID();
+            auto found = fields.baseEffects->find(baseId);
+            // Built before it is kept: a throw leaves no half-built entry behind
+            if (found == fields.baseEffects->end()) {
+                found = fields.baseEffects->emplace(baseId, BuildBaseEffectJson(effect->baseEffect, fields)).first;
+            }
+            effectJson = found->second;
+        } else {
+            effectJson = BuildBaseEffectJson(effect->baseEffect, fields);
+        }
 
         effectJson["magnitude"] = effect->effectItem.magnitude;
         effectJson["duration"] = effect->effectItem.duration;
@@ -260,15 +271,24 @@ namespace SpellScanner
 
     json BuildSpellJson(RE::SpellItem* spell, RE::FormID formId, const FieldConfig& fields)
     {
+        using Clock = std::chrono::steady_clock;
+        auto lapStarted = fields.times ? Clock::now() : Clock::time_point{};
+        const auto lap = [&](double SpellJsonTimes::*part) {
+            if (!fields.times) return;
+            const auto now = Clock::now();
+            fields.times->*part += std::chrono::duration<double, std::milli>(now - lapStarted).count();
+            lapStarted = now;
+        };
         json spellJson;
 
         // Essential fields (always included)
         spellJson["formId"] = FormIdText::Format(formId);
         spellJson["persistentId"] = GetPersistentFormId(formId);  // Load order resilient ID
         spellJson["name"] = EncodingUtils::SanitizeToUTF8(SpellEffectivenessHook::GetSingleton()->GetOriginalName(spell));  // own name (not "(Learning - 35%)"), valid UTF-8
+        lap(&SpellJsonTimes::name);
         spellJson["school"] = GetSchoolName(GetSpellSchool(spell));
         spellJson["skillLevel"] = DetermineSpellTier(spell);
-        if (IsCastByVampires(formId)) {
+        if (fields.castByVampires && IsCastByVampires(formId)) {
             spellJson["castByVampires"] = true;
         }
 
@@ -300,6 +320,8 @@ namespace SpellScanner
             spellJson["plugin"] = GetPluginName(formId);
         }
 
+        lap(&SpellJsonTimes::tier);
+
         // Effects
         if (fields.effects) {
             json effectsArray = json::array();
@@ -326,6 +348,8 @@ namespace SpellScanner
             spellJson["effectNames"] = effectNamesArray;
         }
 
+        lap(&SpellJsonTimes::effects);
+
         // Keywords (SPEL level - framework tags like KIT_/OCF_ live here)
         if (fields.keywords && spell->keywords) {
             json keywordsArray = json::array();
@@ -340,8 +364,11 @@ namespace SpellScanner
             spellJson["keywords"] = keywordsArray;
         }
 
+        lap(&SpellJsonTimes::keywords);
+
         if (fields.effectDetails) {
             AppendSpellEvidence(spellJson, spell);
+            lap(&SpellJsonTimes::evidence);
 
             // The one normalised column. "keywords" above stays the raw names as
             // the plugins wrote them; traits is what those and the engine values
@@ -349,7 +376,8 @@ namespace SpellScanner
             // with the base game's own keywords folded in - MagicSummonFire and a
             // fire resist value both come out as element.fire. Derived, not
             // copied, which is why it has its own name.
-            spellJson["traits"] = BuildSpellTraits(spell);
+            if (fields.traits) spellJson["traits"] = BuildSpellTraits(spell);
+            lap(&SpellJsonTimes::traits);
         }
 
         return spellJson;

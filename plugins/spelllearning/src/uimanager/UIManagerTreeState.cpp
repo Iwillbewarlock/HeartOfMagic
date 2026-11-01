@@ -8,6 +8,7 @@
 #include "ProgressionManager.h"
 #include "SpellScanner.h"
 #include "SpellTomeHook.h"
+#include "StepTimes.h"
 
 #include <fstream>
 #include <sstream>
@@ -314,19 +315,23 @@ void LoadTreeStateAtStartup(const StartupConfigResult& config)
             return;
         }
 
+        StepTimes steps;
         auto text = ReadSavedTreeText();
         if (!text) return;
+        steps.Mark("read");
 
         // The validator's lines below appear again when the panel's load validates the same file
         logger::info("Startup tree load: validating spell_tree.json (the panel validates it again when it loads)");
         const PanelTree tree = ValidateTreeAsPanelPath(std::move(*text));
+        steps.Mark("validate");
         const auto prereqs = ApplyTreePrerequisitesOf(tree, stage);
+        steps.Mark("apply");
         if (prereqs.skipped) {
             SkipStartupTree(*prereqs.skipped);
             return;
         }
-        logger::info("Startup tree: {} of {} entries applied from {} in {:.0f} ms", prereqs.applied, prereqs.entries,
-            tree.fromValidated ? "the validated tree" : "the file's text", MsSince(started));
+        logger::info("Startup tree: {} of {} entries applied from {} in {:.0f} ms ({})", prereqs.applied, prereqs.entries,
+            tree.fromValidated ? "the validated tree" : "the file's text", MsSince(started), steps.Text());
         TreeParity::RecordBaseline();
         if (!UIManager::GetSingleton()->IsInitialized()) {
             TreeParity::Expire("no panel this session - startup state applied");

@@ -134,6 +134,64 @@ spells; Phase 2 saves under 50 ms and Phase 3 moves a 507 ms freeze into the nex
 - Cache the adapter plan keyed on the load order fingerprint and the adapter, catalog and config
   hashes; re-validate live form state at apply time. Planned separately if reached.
 
+### Phase 5 - Saved plan (reviewed, NOT taken; 2026-11-01)
+
+GPT design review (codex task, 5 findings, 3 checked in code): the key would have to cover far more
+than plugins and keywords - `LoadOrderFingerprint::Current().hash` has no plugin sizes or times
+(LoadOrderFingerprint.h:18, use `.scan`), the planner also reads keyword definitions, non-spell
+effect users, taught tomes, live FormLists and DLL presence; a plan built after a scan differs from
+one built at start (adapters run before SpellTomes, Main.cpp:334; AutoScan never runs Apply); a
+start after a change stays near 980 ms. User chose the fresh path below; the saved plan is weighed
+again only if Phase 6 leaves a gap.
+
+### Phase 6 - Lighter fresh build (user's choice 2026-11-01)
+
+Same plan every start, built fresh; only work the planner does not read is removed or moved.
+
+6a. Vampire walk off the start path (about -400 ms)
+- `FieldConfig::castByVampires` (default true) checked before `IsCastByVampires` in `BuildSpellJson`;
+  `LoadOrderSource` sets it false. No adapter or Spell Research rule reads the mark (only
+  LibrarianClassify and LibrarianRules, the scan's tag rules).
+- The walk itself becomes a stepped object in `SpellScannerCasters.cpp`: the NPC array in slices
+  under a time budget, keeping its race, template and list caches between slices; the SPID read as
+  the last step. `IsCastByVampires` finishes whatever is left at once (budget unlimited) before it
+  answers, so every consumer (AutoScan, panel scans, tome scan, Papyrus) sees a complete set.
+- Prefetch at the main menu: after data load a worker posts 4 ms slices to the game thread (as
+  AutoScan's PostStep does) until the walk is done, so it is normally finished seconds before any
+  scan. Game thread only: other plugins may still change NPC records, and the reads are not locked.
+- A scan that starts before the prefetch ends pays the rest in its first spell build (AutoScan: in
+  its own slices, the walk stepped under its budget).
+
+6b. Release off the game thread (about -110 ms)
+- The spell JSON map and the parsed catalog are moved to a worker thread and freed there after
+  Apply. Pure memory, no game forms touched.
+
+6c. Files read before data load (about -78 ms)
+- At kPostLoad a worker reads and parses `spell_catalog.json` and the adapter JSON files (no game
+  forms). At data load Apply takes them if each file's size and write time are unchanged, otherwise
+  reads them as today.
+
+6d. Measure the spell JSON, then trim it
+- Stage timers inside the spell JSON build (name, tier, effects, effect evidence) in the same build
+  as 6a-c. One game start shows which part of the remaining ~365 ms to cut; that cut is planned from
+  the numbers, not now.
+
+Gate for 6a-c: offline report byte-identical (the planner is untouched); librarian-test,
+progression-check; in game one start: perk adapter and Spell Research parity files byte-identical
+to `build/parity-baseline/`, AutoScan SELFTEST all PASS (HITCH, COMPLETE), and a self-test that
+compares the stepped vampire set with a one-go walk (same spells). Expected start: about 790 ms
+before 6d.
+
+6e. More before the in-game run (user 2026-11-01: "fix as much as possible before testing")
+- Which spell JSON fields the planner reads: each field left out of the scan dump in turn, offline
+  report compared, and the planner's field reads grepped. Unread and costly: traits (now off in
+  LoadOrderSource). Base effect JSON built once per MGEF per pass and copied (FieldConfig::baseEffects).
+- `FindPlugin` keeps each found plugin per thread (the game's lookup walks all 4,330 files).
+- `ReadJsonFile` reads whole and parses from memory; strict parse failures fall back to the stream
+  parse, so accepted files and values are unchanged.
+- Stage timers in the startup tree (read, validate, apply) and in Spell Research's reconcile.
+- GPT review: 1 finding (allocation outside the try in ReadJsonFile), fixed.
+
 ## Risks
 
 - The 1,420 ms split is inferred until Phase 1 runs. After the vampire flag (~394 ms) the rest

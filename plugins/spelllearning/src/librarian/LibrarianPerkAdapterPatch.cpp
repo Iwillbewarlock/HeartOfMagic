@@ -1,5 +1,6 @@
 #include "librarian/PerkAdapterPatch.h"
 #include "librarian/Librarian.h"
+#include "librarian/JsonPreread.h"
 #include "librarian/LibrarianInternal.h"
 #include "librarian/LoadOrderSource.h"
 #include "librarian/PerkAdapters.h"
@@ -14,6 +15,7 @@
 #include <fstream>
 #include <memory>
 #include <set>
+#include <thread>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -78,7 +80,7 @@ namespace Librarian::PerkAdapters
                 if (entry.path().extension() != ".json") continue;
                 json document;
                 const std::string name = PathText::Utf8(entry.path().filename());
-                if (!ReadJsonFile(entry.path(), document)) {
+                if (!Preread::Take(entry.path(), document) && !ReadJsonFile(entry.path(), document)) {
                     problems.push_back(name + ": not readable JSON");
                     continue;
                 }
@@ -346,8 +348,11 @@ namespace Librarian::PerkAdapters
             }
             report["enabled"] = true;
 
-            json catalog;
-            if (!LoadCatalog(catalog) || !catalog.is_object() || !catalog.contains("spells") || !catalog["spells"].is_object()) {
+            // On the heap: freed on a worker at the end (below)
+            auto catalogOwner = std::make_unique<json>();
+            json& catalog = *catalogOwner;
+            if ((!Preread::Take(CatalogFilePath(), catalog) && !LoadCatalog(catalog)) || !catalog.is_object()
+                || !catalog.contains("spells") || !catalog["spells"].is_object()) {
                 Stop(report, "no catalog yet - a full scan makes one", reason == kDataLoadedReason);
                 return;
             }
@@ -363,7 +368,8 @@ namespace Librarian::PerkAdapters
             auto keywords = KeywordsByEditorId(dataHandler);
             ResolveKeywordForms(files, keywords);
             stages.Mark("keywords");
-            LoadOrderSource loadOrder(catalog["spells"]);
+            auto loadOrderOwner = std::make_unique<LoadOrderSource>(catalog["spells"]);
+            LoadOrderSource& loadOrder = *loadOrderOwner;
             stages.Mark("source");
 
             Plan::PlanSource source;
@@ -456,12 +462,38 @@ namespace Librarian::PerkAdapters
                 g_listed.size(), lists.added, lists.removed, g_castingPerks.size(), perks.added, perks.removed,
                 files.size(), elapsed);
             if (!listsNow) logger::info("PerkAdapters: FormLists follow this plan at the next game start");
-            // The ms above stop before the report; these run to the end (the catalog's
-            // and the spell JSON's release after it count in the caller's step)
+            // The ms above stop before the report; these run to the end (the catalog
+            // and the spell JSON are freed after it, on a worker)
             const auto& timings = loadOrder.GetTimings();
+            const auto& parts = timings.spellJsonParts;
             logger::info("PerkAdapters: stages (ms) - {}; in source and plan: tomes {:.0f}, catalog ids {:.0f}, "
-                         "spell JSON {:.0f}, effect users {:.0f}; {:.0f} ms in all",
-                stages.Text(), timings.tomes, timings.resolve, timings.spellJson, timings.users, stages.TotalMs());
+                         "spell JSON {:.0f} (name {:.0f}, tier {:.0f}, effects {:.0f}, keywords {:.0f}, evidence {:.0f}, "
+                         "traits {:.0f}), effect users {:.0f}; {:.0f} ms in all",
+                stages.Text(), timings.tomes, timings.resolve, timings.spellJson, parts.name, parts.tier, parts.effects,
+                parts.keywords, parts.evidence, parts.traits, timings.users, stages.TotalMs());
+
+            // Thousands of small JSON objects took about 110 ms to free on the game thread (the
+            // 2026-11-01 timers). Plain memory, no game form is touched: freed on a worker.
+            std::thread([catalogOwner = std::move(catalogOwner), loadOrderOwner = std::move(loadOrderOwner)]() mutable {
+                loadOrderOwner.reset();   // holds a reference into the catalog: first
+                catalogOwner.reset();
+            }).detach();
+        }
+    }
+
+    void ReadFilesAhead()
+    {
+        // Only a head start: any failure here leaves Apply to read the files as before
+        try {
+            std::vector<std::filesystem::path> paths{ CatalogFilePath() };
+            std::error_code error;
+            for (std::filesystem::directory_iterator it(RulesPath() / ADAPTER_SUBDIR, error), end; !error && it != end;
+                 it.increment(error)) {
+                if (it->path().extension() == ".json") paths.push_back(it->path());
+            }
+            Preread::Start(std::move(paths));
+        } catch (const std::exception& e) {
+            logger::warn("PerkAdapters: could not list the files to read ahead ({})", e.what());
         }
     }
 

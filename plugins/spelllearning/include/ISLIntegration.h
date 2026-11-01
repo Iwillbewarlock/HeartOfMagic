@@ -66,6 +66,15 @@ namespace DESTIntegration {
     // Event dispatch  (called from SpellTomeHook)
     // -------------------------------------------------------------------------
 
+    /// The scripts registered for OnSpellTomeRead through the DEST API natives
+    /// (DESTPapyrusApi.cpp): aliases, forms and active effects, in one set.
+    using SpellTomeListenerSet = SKSE::RegistrationSet<RE::TESObjectBOOK*, RE::SpellItem*, RE::TESObjectREFR*>;
+    SpellTomeListenerSet& SpellTomeListeners();
+
+    /// The real DontEatSpellTomes.dll is loaded (not Heart of Magic's shim, which
+    /// exports HeartOfMagic_IsDESTShim). It then provides the DEST API itself.
+    [[nodiscard]] bool RealDESTLoaded();
+
     /// Dispatch OnSpellTomeRead to all Papyrus aliases that registered via
     /// DEST_AliasExt.RegisterForSpellTomeReadEvent().
     void DispatchSpellTomeRead(RE::TESObjectBOOK* a_book,
@@ -83,7 +92,8 @@ namespace DESTIntegration {
     // Papyrus native function registration
     // -------------------------------------------------------------------------
 
-    /// Register DEST_AliasExt native functions so ISL scripts work.
+    /// Register the DEST API natives (DEST, DEST_AliasExt, DEST_FormExt,
+    /// DEST_ActiveMagicEffectExt, DEST_UIExt) unless the real DLL is loaded.
     bool RegisterDESTAliasExtFunctions(RE::BSScript::IVirtualMachine* vm);
 
     /// Register our own SpellLearning_DEST / SpellLearning_ISL helpers.

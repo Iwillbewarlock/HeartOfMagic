@@ -35,6 +35,9 @@ namespace Librarian
 
         // `catalogSpells` is the catalog's "spells" object; it must outlive this.
         explicit LoadOrderSource(const json& catalogSpells);
+        // m_fields points into this object (times, baseEffects): never copied
+        LoadOrderSource(const LoadOrderSource&) = delete;
+        LoadOrderSource& operator=(const LoadOrderSource&) = delete;
 
         void ForEachCatalogSpell(const std::function<void(const std::string&, const json&, const json&)>& visit);
 
@@ -52,6 +55,7 @@ namespace Librarian
             double resolve = 0;     // catalog ids to loaded spells
             double spellJson = 0;   // scan-shaped JSON, built once per spell
             double users = 0;       // the index of every magic item by effect
+            SpellScanner::SpellJsonTimes spellJsonParts;   // spellJson's parts (Phase 6d)
         };
         [[nodiscard]] const Timings& GetTimings() const { return m_timings; }
 
@@ -74,6 +78,7 @@ namespace Librarian
         bool m_usersIndexed = false;
         std::unordered_map<RE::FormID, std::vector<RE::MagicItem*>> m_users;
         std::unordered_map<RE::FormID, std::unique_ptr<json>> m_spellJson;
+        std::unordered_map<RE::FormID, json> m_baseEffects;   // FieldConfig::baseEffects
         std::unordered_map<std::string, RE::FormID> m_effectIds;
         Timings m_timings;
     };

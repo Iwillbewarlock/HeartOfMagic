@@ -292,6 +292,11 @@ namespace Librarian
     // FILE
     // =========================================================================
 
+    std::filesystem::path CatalogFilePath()
+    {
+        return CatalogPath();
+    }
+
     bool LoadCatalog(json& catalog)
     {
         const auto path = DataPath(CATALOG_FILE);

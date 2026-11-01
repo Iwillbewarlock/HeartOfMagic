@@ -8,6 +8,8 @@
 #include <cctype>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -85,14 +87,25 @@ namespace Librarian::Detail
     // Reads and parses a JSON file. Returns false when it is absent or
     // malformed; a malformed file is logged, an absent one is the caller's
     // business to report or ignore.
+    // Read whole, then parsed from memory rather than through the stream's
+    // per-character reads (the 1.8 MB catalog at every game start and save load;
+    // the gain is measured by the stage timers, not assumed). A text the
+    // strict parse turns down (trailing text after the value) goes through the
+    // stream parse as before, so what is accepted and its value are unchanged.
     [[nodiscard]] inline bool ReadJsonFile(const std::filesystem::path& path, json& document)
     {
-        std::ifstream file(path);
+        std::ifstream file(path, std::ios::binary);
         if (!file.is_open()) {
             return false;
         }
         try {
-            file >> document;
+            std::string text{ std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>() };
+            if (json parsed = json::parse(text, nullptr, false); !parsed.is_discarded()) {
+                document = std::move(parsed);
+                return true;
+            }
+            std::istringstream stream(text);
+            stream >> document;
         } catch (const std::exception& e) {
             logger::error("Librarian: '{}' is not valid JSON - {}", PathText::Utf8(path), e.what());
             return false;

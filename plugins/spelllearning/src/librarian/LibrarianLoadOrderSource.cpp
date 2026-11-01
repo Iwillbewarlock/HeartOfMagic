@@ -20,6 +20,10 @@ namespace Librarian
         m_fields.effects = true;
         m_fields.keywords = true;
         m_fields.effectDetails = true;
+        m_fields.castByVampires = false;
+        m_fields.times = &m_timings.spellJsonParts;
+        m_fields.traits = false;                   // no adapter line reads it (checked by leaving it out of a dump)
+        m_fields.baseEffects = &m_baseEffects;     // one pass: no record or keyword changes while it plans   // no adapter line reads it, and it would start the NPC walk at data load
 
         // Resolved once: the planner walks the catalog once per line.
         started = std::chrono::steady_clock::now();

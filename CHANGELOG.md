@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **Don't Eat Spell Tomes and the mods that use it.** With the real Don't Eat Spell Tomes installed (LoreRim, for
+  Rite of Arcana), Heart of Magic no longer takes over its script functions: it did, so a mod that asked for spell
+  tome events registered with Heart of Magic while Don't Eat Spell Tomes sent them, and heard nothing. With the ISL
+  patch, whose file replaces Don't Eat Spell Tomes, Heart of Magic now provides all of its script functions, not
+  only the two ISL calls (also the form, magic effect and reference alias registrations, the API version and
+  sending the event). An ISL patch from an earlier version is still recognised as Heart of Magic's.
+
+### Changed
+
+- **Faster game start.** The perk overhaul step at data load plans only over the spells a rule could pick,
+  builds each spell's details once per effect, leaves out what it never reads, reads its files while the game
+  loads and frees its memory in the background. The search for the spells vampires cast moved to the main menu, a
+  few milliseconds a frame. The result is the same as before.
+
 ## Heart of Magic Librarian 1.7.0
 
 ### New
