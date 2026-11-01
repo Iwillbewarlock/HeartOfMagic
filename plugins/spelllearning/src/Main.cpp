@@ -14,6 +14,7 @@
 #include "SpellEffectivenessHook.h"
 #include "SpellTomeHook.h"
 #include "SpellTomes.h"
+#include "StepTimes.h"
 #include "PapyrusAPI.h"
 #include "RisaMenu.h"
 #include "SpellLearningAPI.h"
@@ -291,7 +292,8 @@ void UpdateInputHandlerHotkey(uint32_t keyCode)
 void OnDataLoaded()
 {
     logger::info("Data loaded (main menu) - initializing systems");
-    
+    StepTimes steps;
+
     // Initialize UI Manager (connects to PrismaUI)
     if (UIManager::GetSingleton()->Initialize()) {
         logger::info("UIManager initialized successfully");
@@ -303,6 +305,7 @@ void OnDataLoaded()
     } else {
         logger::error("Failed to initialize UIManager - PrismaUI may not be loaded");
     }
+    steps.Mark("ui");
 
     // Register input handler for hotkey
     InputHandler::GetSingleton()->Register();
@@ -324,14 +327,17 @@ void OnDataLoaded()
     registry.InitializeAll();
     logger::info("XP sources registered: {} total, {} active",
                  registry.GetAll().size(), registry.GetActive().size());
+    steps.Mark("events and XP sources");
 
     // Perk overhauls see the modded spells the catalog knows (keywords added
     // in memory, from the catalog the last scan left)
     Librarian::PerkAdapters::Apply(Librarian::PerkAdapters::kDataLoadedReason);
+    steps.Mark("perk adapters");
 
     // HeartOfMagic.esp's explosion twins: hidden harmless effects off an explosion
     // Frostwalker reads as frost by name (docs/ENVIRONMENT.md)
     Environment::Initialize();
+    steps.Mark("environment");
 
     // Spell Research learns the catalog spells after its Import (docs/librarian/SPELL_RESEARCH.md)
     Librarian::SpellResearchPatch::Install();
@@ -339,10 +345,12 @@ void OnDataLoaded()
     // Tomes that teach nothing (Spell Research Synthesizer) and the spell each
     // stands for, before the tome reach pass takes the tomes (SpellTomes.h)
     SpellTomes::Rebuild("data loaded");
+    steps.Mark("Spell Research and tomes");
 
     // Which tomes something hands out: read from the plugin files on a worker
     // thread, ready for the scan (docs/ARCHITECTURE.md, "Tomes nothing hands out")
     TomeReach::StartAfterDataLoaded();
+    steps.Mark("tome reach start");
 
     // The panel's settings and the saved tree's prerequisites, read from the same files
     // the panel reads (never written) so learning follows them with no panel at all; the
@@ -350,27 +358,37 @@ void OnDataLoaded()
     // XP sources (the config's modded source settings go over them) and after the keyword
     // passes above, which the tree's validation gate may read, as it does for the panel
     const auto startupConfig = LoadGameplayConfigAtStartup();
+    steps.Mark("config");
     LoadTreeStateAtStartup(startupConfig);
+    steps.Mark("tree");
 
     // A load order that changed since the catalog was made is scanned at the
     // main menu, in steps, and its new spells grafted into the saved tree
     // without moving it (AutoScan.h, StartupState.h)
     AutoScan::Install();
+    steps.Mark("auto scan install");
 
     // One spell from two plugins: the groups a copy's tome reads by, worked out
     // on the game thread once that pass is done, never on a cast's tome check
     // (SpellScannerDuplicates.cpp).
     SpellScanner::PrepareTreeSpellForTomeAfterPass();
+    steps.Mark("tome groups");
+
+    logger::info("Data loaded: {:.0f} ms on the game thread - {}", steps.TotalMs(), steps.Text());
 }
 
 void OnNewGame()
 {
     AutoScan::OnGameChanging();
     logger::info("New game started - progression will be cleared");
+    StepTimes steps;
     // A mod that clears TeachesSpell at runtime may have run after our kDataLoaded rebuild
     SpellTomes::Rebuild("new game");
+    steps.Mark("tomes");
     Librarian::SpellResearchPatch::OnNewGame();
+    steps.Mark("Spell Research");
     Librarian::PerkAdapters::Reassert("new game");
+    steps.Mark("perk adapters");
     Environment::SelfTest::OnGameLoaded();   // dev only: selftest.json
     // Progress is automatically cleared by OnRevert callback
 
@@ -387,11 +405,14 @@ void OnNewGame()
     // Reset passive learning timer
     auto* passive = SpellLearning::PassiveLearningSource::GetSingleton();
     if (passive) passive->OnGameLoad();
+    steps.Mark("rest");
+    logger::info("New game: {:.0f} ms on the game thread - {}", steps.TotalMs(), steps.Text());
 }
 
 void OnPostLoadGame()
 {
     logger::info("Save game loaded - notifying UI to refresh player data");
+    StepTimes steps;
     // Progress is automatically loaded by OnGameLoaded serialization callback
 
     // Game start's tree state is compared only with the panel's main menu tree load
@@ -403,8 +424,11 @@ void OnPostLoadGame()
     // Spell Research's lists are the loaded save's: their tome pairs first (the
     // registrations below read the tomes), then register what they lack
     SpellTomes::Rebuild(SpellTomes::kReasonSaveLoaded);
+    steps.Mark("tomes");
     Librarian::SpellResearchPatch::OnGameLoaded();
+    steps.Mark("Spell Research");
     Librarian::PerkAdapters::Reassert("save loaded");
+    steps.Mark("perk adapters");
     Environment::SelfTest::OnGameLoaded();   // dev only: selftest.json
 
     // Fix input/focus state that may be left bad by other mods or previous session
@@ -430,6 +454,8 @@ void OnPostLoadGame()
     if (UIManager::GetSingleton()->IsInitialized()) {
         UIManager::GetSingleton()->NotifySaveGameLoaded();
     }
+    steps.Mark("rest");
+    logger::info("Save loaded: {:.0f} ms on the game thread - {}", steps.TotalMs(), steps.Text());
 }
 
 void MessageHandler(SKSE::MessagingInterface::Message* a_msg)

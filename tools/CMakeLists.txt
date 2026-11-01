@@ -67,6 +67,7 @@ add_executable(librarian-test
     ${SL_SRC_DIR}/librarian/LibrarianAdapters.cpp
     ${SL_SRC_DIR}/librarian/LibrarianAdapterMatch.cpp
     ${SL_SRC_DIR}/librarian/LibrarianAdapterDamage.cpp
+    ${SL_SRC_DIR}/librarian/LibrarianAdapterCandidates.cpp
     ${SL_SRC_DIR}/librarian/LibrarianSpellResearch.cpp
     ${SL_SRC_DIR}/librarian/LibrarianClassify.cpp
     ${SL_SRC_DIR}/librarian/LibrarianCatalog.cpp

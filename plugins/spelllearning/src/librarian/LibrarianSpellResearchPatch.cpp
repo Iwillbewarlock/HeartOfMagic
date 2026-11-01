@@ -16,6 +16,7 @@
 #include "tomereach/TomeReach.h"
 #include "ProgressionNotify.h"
 
+#include <algorithm>
 #include <chrono>
 #include <ctime>
 #include <fstream>
@@ -41,6 +42,7 @@ namespace Librarian::SpellResearchPatch
         constexpr const char* SR_PLUGIN = "SpellResearch.esp";
         constexpr const char* RULES_FILE = "compat/spellresearch.json";
         constexpr const char* REPORT_FILE = "spell_research_report.json";
+        constexpr const char* PARITY_FILE = "spell_research_parity.json";
         constexpr const char* CONFIG_SECTION = "spellResearch";
 
         bool g_installed = false;
@@ -209,6 +211,25 @@ namespace Librarian::SpellResearchPatch
             file << JsonText::Dump(report, 2);
         }
 
+        // Debug installs (debug.json, as for the scan dump): every planned registration,
+        // sorted, so two runs on one load order and save compare spell for spell
+        void WriteParity(std::string_view reason, std::size_t missing, const SR::Registrations& registrations)
+        {
+            if (!SpellScanner::DebugScanDumpEnabled()) return;
+            std::vector<std::string> lines;
+            for (const auto& registration : registrations.spells) {
+                std::string line = registration.spellId + " tier " + std::to_string(registration.tier) + " tome " + registration.tome;
+                for (const auto& list : registration.lists) line += " " + list;
+                lines.push_back(std::move(line));
+            }
+            std::sort(lines.begin(), lines.end());
+            const json parity = { { "reason", std::string(reason) }, { "missing", missing },
+                { "noSchoolOrTier", registrations.noSchoolOrTier }, { "registrations", lines } };
+            const auto path = DataPath(PARITY_FILE);
+            std::ofstream file(path, std::ios::binary | std::ios::trunc);
+            if (file.is_open()) file << JsonText::Dump(parity, 2);
+        }
+
         struct Totals
         {
             std::size_t spells = 0;
@@ -369,6 +390,7 @@ namespace Librarian::SpellResearchPatch
                              skipped.gateOut, skipped.duplicate, skipped.unreachable, skipped.playerLeftOut);
             }
             if (missing.empty()) {
+                WriteParity(reason, 0, {});   // nothing planned: an older run's file must not stand in
                 SetStatus("upToDate", reason, registered.spells.size());
                 return;
             }
@@ -378,6 +400,7 @@ namespace Librarian::SpellResearchPatch
             std::vector<Adapters::File> files(1);
             if (!ReadJsonFile(RulesPath() / RULES_FILE, rules) || !Adapters::ParseFile(rules, "spellresearch.json", files[0], problems)) {
                 logger::warn("SpellResearch: {} not readable - nothing registered", RULES_FILE);
+                WriteParity(reason, missing.size(), {});
                 return;
             }
             for (const auto& problem : problems) logger::warn("SpellResearch: {}", problem);
@@ -406,6 +429,7 @@ namespace Librarian::SpellResearchPatch
                 const auto tome = tomes.find(SpellScanner::ResolvePersistentFormId(id));
                 return tome == tomes.end() ? std::string() : SpellScanner::GetPersistentFormId(tome->second->GetFormID());
             });
+            WriteParity(reason, missing.size(), registrations);
 
             json report;
             report["reason"] = std::string(reason);

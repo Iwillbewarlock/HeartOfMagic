@@ -12,6 +12,7 @@
 #include "Common.h"
 #include "LibrarianSelfTest.h"
 
+#include "librarian/AdapterCandidates.h"
 #include "librarian/PerkAdapters.h"
 
 #include <algorithm>
@@ -352,6 +353,84 @@ namespace
     }
 }
 
+namespace
+{
+    // The planner visits only the spells a line could pick (AdapterCandidates.h):
+    // the same plan as a walk over every spell, including what a skipped spell
+    // would have counted
+    void CandidateLines()
+    {
+        std::printf("candidate spells per line\n");
+        World world;
+        json heal = Entry({});
+        heal["techniques"].push_back("heal");
+        json ward = Entry({});
+        ward["techniques"].push_back("ward");
+        const json plain = Entry({});
+        world.Add("A|0x1", json::array({ Hit("E:a", "None", "Light") }), &heal);
+        world.Add("B|0x1", json::array({ Hit("E:b", "None", "Light") }), &plain);
+        world.Add("C|0x1", json::array({ Hit("E:c", "None", "Light") }), &ward);
+        world.spells[0]["school"] = "Restoration";
+        world.spells[2]["school"] = "Destruction";
+        // Light only on a hidden effect: PickTarget needs a visible one
+        world.Add("D|0x1", json::array({ Hit("E:dHidden", "None", "Light", "Health", 10, true), Hit("E:d", "None") }), &plain);
+        world.spells[3]["school"] = "Destruction";
+
+        const auto plan = world.Plan({ ParseOne(R"({ "requires": { "always": true }, "adapters": [
+            { "keyword": "KAny", "tags": { "any": ["ward", "heal"] } },
+            { "keyword": "KSchool", "spell": { "school": "Destruction" } },
+            { "keyword": "KLight", "effect": { "archetype": "Light" } } ] })") });
+        Check(Wrote(plan, "KAny", "E:a") && Wrote(plan, "KAny", "E:c") && !Wrote(plan, "KAny", "E:b")
+                && plan.stats[0][0].gain == 2,
+            "normal: a tags.any line picks the spells with either tag, none without");
+        Check(Wrote(plan, "KSchool", "E:c") && Wrote(plan, "KSchool", "E:d") && !Wrote(plan, "KSchool", "E:a")
+                && !Wrote(plan, "KSchool", "E:b"),
+            "a school line picks that school's spells; one with no school field is not one");
+        Check(Wrote(plan, "KLight", "E:a") && Wrote(plan, "KLight", "E:b") && Wrote(plan, "KLight", "E:c")
+                && !Wrote(plan, "KLight", "E:dHidden") && plan.stats[0][2].gain == 3,
+            "edge: an archetype line skips a spell whose matching effect is hidden");
+
+        // tierMin framework: the fire found first passes (no sources, counted), then
+        // frost is missing; with frost first nothing is found, nothing counted
+        World tiers;
+        const json fireOnly = Entry({ { "fire", "mgef" } }, false);
+        tiers.Add("F|0x1", json::array({ Hit("E:f", "FireResist") }), &fireOnly);
+        const auto firstFound = tiers.Plan({ ParseOne(R"({ "requires": { "always": true }, "adapters": [
+            { "keyword": "K", "tags": { "all": ["fire", "frost"] }, "tierMin": "framework" } ] })") });
+        const auto firstMissing = tiers.Plan({ ParseOne(R"({ "requires": { "always": true }, "adapters": [
+            { "keyword": "K", "tags": { "all": ["frost", "fire"] }, "tierMin": "framework" } ] })") });
+        const auto unknownTag = tiers.Plan({ ParseOne(R"({ "requires": { "always": true }, "adapters": [
+            { "keyword": "K", "tags": { "all": ["nosuchtag"] } } ] })") });
+
+        // Which spells a line visits, counted at the index itself
+        const auto parsed = ParseOne(R"({ "requires": { "always": true }, "adapters": [
+            { "keyword": "K", "tags": { "all": ["nosuchtag"] } },
+            { "keyword": "K", "tags": { "all": ["heal", "ward"] } },
+            { "keyword": "K", "spell": { "school": "Destruction" } },
+            { "keyword": "K" } ] })");
+        Adapters::PlanSource source;
+        source.forEachCatalogSpell = [&](const auto& visit) {
+            for (const auto& spell : world.spells) {
+                const std::string id = spell["persistentId"];
+                if (world.catalog.contains(id)) visit(id, spell, world.catalog[id]);
+            }
+        };
+        const Adapters::Candidates::Index index(source);
+        const auto visits = [&](std::size_t line) {
+            std::vector<std::string> ids;
+            index.ForEachCandidate(parsed.lines[line], [&](const Adapters::Candidates::CatalogSpell& c) { ids.push_back(c.id); });
+            return ids;
+        };
+        Check(visits(0).empty() && visits(1) == std::vector<std::string>{ "A|0x1" }
+                && visits(2) == std::vector<std::string>{ "C|0x1", "D|0x1" } && visits(3).size() == 4,
+            "the index hands a line only its candidates, in catalog order (none, all[0], school, every spell)");
+        Check(firstFound.entriesWithoutSources == 1 && firstMissing.entriesWithoutSources == 0 && firstFound.writes.empty(),
+            "edge: without-sources counts follow the order of tags.all, as a full walk's do");
+        Check(unknownTag.writes.empty() && unknownTag.stats[0][0].gain == 0 && unknownTag.stats[0][0].agree == 0,
+            "fail: a tag no spell has writes nothing");
+    }
+}
+
 void RunAdapterSelfTest(int& passed, int& failed)
 {
     g_passed = &passed;
@@ -361,4 +440,5 @@ void RunAdapterSelfTest(int& passed, int& failed)
     DamageLeaks();
     TierAndConfig();
     RequiresDlls();
+    CandidateLines();
 }

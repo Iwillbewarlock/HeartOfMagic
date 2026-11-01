@@ -12,11 +12,13 @@
 #include "JsonFile.h"
 #include "LibrarianAdapterRun.h"
 
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <unordered_map>
+#include <unordered_set>
 
 #include "librarian/PerkAdapters.h"
 
@@ -43,10 +45,20 @@ int RunAdapters(const std::string& dumpPath, const std::string& catalogPath,
         Adapters::SortFiles(files);
         for (const auto& problem : problems) std::cerr << "[adapter] " << problem << "\n";
 
-        // Index the dump: spells by persistent id, users by effect key.
+        // Index the dump: spells by persistent id, users by effect key. Each id
+        // once, as the game's catalog walk gives it (PlanSource): a dump with two
+        // records under one id keeps its first, for the walk and the users alike.
+        // A spell with no id (a runtime form in game) is kept every time.
         std::vector<const json*> spells;
         std::unordered_map<std::string, std::vector<const json*>> users;
+        std::unordered_set<std::string> seen;
+        std::size_t duplicates = 0;
         for (const auto& spell : dump.at("spells")) {
+            const std::string id = spell.value("persistentId", std::string());
+            if (!id.empty() && !seen.insert(id).second) {
+                ++duplicates;
+                continue;
+            }
             spells.push_back(&spell);
             const auto effects = spell.find("effects");
             if (effects == spell.end()) continue;
@@ -56,6 +68,9 @@ int RunAdapters(const std::string& dumpPath, const std::string& catalogPath,
                 auto& list = users[key];
                 if (list.empty() || list.back() != &spell) list.push_back(&spell);
             }
+        }
+        if (duplicates > 0) {
+            std::cerr << "[dump] " << duplicates << " spells repeat an earlier persistentId - planned on the first\n";
         }
         const auto idOf = [](const json& spell) { return spell.value("persistentId", std::string()); };
         const auto catalogEntry = [&](const std::string& id) -> const json* {
@@ -82,7 +97,10 @@ int RunAdapters(const std::string& dumpPath, const std::string& catalogPath,
             return result;
         };
 
+        const auto planStarted = std::chrono::steady_clock::now();
         const Adapters::Plan plan = Adapters::BuildPlan(files, source);
+        // On stderr, so the report on stdout compares byte for byte across builds
+        std::cerr << "plan built in " << std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - planStarted).count() << " ms\n";
 
         for (std::size_t f = 0; f < files.size(); ++f) {
             std::cout << "######## " << files[f].name << " - " << files[f].perkMod << "\n";

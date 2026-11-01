@@ -7,6 +7,7 @@
 #include "ProgressionManager.h"
 #include "SpellEffectivenessHook.h"
 #include "SpellTomeHook.h"
+#include "ElapsedMs.h"
 
 namespace CoSave
 {
@@ -44,6 +45,7 @@ namespace CoSave
     void OnGameLoaded(SKSE::SerializationInterface* a_intfc)
     {
         logger::info("SKSE Serialization: Game loaded");
+        const auto started = std::chrono::steady_clock::now();
 
         // One record stream, read once. Each owner used to run its own
         // GetNextRecordInfo loop, and the first one drained the stream: the
@@ -75,11 +77,13 @@ namespace CoSave
         Guarded("SpellEffectivenessHook end load", [&] { effectiveness->EndLoad(); });
         // A save without the DEST record (before 2026-10-27) starts with none;
         // AutoRegisterISLAliases in OnPostLoadGame adds ISL's aliases either way
+        logger::info("SKSE Serialization: co-save read in {:.0f} ms", MsSince(started));
     }
 
     void OnRevert(SKSE::SerializationInterface* a_intfc)
     {
         logger::info("SKSE Serialization: Reverting (new game or loading different save)");
+        const auto started = std::chrono::steady_clock::now();
         Guarded("ProgressionManager revert", [&] { ProgressionManager::GetSingleton()->OnRevert(a_intfc); });
         Guarded("SpellEffectivenessHook revert", [&] { SpellEffectivenessHook::GetSingleton()->OnRevert(a_intfc); });
         // A different save means a different inventory, and its own tomes read
@@ -92,5 +96,6 @@ namespace CoSave
         // from its DEST record and AutoRegisterISLAliases (OnPostLoadGame), a new
         // game's from the scripts' OnInit, which runs in that game after this revert
         Guarded("DEST registrations revert", [&] { DESTIntegration::OnRevert(a_intfc); });
+        logger::info("SKSE Serialization: revert done in {:.0f} ms", MsSince(started));
     }
 }

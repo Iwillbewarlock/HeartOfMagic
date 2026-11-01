@@ -239,7 +239,11 @@ namespace Librarian::Adapters
 
     struct PlanSource
     {
-        // Every catalog spell, scan-shaped, with its catalog entry.
+        // Every catalog spell, scan-shaped, with its catalog entry, each id once
+        // (the game's sources walk a JSON object keyed by id). BuildPlan keeps the
+        // spell and entry refs (AdapterCandidates.h): they must stay valid until
+        // it returns. Two records under one id could plan differently from a full
+        // walk: a line skips one and the carried keywords start from the other.
         std::function<void(const std::function<void(const std::string& id, const json& spell,
             const json& catalogEntry)>&)> forEachCatalogSpell;
 

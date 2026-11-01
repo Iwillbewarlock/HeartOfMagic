@@ -45,6 +45,16 @@ namespace Librarian
 
         RE::EffectSetting* Effect(const std::string& effectKey);
 
+        // Where this source's time went, in ms, for the perk adapters' stage line
+        struct Timings
+        {
+            double tomes = 0;       // spells a tome teaches
+            double resolve = 0;     // catalog ids to loaded spells
+            double spellJson = 0;   // scan-shaped JSON, built once per spell
+            double users = 0;       // the index of every magic item by effect
+        };
+        [[nodiscard]] const Timings& GetTimings() const { return m_timings; }
+
     private:
         struct CatalogSpell
         {
@@ -65,5 +75,6 @@ namespace Librarian
         std::unordered_map<RE::FormID, std::vector<RE::MagicItem*>> m_users;
         std::unordered_map<RE::FormID, std::unique_ptr<json>> m_spellJson;
         std::unordered_map<std::string, RE::FormID> m_effectIds;
+        Timings m_timings;
     };
 }

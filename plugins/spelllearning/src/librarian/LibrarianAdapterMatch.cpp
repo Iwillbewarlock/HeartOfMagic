@@ -3,6 +3,7 @@
 #include "librarian/LibrarianInternal.h"
 
 #include <algorithm>
+#include <string_view>
 
 // =============================================================================
 // LibrarianAdapterMatch - the adapter planners' condition checks
@@ -12,10 +13,26 @@
 
 namespace Librarian::Adapters::Match
 {
+    namespace
+    {
+        // Field without the copy, for the checks the planner runs on every
+        // spell for every line; the view lives as long as `object`
+        std::string_view FieldView(const json& object, const char* key)
+        {
+            const auto found = object.find(key);
+            return (found != object.end() && found->is_string())
+                ? std::string_view(found->get_ref<const std::string&>()) : std::string_view();
+        }
+
+        bool ContainsView(const std::vector<std::string>& list, std::string_view value)
+        {
+            return std::ranges::find(list, value) != list.end();
+        }
+    }
+
     std::string Field(const json& object, const char* key)
     {
-        const auto found = object.find(key);
-        return (found != object.end() && found->is_string()) ? found->get<std::string>() : std::string();
+        return std::string(FieldView(object, key));
     }
 
     bool Flag(const json& object, const char* key)
@@ -43,16 +60,16 @@ namespace Librarian::Adapters::Match
 
     bool EffectMatches(const json& effect, const EffectCondition& c)
     {
-        const std::string archetype = Field(effect, "archetype");
-        const std::string primaryAV = Field(effect, "primaryAV");
+        const std::string_view archetype = FieldView(effect, "archetype");
+        const std::string_view primaryAV = FieldView(effect, "primaryAV");
         if (c.archetype && archetype != *c.archetype) return false;
-        if (!c.archetypeAny.empty() && !Contains(c.archetypeAny, archetype)) return false;
-        if (Contains(c.archetypeNone, archetype)) return false;
+        if (!c.archetypeAny.empty() && !ContainsView(c.archetypeAny, archetype)) return false;
+        if (ContainsView(c.archetypeNone, archetype)) return false;
         if (c.primaryAV && primaryAV != *c.primaryAV) return false;
-        if (!c.primaryAVAny.empty() && !Contains(c.primaryAVAny, primaryAV)) return false;
-        if (c.resistance && Field(effect, "resistance") != *c.resistance) return false;
+        if (!c.primaryAVAny.empty() && !ContainsView(c.primaryAVAny, primaryAV)) return false;
+        if (c.resistance && FieldView(effect, "resistance") != *c.resistance) return false;
         if (c.detrimental && Flag(effect, "detrimental") != *c.detrimental) return false;
-        if (c.delivery && Field(effect, "delivery") != *c.delivery) return false;
+        if (c.delivery && FieldView(effect, "delivery") != *c.delivery) return false;
         if (c.minDuration) {
             const auto duration = effect.find("duration");
             const double value = (duration != effect.end() && duration->is_number()) ? duration->get<double>() : 0.0;
@@ -63,7 +80,7 @@ namespace Librarian::Adapters::Match
             const bool value = flags != effect.end() && flags->is_object() && Flag(*flags, "noDuration");
             if (value != *c.noDuration) return false;
         }
-        if (!c.hazardSource.empty() && !Contains(c.hazardSource, Field(effect, "hazardSource"))) return false;
+        if (!c.hazardSource.empty() && !ContainsView(c.hazardSource, FieldView(effect, "hazardSource"))) return false;
         if (c.explodes) {
             const auto projectile = effect.find("projectile");
             const bool value = projectile != effect.end() && projectile->is_object() && Flag(*projectile, "explodes");
@@ -117,7 +134,7 @@ namespace Librarian::Adapters::Match
             const auto list = catalogEntry.find(axis);
             if (list == catalogEntry.end() || !list->is_array()) continue;
             for (const auto& value : *list) {
-                if (!value.is_string() || value.get<std::string>() != tag) continue;
+                if (!value.is_string() || value.get_ref<const std::string&>() != tag) continue;
                 // Techniques have no per-tag tier; an element must rest on enough
                 if (!minRank || std::string_view(axis) != "elements") return true;
                 return ElementRank(catalogEntry, tag, withoutSources) >= *minRank;
@@ -141,11 +158,11 @@ namespace Librarian::Adapters::Match
 
     bool SpellMatches(const json& spell, const SpellCondition& c)
     {
-        const std::string school = Field(spell, "school");
+        const std::string_view school = FieldView(spell, "school");
         if (c.school && school != *c.school) return false;
         if (c.notSchool && school == *c.notSchool) return false;
-        if (c.tier && Field(spell, "skillLevel") != *c.tier) return false;
-        if (c.casting && Field(spell, "castingType") != *c.casting) return false;
+        if (c.tier && FieldView(spell, "skillLevel") != *c.tier) return false;
+        if (c.casting && FieldView(spell, "castingType") != *c.casting) return false;
         if (c.twoHanded && Flag(spell, "twoHanded") != *c.twoHanded) return false;
         if (c.taughtByTome && Flag(spell, "taughtByTome") != *c.taughtByTome) return false;
         return true;

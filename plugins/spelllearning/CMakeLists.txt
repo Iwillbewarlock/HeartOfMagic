@@ -79,6 +79,7 @@ add_commonlibsse_plugin(${PROJECT_NAME}
     src/librarian/LibrarianAdapters.cpp
     src/librarian/LibrarianAdapterMatch.cpp
     src/librarian/LibrarianAdapterDamage.cpp
+    src/librarian/LibrarianAdapterCandidates.cpp
     src/librarian/LibrarianPerkAdapterPatch.cpp
     src/environment/EnvironmentTwins.cpp
     src/environment/EnvironmentSelfTest.cpp

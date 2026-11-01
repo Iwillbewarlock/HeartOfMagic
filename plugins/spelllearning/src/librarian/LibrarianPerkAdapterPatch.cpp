@@ -6,8 +6,11 @@
 #include "JsonText.h"
 #include "PathText.h"
 #include "SpellScanner.h"
+#include "StepTimes.h"
 
+#include <algorithm>
 #include <chrono>
+#include <format>
 #include <fstream>
 #include <memory>
 #include <set>
@@ -33,6 +36,7 @@ namespace Librarian::PerkAdapters
     {
         constexpr const char* ADAPTER_SUBDIR = "adapters";
         constexpr const char* REPORT_FILE = "perk_adapters_report.json";
+        constexpr const char* PARITY_FILE = "perk_adapters_parity.json";
         constexpr const char* CONFIG_SECTION = "perkAdapters";
 
         using KeywordPair = std::pair<RE::FormID, RE::FormID>;   // effect, keyword
@@ -274,6 +278,38 @@ namespace Librarian::PerkAdapters
             file << JsonText::Dump(report, 2);
         }
 
+        // Debug installs (debug.json, as for the scan dump): every pair this run
+        // wanted and every pair now applied, sorted, so two runs on one load order
+        // can be compared write for write - the report keeps only counts and examples
+        template <class Pairs>
+        json PairList(const Pairs& pairs)
+        {
+            std::vector<std::string> lines;
+            for (const auto& [first, second] : pairs) lines.push_back(std::format("{:08X} {:08X}", first, second));
+            std::sort(lines.begin(), lines.end());
+            return lines;
+        }
+
+        void WriteParity(std::string_view reason, const std::set<KeywordPair>& wanted, const std::set<ListPair>& wantedLists,
+            const std::unordered_map<RE::FormID, RE::FormID>& wantedPerks, std::size_t unresolved)
+        {
+            if (!SpellScanner::DebugScanDumpEnabled()) return;
+            json parity;
+            parity["reason"] = std::string(reason);
+            parity["unresolved"] = unresolved;
+            parity["wanted"] = { { "effectKeyword", PairList(wanted) }, { "listSpell", PairList(wantedLists) },
+                { "spellPerk", PairList(wantedPerks) } };
+            parity["applied"] = { { "effectKeyword", PairList(g_injected) }, { "listSpell", PairList(g_listed) },
+                { "spellPerk", PairList(g_castingPerks) } };
+            const auto path = DataPath(PARITY_FILE);
+            std::ofstream file(path, std::ios::binary | std::ios::trunc);
+            if (!file.is_open()) {
+                logger::warn("PerkAdapters: could not write '{}'", PathText::Utf8(path));
+                return;
+            }
+            file << JsonText::Dump(parity, 2);
+        }
+
         // Nothing is wanted: take back everything, say why, write the report.
         // Perk FormLists only on the kDataLoaded run, as in ApplyImpl.
         void Stop(json& report, std::string_view why, bool listsNow)
@@ -287,6 +323,7 @@ namespace Librarian::PerkAdapters
             report["listRemoved"] = lists.removed;
             report["castingPerkRemoved"] = perks.removed;
             WriteReport(report);
+            WriteParity(why, {}, {}, {}, 0);   // nothing wanted: an older run's file must not stand in
             logger::info("PerkAdapters: {} ({} keywords, {} list entries and {} casting perks taken back)",
                 why, result.removed, lists.removed, perks.removed);
         }
@@ -294,6 +331,7 @@ namespace Librarian::PerkAdapters
         void ApplyImpl(std::string_view reason)
         {
             const auto started = std::chrono::steady_clock::now();
+            StepTimes stages;
 
             json report;
             report["reason"] = std::string(reason);
@@ -313,16 +351,20 @@ namespace Librarian::PerkAdapters
                 Stop(report, "no catalog yet - a full scan makes one", reason == kDataLoadedReason);
                 return;
             }
+            stages.Mark("catalog");
 
             std::vector<Plan::File> files = LoadFiles(dataHandler, report);
             if (files.empty()) {
                 Stop(report, "no adapter file applies to this load order", reason == kDataLoadedReason);
                 return;
             }
+            stages.Mark("files");
 
             auto keywords = KeywordsByEditorId(dataHandler);
             ResolveKeywordForms(files, keywords);
+            stages.Mark("keywords");
             LoadOrderSource loadOrder(catalog["spells"]);
+            stages.Mark("source");
 
             Plan::PlanSource source;
             source.forEachCatalogSpell = [&](const auto& visit) { loadOrder.ForEachCatalogSpell(visit); };
@@ -345,6 +387,7 @@ namespace Librarian::PerkAdapters
             };
 
             const Plan::Plan plan = Plan::BuildPlan(files, source);
+            stages.Mark("plan");
 
             std::set<KeywordPair> wanted;
             std::size_t unresolved = 0;
@@ -382,6 +425,7 @@ namespace Librarian::PerkAdapters
             // A write that did not resolve, or not a hand-cast spell: in "failed"
             Reconciled perks = ReconcileCastingPerks(wantedPerks);
             perks.failed += plan.castingPerkWrites.size() - wantedPerks.size();
+            stages.Mark("reconcile");
 
             const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
                 std::chrono::steady_clock::now() - started).count();
@@ -401,6 +445,9 @@ namespace Librarian::PerkAdapters
             report["entriesWithoutSources"] = plan.entriesWithoutSources;
             report["files"] = Plan::PlanReport(files, plan);
             WriteReport(report);
+            stages.Mark("report");
+            WriteParity(reason, wanted, wantedLists, wantedPerks, unresolved);
+            stages.Mark("parity");
 
             logger::info("PerkAdapters: {} - {} keywords on effects ({} new, {} kept, {} taken back, {} did not take, "
                          "{} unresolved), {} spells in perk FormLists ({} new, {} taken back), {} casting perks "
@@ -409,6 +456,12 @@ namespace Librarian::PerkAdapters
                 g_listed.size(), lists.added, lists.removed, g_castingPerks.size(), perks.added, perks.removed,
                 files.size(), elapsed);
             if (!listsNow) logger::info("PerkAdapters: FormLists follow this plan at the next game start");
+            // The ms above stop before the report; these run to the end (the catalog's
+            // and the spell JSON's release after it count in the caller's step)
+            const auto& timings = loadOrder.GetTimings();
+            logger::info("PerkAdapters: stages (ms) - {}; in source and plan: tomes {:.0f}, catalog ids {:.0f}, "
+                         "spell JSON {:.0f}, effect users {:.0f}; {:.0f} ms in all",
+                stages.Text(), timings.tomes, timings.resolve, timings.spellJson, timings.users, stages.TotalMs());
         }
     }
 

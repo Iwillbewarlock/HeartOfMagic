@@ -1,4 +1,5 @@
 #include "librarian/LoadOrderSource.h"
+#include "ElapsedMs.h"
 
 // =============================================================================
 // LibrarianLoadOrderSource - see LoadOrderSource.h
@@ -7,9 +8,12 @@
 namespace Librarian
 {
     LoadOrderSource::LoadOrderSource(const json& catalogSpells) :
-        m_catalog(catalogSpells),
-        m_taught(SpellScanner::SpellsTaughtByTomes())
+        m_catalog(catalogSpells)
     {
+        auto started = std::chrono::steady_clock::now();
+        m_taught = SpellScanner::SpellsTaughtByTomes();
+        m_timings.tomes = MsSince(started);
+
         m_fields.editorId = false;
         m_fields.magickaCost = false;
         m_fields.castingType = true;
@@ -18,11 +22,13 @@ namespace Librarian
         m_fields.effectDetails = true;
 
         // Resolved once: the planner walks the catalog once per line.
+        started = std::chrono::steady_clock::now();
         for (const auto& [id, entry] : m_catalog.items()) {
             const RE::FormID formId = SpellScanner::ResolvePersistentFormId(id);
             auto* spell = formId ? RE::TESForm::LookupByID<RE::SpellItem>(formId) : nullptr;
             if (spell) m_catalogSpells.push_back({ id, spell, &entry });
         }
+        m_timings.resolve = MsSince(started);
     }
 
     void LoadOrderSource::ForEachCatalogSpell(const std::function<void(const std::string&, const json&, const json&)>& visit)
@@ -35,8 +41,10 @@ namespace Librarian
     std::vector<Adapters::EffectUser> LoadOrderSource::UsersOf(const std::string& effectKey)
     {
         if (!m_usersIndexed) {
+            const auto started = std::chrono::steady_clock::now();
             IndexUsers();
             m_usersIndexed = true;
+            m_timings.users = MsSince(started);
         }
         std::vector<Adapters::EffectUser> result;
         const auto found = m_users.find(EffectFormId(effectKey));
@@ -111,8 +119,10 @@ namespace Librarian
     {
         auto& slot = m_spellJson[spell->GetFormID()];
         if (!slot) {
+            const auto started = std::chrono::steady_clock::now();
             slot = std::make_unique<json>(SpellScanner::BuildSpellJson(spell, spell->GetFormID(), m_fields));
             (*slot)["taughtByTome"] = m_taught.contains(spell->GetFormID());   // as the full scan marks it
+            m_timings.spellJson += MsSince(started);
         }
         return *slot;
     }

@@ -404,13 +404,21 @@ are the merged text. The card icon rules still read the scanner's own traits.
 scan and Papyrus `RunScan`; not the background tome scan). The planner (`LibrarianAdapters.cpp`) is pure and
 shared with `librarian-test --adapters`; it builds each spell's JSON with `BuildSpellJson` so it reads the
 scan's own fields, writes an effect only when every item using it passes (enchantments, scrolls, potions and
-ingredients block), and skips conditioned effect items. A line with `keywordForm` names its keyword by persistent id; before planning, `ResolveKeywordForms` swaps in the editor id the loaded form carries (mods inject one FormID under different names). A `formList` line puts the spells it picks into a
+ingredients block), and skips conditioned effect items. It walks the catalog once per plan and lets each line visit only the spells that could pass its first check (`LibrarianAdapterCandidates.cpp`: the spells holding `tags.all`'s first tag, any `tags.any` tag, the line's school, or a visible effect of its archetype), in catalog order; the plan is the same as a full walk's, and `librarian-test --adapters` output is the check (specs/003-load-time/plan.md, Phase 2c). A line with `keywordForm` names its keyword by persistent id; before planning, `ResolveKeywordForms` swaps in the editor id the loaded form carries (mods inject one FormID under different names). A `formList` line puts the spells it picks into a
 perk mod's own FormList instead (appended to the list's `forms` array in memory, not through `AddForm`,
 which is the script path a save keeps). In memory only; each run reconciles with its plan
 (what an earlier run added and the plan no longer wants comes off, only new pairs go on; a pair a plugin
 wrote is never touched). The scan leaves the added keywords out (`PerkAdapters::IsInjected` in `BuildBaseEffectJson`,
 the chips and the card icon lookup), so a scan still records the plugins as written. Report:
 `perk_adapters_report.json` next to the catalog; switch: `config.json` `perkAdapters.enabled` (default on).
+Timing: after the summary line, `PerkAdapters: stages (ms) - catalog N, files N, keywords N, source N, plan N,
+reconcile N, report N, parity N; in source and plan: tomes N, catalog ids N, spell JSON N, effect users N; N ms in all`
+(the summary's own ms stop before the report; the vampire caster collection, run by the first spell JSON,
+logs its ms apart). Debug installs (`debug.json` `writeScanDump`) also write `perk_adapters_parity.json`:
+every pair the run wanted and every pair now applied (effect/keyword, list/spell, spell/perk FormIDs,
+sorted; a stopped run writes an empty wanted list), and the Spell Research run writes
+`spell_research_parity.json` (every planned registration: spell, tier, tome, lists, sorted), so two runs on one
+load order and save compare write for write (specs/003-load-time).
 Rules, measurements and what is left out: docs/librarian/PERK_ADAPTERS.md.
 The planner's game-side source (`LoadOrderSource`, `LibrarianLoadOrderSource.cpp`) is shared with the
 Spell Research registrations below; it indexes the effect users only when a keyword line asks.
@@ -779,6 +787,14 @@ text or nothing); the other panel handlers and the saved tree's load check read 
 entry per spell and cannot say "this copy's links or the spell's", so links drawn to a copy reach C++ only when the
 spell has no node of its own; the panel (`recalculateNodeAvailability`, per node) may show such a copy open while a
 tome of the spell is still judged by the spell's own links.
+
+**Timing at game start and load** (specs/003-load-time, `StepTimes.h`): `OnDataLoaded`, `OnNewGame` and
+`OnPostLoadGame` each end with one line - `Data loaded: N ms on the game thread - ui N, events and XP sources N,
+perk adapters N, environment N, Spell Research and tomes N, tome reach start N, config N, tree N, auto scan
+install N, tome groups N`; `New game: ...` and `Save loaded: ...` with `tomes`, `Spell Research`,
+`perk adapters`, `rest`. The co-save callbacks log `co-save read in N ms` and `revert done in N ms`. The time
+from the `Data loaded:` line to `Panel DOM ready` is how long after the handler the page's DOM-ready callback
+came (the view itself is created at `ui`); whose time that is needs PrismaUI-side timing.
 
 **Progression state at game start** (H1-0, 2026-10-24; `include/uimanager/StartupState.h`): the gameplay
 settings and the saved tree's prerequisites no longer wait for the panel's page (`onPrismaReady` →

@@ -1,5 +1,6 @@
 #include "librarian/PerkAdapters.h"
 #include "AsciiText.h"
+#include "librarian/AdapterCandidates.h"
 #include "librarian/AdapterMatch.h"
 #include "librarian/Librarian.h"
 #include "librarian/LibrarianInternal.h"
@@ -7,6 +8,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <optional>
 #include <string_view>
 
 // =============================================================================
@@ -418,6 +420,14 @@ namespace Librarian::Adapters
             return slot->second;
         };
 
+        // The catalog walked once, on the first line that needs it (a plan with
+        // no live line builds no spell JSON); each line then visits its candidates
+        std::optional<Candidates::Index> index;
+        const auto forEachCandidate = [&](const Line& line, const auto& visit) {
+            if (!index) index.emplace(source);
+            index->ForEachCandidate(line, [&](const Candidates::CatalogSpell& c) { visit(c.id, *c.spell, *c.entry); });
+        };
+
         for (std::size_t f = 0; f < files.size(); ++f) {
             const File& file = files[f];
             plan.stats[f].resize(file.lines.size());
@@ -440,7 +450,7 @@ namespace Librarian::Adapters
                 }
 
                 if (isCastingPerk) {
-                    source.forEachCatalogSpell([&](const std::string& id, const json& spell, const json& entry) {
+                    forEachCandidate(line, [&](const std::string& id, const json& spell, const json& entry) {
                         // The perk sits on the spell record: no target effect to find
                         bool noSources = false;
                         const bool tagsMatch = TagsMatch(entry, line.tags, line.tierMinRank, noSources);
@@ -460,7 +470,7 @@ namespace Librarian::Adapters
                 }
 
                 if (isList) {
-                    source.forEachCatalogSpell([&](const std::string& id, const json& spell, const json& entry) {
+                    forEachCandidate(line, [&](const std::string& id, const json& spell, const json& entry) {
                         bool noSources = false;
                         const auto target = PickTarget(spell, &entry, line, carriedBy(id, spell), &noSources);
                         if (noSources) ++plan.entriesWithoutSources;
@@ -481,7 +491,7 @@ namespace Librarian::Adapters
 
                 // Which spells want the keyword, grouped by the effect it would go on.
                 std::unordered_map<std::string, std::vector<std::string>> wanting;
-                source.forEachCatalogSpell([&](const std::string& id, const json& spell, const json& entry) {
+                forEachCandidate(line, [&](const std::string& id, const json& spell, const json& entry) {
                     const auto& carried = carriedBy(id, spell);
                     bool noSources = false;
                     const auto target = PickTarget(spell, &entry, line, carried, &noSources);
