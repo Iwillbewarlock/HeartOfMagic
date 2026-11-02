@@ -57,7 +57,8 @@ researches. Kept small, both halves can be turned off.
   it again pays its 7 payments a second time (review round 1, 2026-11-02). Upgrade path: a per-spell "highest
   boundary paid" byte in the co-save progress record (a version bump), checked before paying.
 - Skip silently (debug log) when: SR not loaded, `_SR_GlobalIsSetup` != 1 or `_SR_GlobalImporting` != 0, the
-  feature is off, the spell is in no tier list or no archetype list.
+  feature is off, the panel's cheat mode is on (top-level `cheatMode`; both halves, author's decision 2026-11-02:
+  unlocking, relocking and XP edits are not practice), the spell is in no tier list or no archetype list.
 - One info log line per payout: spell, boundaries crossed, v, rank, archetypes paid.
 - Stacks with SR's own research-mode cast reward (`_SR_EffectResearchScript.OnSpellCast`, v = 1.5 per cast of
   the equipped spell while SR research runs): allowed on purpose, both are practice.

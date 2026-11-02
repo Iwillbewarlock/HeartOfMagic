@@ -10,7 +10,7 @@
   own research formula. The other way round, casting XP for a spell rises by up to 25% with how well you already
   know its archetypes at its level, measured on Spell Research's own spell-composing scale. Only casting counts (not tomes, passive learning or other mods). Both
   halves can be turned off and sized under Settings > Spell Tome Learning, below the Spell Research line (shown
-  only with Spell Research installed); `config.json` `spellResearch.memoryExchange`.
+  only with Spell Research installed); `config.json` `spellResearch.memoryExchange`. Both are off while cheat mode is on.
 
 ### Fixed
 

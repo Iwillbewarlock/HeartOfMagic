@@ -240,7 +240,7 @@ HoM 의 시전 XP 는 "연습", SR 의 아키타입 XP(아키타입 60개 x 등�
 - **시전 XP 만.** 마법책 읽기, 패시브, ISL 공부, DEST, BookXP, 다른 모드 출처, `AddRawXP`/`SetSpellXP` 는 A 에
   들어가지 않는다(SR 이 HoM 에 주는 `spell_research` 몫이 기억으로 되돌아오지 않게).
 - **안 하는 때(디버그 로그만):** `SpellResearch.esp` 없음, `_SR_GlobalIsSetup` != 1 이거나 `_SR_GlobalImporting`
-  != 0, 해당 스위치 꺼짐, 주문이 SR 등급 목록(`lists.allSpells`)이나 아키타입 목록 어디에도 없음. 등급은 주문이
+  != 0, 해당 스위치 꺼짐, 패널의 치트 모드 켜짐(`config.json` 맨 위 `cheatMode`: 해금·재잠금·XP 수정은 연습이 아니므로 둘 다 끔, 2026-11-02 사용자 결정), 주문이 SR 등급 목록(`lists.allSpells`)이나 아키타입 목록 어디에도 없음. 등급은 주문이
   든 가장 낮은 등급 목록.
 - **목록:** `_SR_ListSpellsArchetypes`(`lists.archetypeSpells`, 0xD9E, FormList 60개)와
   `_SR_ListGlobalsArchetypes`(`lists.archetypeGlobals`, 0x133D, FormList 60개 x TESGlobal 5개, 0 Novice ... 4 Master)를

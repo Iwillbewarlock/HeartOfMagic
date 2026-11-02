@@ -157,5 +157,11 @@ namespace ProgressionCheck
         const auto partial = MM::ReadSettings(json::parse(R"({"spellResearch": {"memoryExchange": {"maxPracticeBoost": 150}}})"));
         Check(partial.practiceToMemory && Near(partial.memoryMinutes, 25.0f) && Near(partial.maxPracticeBoost, 100.0f),
               "memory settings: missing keys are the defaults, the boost clamped to 100");
+        Check(!defaults.cheatMode && !read.cheatMode, "memory settings: no cheatMode key -> cheat mode off");
+        const auto cheat = MM::ReadSettings(json::parse(R"({"cheatMode": true})"));
+        Check(cheat.cheatMode && cheat.practiceToMemory && cheat.memoryToPractice,
+              "memory settings: top-level cheatMode true is read without a spellResearch section, switches kept");
+        const auto cheatText = MM::ReadSettings(json::parse(R"({"cheatMode": "true", "spellResearch": {}})"));
+        Check(!cheatText.cheatMode, "memory settings: a cheatMode that is not a boolean is off");
     }
 }

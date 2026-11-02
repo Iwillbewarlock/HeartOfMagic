@@ -22,8 +22,8 @@
 //    global measured against SR's compose scale ((R + 1) x d)^2).
 //
 // Both do nothing unless SpellResearch.esp is loaded, SR's Import finished and
-// none runs (_SR_GlobalIsSetup 1, _SR_GlobalImporting 0), the half's switch is on
-// and the spell is in one of SR's tier lists and at least one archetype list.
+// none runs (_SR_GlobalIsSetup 1, _SR_GlobalImporting 0), the half's switch is on,
+// the panel's cheat mode is off (config.json "cheatMode") and the spell is in one of SR's tier lists and at least one archetype list.
 // Rank and archetypes are read on every call (no cache: an Import can change
 // membership with equal list sizes). The lists and globals are resolved once at
 // kDataLoaded from compat/spellresearch.json's persistent ids.

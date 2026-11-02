@@ -162,14 +162,18 @@ namespace Librarian::SpellResearchMemoryMath
         float memoryMinutes = kDefaultMemoryMinutes;
         bool memoryToPractice = kDefaultMemoryToPractice;
         float maxPracticeBoost = kDefaultMaxPracticeBoost;   // percent
+        bool cheatMode = false;   // the panel's cheat mode (config.json "cheatMode"): both halves off while on
     };
 
     // config.json's "spellResearch" section's "memoryExchange": a missing section, key or a
-    // value of the wrong type is the default; the numbers are clamped (minutes 0..240, boost 0..100)
+    // value of the wrong type is the default; the numbers are clamped (minutes 0..240, boost 0..100).
+    // Also the top-level "cheatMode" (a boolean, else off), which turns both halves off.
     [[nodiscard]] inline Settings ReadSettings(const nlohmann::json& config)
     {
         Settings settings;
         if (!config.is_object()) return settings;
+        const auto cheat = config.find("cheatMode");
+        settings.cheatMode = cheat != config.end() && cheat->is_boolean() && cheat->get<bool>();
         const auto section = config.find("spellResearch");
         if (section == config.end() || !section->is_object()) return settings;
         const auto exchange = section->find("memoryExchange");

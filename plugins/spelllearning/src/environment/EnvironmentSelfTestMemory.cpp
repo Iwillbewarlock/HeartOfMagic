@@ -110,7 +110,8 @@ namespace Environment::SelfTest
             }
             const float share = static_cast<float>(sum / static_cast<double>(memory.archetypes.size()));
             const auto settings = Memory::CurrentSettings();
-            const float expected = settings.memoryToPractice ? 1.0f + settings.maxPracticeBoost / kPercent * share : 1.0f;
+            const float expected = settings.memoryToPractice && !settings.cheatMode
+                                       ? 1.0f + settings.maxPracticeBoost / kPercent * share : 1.0f;
             const float actual = Memory::PracticeMultiplier(spell->GetFormID());
             detail = std::format("x{:.4f} (formula x{:.4f}, share {:.3f} at d {:.1f})", actual, expected, share, difficulty);
             return Close(actual, expected);
@@ -171,7 +172,8 @@ namespace Environment::SelfTest
         std::string hookMismatch;
         std::string paidB;
         bool paidBOk = false;
-        const bool hookOn = Memory::CurrentSettings().practiceToMemory;
+        const auto hookSettings = Memory::CurrentSettings();
+        const bool hookOn = hookSettings.practiceToMemory && !hookSettings.cheatMode;
         {
             const GlobalsRestore restore(snapshot);
             changed = Memory::Pay(*memory, 1, value);
@@ -201,7 +203,7 @@ namespace Environment::SelfTest
                 spell->GetName(), spell->GetFormID(), memory->rank, memory->archetypes.size(), value, badNames,
                 namesDetail, changed, expectedChanges, mismatches, firstMismatch, notRestored, paidB, restoredB));
         if (!hookOn) {
-            Report(kHookId, Outcome::kSkip, "practiceToMemory is off");
+            Report(kHookId, Outcome::kSkip, hookSettings.cheatMode ? "cheat mode is on" : "practiceToMemory is off");
             return;
         }
         Report(kHookId, hookMismatches == 0 && notRestored == 0 ? Outcome::kPass : Outcome::kFail,

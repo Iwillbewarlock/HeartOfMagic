@@ -179,13 +179,15 @@ namespace Librarian::SpellResearchMemory
         const bool changed = !applied || next.practiceToMemory != g_settings.practiceToMemory ||
                              next.memoryMinutes != g_settings.memoryMinutes ||
                              next.memoryToPractice != g_settings.memoryToPractice ||
-                             next.maxPracticeBoost != g_settings.maxPracticeBoost;
+                             next.maxPracticeBoost != g_settings.maxPracticeBoost ||
+                             next.cheatMode != g_settings.cheatMode;
         applied = true;
         g_settings = next;
         // Every panel save comes through here: info only when a value changed
         const std::string line = std::format("SpellResearch memory: settings - practice to memory {} ({:.0f} research "
-            "minutes per 15%), memory to practice {} (up to +{:.0f}%)", g_settings.practiceToMemory,
-            g_settings.memoryMinutes, g_settings.memoryToPractice, g_settings.maxPracticeBoost);
+            "minutes per 15%), memory to practice {} (up to +{:.0f}%){}", g_settings.practiceToMemory,
+            g_settings.memoryMinutes, g_settings.memoryToPractice, g_settings.maxPracticeBoost,
+            g_settings.cheatMode ? " - both off while cheat mode is on" : "");
         if (changed) {
             logger::info("{}", line);
         } else {
@@ -287,7 +289,8 @@ namespace Librarian::SpellResearchMemory
 
     void OnPracticeProgress(RE::FormID spellId, float progressBefore, float progressAfter)
     {
-        if (!g_settings.practiceToMemory) return;
+        // Cheat mode (unlock, relock, XP edits) is not practice: nothing becomes memory while it is on
+        if (!g_settings.practiceToMemory || g_settings.cheatMode) return;
         // LIMIT: no per-spell record of what was paid. Progress from other sources inside a chunk is paid
         // by the next cast that crosses its boundary, and a boundary crossed by a non-cast source (a tome,
         // passive, ISL study) pays nothing. A progress reset pays again: RelockSpell (cheat mode) or
@@ -324,7 +327,7 @@ namespace Librarian::SpellResearchMemory
 
     float PracticeMultiplier(RE::FormID spellId)
     {
-        if (!g_settings.memoryToPractice || !(g_settings.maxPracticeBoost > 0.0f)) return 1.0f;
+        if (!g_settings.memoryToPractice || g_settings.cheatMode || !(g_settings.maxPracticeBoost > 0.0f)) return 1.0f;
         std::string why;
         if (!Ready(why)) {
             logger::trace("SpellResearch memory: no practice boost for {:08X}: {}", spellId, why);
