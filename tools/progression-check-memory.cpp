@@ -154,7 +154,7 @@ namespace ProgressionCheck
         Check(mastered.count == 7 && mastered.paid == MM::kAllPaid, "memory paid: 0 -> mastery pays 7, all bits set");
         Check(MM::PayableBoundaries(0.0f, 0.15f, MM::kAllPaid).count == 0 &&
                   MM::PayableBoundaries(0.0f, 1.0f, MM::kAllPaid).count == 0,
-              "memory paid: relocked after mastery, cheat mode off, practised 0 -> 15% and -> 100%: nothing");
+              "memory paid: every bit set (mastered, then relocked), practised 0 -> 15% and 0 -> 100%: nothing");
         const auto skipped = MM::PayableBoundaries(0.0f, 0.50f, 0b0100);   // 45% paid by a cast after a tome jump
         Check(skipped.count == 2 && skipped.paid == 0b0111,
               "memory paid: a boundary a tome jumped (15, 30 unpaid) is still paid by a later cast; 45 is not paid again");

@@ -249,8 +249,9 @@ HoM 의 시전 XP 는 "연습", SR 의 아키타입 XP(아키타입 60개 x 등�
   소속은 `HasForm`(플러그인 항목 + `scriptAddedTempForms`, SR 의 Import 와 우리 등록이
   있는 곳). 폼은 kDataLoaded 에 한 번 찾고(두 바깥 목록의 길이가 다르면 기능 전체를 끈다), 등급과 소속은
   호출마다 새로 읽는다(캐시 없음: Import 가 목록 크기를 그대로 두고 내용을 바꿀 수 있다).
-- **로그:** 지급마다 info 한 줄(주문 이름·formID, 진행도, 넘은 경계 수, v, 등급, 아키타입 수, 바뀐 전역 수).
-  B 의 배율은 debug. kPostLoadGame 에 SR 이 준비돼 있으면 info 한 줄: 기억 전역 300개의 합과 0 보다 큰 개수
+- **로그:** 지급마다 info 한 줄(주문 이름·formID, 진행도, 넘은 경계 수와 그중 실제 지급 수, v, 등급, 아키타입 수,
+  바뀐 전역 수, 지급 마스크 `{:07b}`). 넘었지만 모두 낸 적 있는 경계면 debug 한 줄("all paid before (progress
+  reset)"). 저장·불러오기 때 info 한 줄씩("saved / loaded paid boundaries for N spells"). B 의 배율은 debug. kPostLoadGame 에 SR 이 준비돼 있으면 info 한 줄: 기억 전역 300개의 합과 0 보다 큰 개수
   (전역에 직접 쓴 값이 세이브에 남는지 확인용 - 저장 → 불러오기 뒤 이 줄이 같아야 한다).
 - **설정:** `config.json` `spellResearch.memoryExchange` = `{ practiceToMemory: true, memoryMinutes: 25,
   memoryToPractice: true, maxPracticeBoost: 25 }`. 빠진 키는 기본값, `memoryMinutes` 0 - 240, `maxPracticeBoost`
@@ -269,12 +270,17 @@ HoM 의 시전 XP 는 "연습", SR 의 아키타입 XP(아키타입 60개 x 등�
   다시 쓰이면 마스크를 함께 쓴다. HoM 자체 경로에서는 없다.
 - **SR 자체 연구 모드 보상과 겹친다**(`_SR_EffectResearchScript.OnSpellCast`, 연구 중 장착 주문 시전마다 v = 1.5):
   둘 다 연습이라 일부러 둔다.
-- **테스트:** `progression-check --self-test` 의 `memory:` 사례(경계, 등급별 이득표, 상한, 아는 비율, 배율, 설정).
+- **테스트:** `progression-check --self-test` 의 `memory:` 사례(경계, 등급별 이득표, 상한, 아는 비율, 배율, 설정),
+  `memory paid:` 사례(같은 구간 반복, 숙달 뒤 되돌림, 마법서가 건너뛴 경계, 8번째 비트 이상), `SLSM` 왕복·끊김·개수 초과.
   게임 안: 개발용 자가 테스트 `sr-memory`(`src/environment/EnvironmentSelfTestMemory.cpp`): 등급 목록에서 아키타입이
   있는 첫 주문의 전역을 저장해 두고, 게임 쪽 `Pay` 로 한 번 지급한 뒤 모든 전역을 계산 헤더의 값과 비교하고,
   RAII 가드로 되돌린 뒤(예외·중도 반환에도) 되돌려졌는지와 B 의 배율을 공식과 비교한다. 등급 대응은 이름으로
   따로 본다(각 전역의 editor id 가 `<t+1><Rank>` 로 끝나야 한다: `_SR_GlobalArchetype{Group}{Name}{1..5}{Rank}`).
-  `sr-memory-hook`: 같은 가드 안에서 훅이 부르는 `OnPracticeProgress(주문, 10%, 32%)` 가 두 번 지급하는지(전역마다
-  `ApplyGain(ApplyGain(전, g), g)`); practiceToMemory 가 꺼져 있으면 SKIP. SR 이 준비되지 않았으면 둘 다 SKIP.
+  `sr-memory-hook`: 같은 가드 안에서 주문의 지급 마스크를 비운 뒤 훅이 부르는 `OnPracticeProgress(주문, 10%, 32%)` 가
+  두 번 지급하는지(전역마다 `ApplyGain(ApplyGain(전, g), g)`, 마스크 `0000011`), 같은 호출을 한 번 더 하면 전역이
+  하나도 바뀌지 않는지(정확히 비교). 가드는 전역과 마스크를 함께 되돌린다. practiceToMemory 가 꺼져 있거나 치트
+  모드거나 전역이 모두 상한이면 SKIP. SR 이 준비되지 않았으면 둘 다 SKIP.
 - **게임 확인 할 것:** 학습 대상 주문을 시전해 15% 를 넘길 때 로그의 지급 줄, SR MCM 의 아키타입 지식이 늘었는지,
-  저장 → 불러오기 뒤 kPostLoadGame 줄의 합이 그대로인지(직접 쓴 전역이 세이브에 남는지는 증명되지 않았다).
+  저장 → 불러오기 뒤 kPostLoadGame 줄의 합이 그대로인지(직접 쓴 전역이 세이브에 남는지는 증명되지 않았다),
+  "loaded paid boundaries for N spells" 줄이 저장 때의 "saved ... N spells" 와 같은지, 치트 모드로 다시 잠그고
+  치트를 끈 뒤 다시 연습하면 지급 줄 대신 "all paid before" 가 나오는지(debug 로그).

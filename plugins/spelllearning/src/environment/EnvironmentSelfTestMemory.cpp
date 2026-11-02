@@ -24,7 +24,8 @@
 //   sr-memory-hook  The hook's own entry, OnPracticeProgress(spell, 10%, 32%) from the snapshot and nothing
 //                   paid: two boundaries, so every global must hold ApplyGain(ApplyGain(before, g), g) and
 //                   the spell's paid mask 0000011. The same call again (a relock practised again) must
-//                   change nothing. SKIP while practiceToMemory is off or cheat mode is on.
+//                   change no global at all (compared exactly). SKIP while practiceToMemory is off, cheat
+//                   mode is on, or every global of the spell is at SR's cap.
 //   The snapshot and the spell's paid mask are put back by an RAII guard, on an exception or early return
 //   too, and checked: the save is left as it was. SKIP without SR set up, without such a spell or with v 0
 //   (memoryMinutes 0).
@@ -188,7 +189,6 @@ namespace Environment::SelfTest
         const MM::PaidMask paidBefore = Memory::PaidBoundaries(spellId);
         MM::PaidMask paidAfterHook = 0;
         std::size_t repeatMismatches = 0;
-        std::size_t repeatExpected = 0;
         std::string repeatMismatch;
         {
             const GlobalsRestore restore(snapshot, spellId);
@@ -203,9 +203,18 @@ namespace Environment::SelfTest
                 Memory::OnPracticeProgress(spellId, kHookFrom, kHookTo);
                 hookMismatches = Mismatches(snapshot, gains, kHookPayments, hookExpectedChanges, hookMismatch);
                 paidAfterHook = Memory::PaidBoundaries(spellId);
-                // The same span again, as after a relock: the boundaries are paid, nothing may change
+                // The same span again, as after a relock: the boundaries are paid, no global may move at all
+                // (compared exactly: a wrong third payment can sit inside Close's tolerance on a large global)
+                std::vector<float> afterHook;
+                afterHook.reserve(snapshot.size());
+                for (const auto& slot : snapshot) afterHook.push_back(slot.global->value);
                 Memory::OnPracticeProgress(spellId, kHookFrom, kHookTo);
-                repeatMismatches = Mismatches(snapshot, gains, kHookPayments, repeatExpected, repeatMismatch);
+                for (std::size_t i = 0; i < snapshot.size(); ++i) {
+                    if (snapshot[i].global->value != afterHook[i] && repeatMismatches++ == 0) {
+                        repeatMismatch = std::format("; first: archetype {} rank {} {:.4f} -> {:.4f}", snapshot[i].archetype,
+                            snapshot[i].rank, afterHook[i], snapshot[i].global->value);
+                    }
+                }
             }
         }
 
@@ -227,6 +236,10 @@ namespace Environment::SelfTest
                 namesDetail, changed, expectedChanges, mismatches, firstMismatch, notRestored, paidB, restoredB));
         if (!hookOn) {
             Report(kHookId, Outcome::kSkip, hookSettings.cheatMode ? "cheat mode is on" : "practiceToMemory is off");
+            return;
+        }
+        if (hookExpectedChanges == 0) {
+            Report(kHookId, Outcome::kSkip, "every global of the spell is at SR's cap: a payment changes nothing to see");
             return;
         }
         const MM::PaidMask paidExpected = MM::PayableBoundaries(kHookFrom, kHookTo, 0).paid;

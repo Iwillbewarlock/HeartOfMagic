@@ -305,13 +305,7 @@ namespace Librarian::SpellResearchMemory
         // nothing then and stays unpaid, so a later cast over it (after a reset) still pays it.
         const int crossed = MM::BoundariesCrossed(progressBefore, progressAfter);
         if (crossed == 0) return;
-        const auto due = MM::PayableBoundaries(progressBefore, progressAfter, PaidBoundaries(spellId));
         const auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(spellId);
-        if (due.count == 0) {
-            logger::debug("SpellResearch memory: {} ({:08X}) crossed {} boundaries - nothing paid: all paid before "
-                          "(progress reset)", SpellName(spell), spellId, crossed);
-            return;
-        }
         std::string why;
         if (!Ready(why)) {
             logger::debug("SpellResearch memory: {} ({:08X}) crossed {} boundaries - nothing paid: {}",
@@ -330,8 +324,21 @@ namespace Librarian::SpellResearchMemory
                 SpellName(spell), spellId, g_settings.memoryMinutes);
             return;
         }
+        // Read, decide and mark in one lock: a revert or load clearing the map between them cannot bring the
+        // last save's mask into the new one. The payment itself goes in after, outside the lock.
+        MM::Payable due;
+        {
+            const std::scoped_lock lock(g_paidLock);
+            const auto it = g_paid.find(spellId);
+            due = MM::PayableBoundaries(progressBefore, progressAfter, it != g_paid.end() ? it->second : MM::PaidMask{ 0 });
+            if (due.count > 0) g_paid[spellId] = due.paid;
+        }
+        if (due.count == 0) {
+            logger::debug("SpellResearch memory: {} ({:08X}) crossed {} boundaries - nothing paid: all paid before "
+                          "(progress reset)", SpellName(spell), spellId, crossed);
+            return;
+        }
         const std::size_t changed = Pay(*memory, due.count, value);
-        SetPaidBoundaries(spellId, due.paid);
         logger::info("SpellResearch memory: {} ({:08X}) {:.1f}% -> {:.1f}%, {} boundaries crossed - {} payment(s) of "
                      "v {:.2f} at rank {} into {} archetypes ({} globals changed), paid mask {:07b}",
             SpellName(spell), spellId, progressBefore * 100.0f, progressAfter * 100.0f, crossed, due.count, value,
@@ -373,7 +380,7 @@ namespace Librarian::SpellResearchMemory
         std::uint32_t length)
     {
         if (type != kPaidRecord) return false;
-        if (version != ProgressionCoSave::kMemoryPaidVersion) {
+        if (version < 1 || version > ProgressionCoSave::kMemoryPaidVersion) {
             logger::warn("SpellResearch memory: paid boundaries record version {} unknown (reads {}) - skipped, "
                          "nothing counts as paid", version, ProgressionCoSave::kMemoryPaidVersion);
             return true;
@@ -396,7 +403,7 @@ namespace Librarian::SpellResearchMemory
                 ++dropped;   // the spell's plugin is gone
                 continue;
             }
-            g_paid[resolved] = paid;
+            g_paid[resolved] = static_cast<MM::PaidMask>(g_paid[resolved] | paid);   // two ids resolving to one: both paid
         }
         logger::info("SpellResearch memory: loaded paid boundaries for {} spells ({} dropped, plugin gone)",
             g_paid.size(), dropped);

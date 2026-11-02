@@ -7,8 +7,8 @@
 #include <vector>
 
 // =============================================================================
-// PROGRESSION CO-SAVE - byte layout of the progress (SLPR), cap tracker (SLPX)
-// and tome XP (SLTX) records
+// PROGRESSION CO-SAVE - byte layout of the progress (SLPR), cap tracker (SLPX),
+// tome XP (SLTX) and memory paid (SLSM) records
 // =============================================================================
 //
 // Templated on the stream so the plugin passes SKSE::SerializationInterface as it
@@ -31,6 +31,9 @@
 // and still reads SLPR, so going back to 1.5.0 loses these counters, not the progress.
 //
 // SLTX v1: count u32, then count form ids (u32), the spells a tome already gave XP.
+//
+// SLSM v1: count u32, then per spell formId u32 and paid u8 - the 15% boundaries the spell has
+// paid into Spell Research's memory, one bit each (SpellResearchMemory.h, practice and memory).
 //
 // SLTR v1-v2 (one layout): count u32, then per learning target schoolLen u32,
 // school bytes, formId u32.

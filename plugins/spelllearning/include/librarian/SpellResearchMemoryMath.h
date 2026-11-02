@@ -79,6 +79,7 @@ namespace Librarian::SpellResearchMemoryMath
     // per spell in the co-save (SpellResearchMemory.h), so a progress reset (a relock, SetSpellXP 0) does not
     // pay a boundary twice. Bits above the 7th are ignored.
     using PaidMask = std::uint8_t;
+    static_assert(kBoundaryCount <= 8 * sizeof(PaidMask), "one bit per boundary: a finer step needs a wider mask (and a new SLSM version)");
     inline constexpr PaidMask kAllPaid = static_cast<PaidMask>((1u << kBoundaryCount) - 1u);
 
     struct Payable

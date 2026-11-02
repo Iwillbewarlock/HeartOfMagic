@@ -81,7 +81,7 @@ namespace
         std::uint32_t ReadRecordData(void* out, std::uint32_t length)
         {
             const auto n = static_cast<std::uint32_t>((std::min)(static_cast<std::size_t>(length), bytes.size() - at));
-            std::memcpy(out, bytes.data() + at, n);
+            if (n > 0) std::memcpy(out, bytes.data() + at, n);   // an empty buffer's data() may be null
             at += n;
             return n;
         }
