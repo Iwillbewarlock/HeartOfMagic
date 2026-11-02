@@ -1,7 +1,8 @@
 # Practice and memory: HoM learning XP <-> Spell Research archetype XP - design
 
 Date 2026-11-02. Branch: feature/sr-memory-exchange (from speckit-perf after merging sr-import-signal).
-Status: design, approved by the author 2026-11-02; built 2026-11-02, not run in game.
+Status: design, approved by the author 2026-11-02; built 2026-11-02; run in game 2026-11-02 (self-test PASS, save
+persistence checked from the save files).
 
 ## Idea (the author's words, 2026-11-02)
 
@@ -120,10 +121,10 @@ Panel: Settings > Spell Tome Learning, under the Spell Research line: the two sw
   `<t+1><Rank>`). `sr-memory-hook`: `OnPracticeProgress(spell, 10%, 32%)`, the hook's own entry, must pay two
   payments (SKIP with practiceToMemory off). The panel shows its rows only when the status says `memoryReady`.
   PASS/FAIL/SKIP.
-- Save persistence of direct `TESGlobal::value` writes: the save's global variable table holds every global, but
-  that the engine collects a native write was not proven (Codex: 추정). At `kPostLoadGame`, with SR set up, one
-  info line: the sum of the 300 memory globals and how many are above 0. The author's normal save and reload
-  shows it in the log.
+- Save persistence of direct `TESGlobal::value` writes: at `kPostLoadGame`, with SR set up, one info line: the sum
+  of the 300 memory globals and how many are above 0. Proven 2026-11-02 (TAKEALOOK): a save made after 7 payments
+  holds them in its `.ess` global variable table (24 of 300 above 0, sum 1318.66, read from the file), the same
+  numbers the line shows after loading it, and its co-save holds `SLSM` (1 spell, mask `1111111`).
 
 ## Not done
 
