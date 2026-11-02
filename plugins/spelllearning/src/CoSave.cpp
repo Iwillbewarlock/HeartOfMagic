@@ -8,6 +8,7 @@
 #include "SpellEffectivenessHook.h"
 #include "SpellTomeHook.h"
 #include "ElapsedMs.h"
+#include "librarian/SpellResearchMemory.h"
 
 namespace CoSave
 {
@@ -39,6 +40,7 @@ namespace CoSave
         // OnSpellTomeRead): saved, so a script that registered once keeps its events.
         // AutoRegisterISLAliases (OnPostLoadGame) still adds ISL's aliases on every load
         Guarded("DEST registrations save", [&] { DESTIntegration::OnGameSaved(a_intfc); });
+        Guarded("SpellResearch memory save", [&] { Librarian::SpellResearchMemory::SavePaidRecord(a_intfc); });
         FlushLog();
     }
 
@@ -58,6 +60,8 @@ namespace CoSave
 
         Guarded("ProgressionManager begin load", [&] { progression->BeginLoad(); });
         Guarded("SpellEffectivenessHook begin load", [&] { effectiveness->BeginLoad(); });
+        // A save without SLSM (before 2026-11-02) starts with nothing paid
+        Guarded("SpellResearch memory begin load", [&] { Librarian::SpellResearchMemory::ClearPaid(); });
 
         // A record whose reader threw is skipped: GetNextRecordInfo goes on to the
         // next record whatever was read of this one
@@ -68,6 +72,7 @@ namespace CoSave
                 if (effectiveness->ReadRecord(a_intfc, type, version, length)) return;
                 if (tomeHook->ReadRecord(a_intfc, type, version, length)) return;
                 if (DESTIntegration::ReadRecord(a_intfc, type, version, length)) return;
+                if (Librarian::SpellResearchMemory::ReadPaidRecord(a_intfc, type, version, length)) return;
                 logger::warn("SKSE Serialization: no owner for record type {:08X}, skipped", type);
             });
         }
@@ -96,6 +101,7 @@ namespace CoSave
         // from its DEST record and AutoRegisterISLAliases (OnPostLoadGame), a new
         // game's from the scripts' OnInit, which runs in that game after this revert
         Guarded("DEST registrations revert", [&] { DESTIntegration::OnRevert(a_intfc); });
+        Guarded("SpellResearch memory revert", [&] { Librarian::SpellResearchMemory::ClearPaid(); });
         logger::info("SKSE Serialization: revert done in {:.0f} ms", MsSince(started));
     }
 }

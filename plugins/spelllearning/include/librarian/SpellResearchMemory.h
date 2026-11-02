@@ -17,6 +17,7 @@
 // A. Practice becomes memory: every 15% boundary (and 100%) a learning target's
 //    progress crosses on a cast pays one short research session (memoryMinutes)
 //    into the spell's SR archetype globals, through SR's research gain table.
+//    Once per boundary per spell: a progress reset practised again pays nothing (SLSM).
 // B. Memory guides practice: a cast's XP for a target x (1 + maxPracticeBoost x the
 //    share of the spell's archetypes remembered at the spell's rank, each archetype's
 //    global measured against SR's compose scale ((R + 1) x d)^2).
@@ -52,6 +53,21 @@ namespace Librarian::SpellResearchMemory
 
     // B, from ProgressionManager::OnSpellCast: the factor for the target's casting XP (1.0 when skipped).
     [[nodiscard]] float PracticeMultiplier(RE::FormID spellId);
+
+    // ---- Paid boundaries: each 15% boundary pays once per spell, across progress resets ----
+    // Co-save record 'SLSM' (ProgressionCoSave.h: count, then formId u32 + mask u8). A save without it (before
+    // 2026-11-02) starts with nothing paid. Kept through RelockSpell, SetSpellXP and progress resets; cleared
+    // by a revert (new game, another save's load).
+    inline constexpr std::uint32_t kPaidRecord = 'SLSM';
+    // The spell's paid mask (bit i = boundary i), 0 for none
+    [[nodiscard]] SpellResearchMemoryMath::PaidMask PaidBoundaries(RE::FormID spellId);
+    // Sets it; 0 erases the spell's entry. The dev self-test puts a spell's mask back through it.
+    void SetPaidBoundaries(RE::FormID spellId, SpellResearchMemoryMath::PaidMask paid);
+    // CoSave.cpp's owners: write the record, read it (false for another record type), clear on a revert
+    void SavePaidRecord(SKSE::SerializationInterface* a_intfc);
+    bool ReadPaidRecord(SKSE::SerializationInterface* a_intfc, std::uint32_t type, std::uint32_t version,
+        std::uint32_t length);
+    void ClearPaid();
 
     // ---- The raw parts, also used by the dev self-test (EnvironmentSelfTestMemory.cpp) ----
 

@@ -72,6 +72,16 @@ namespace ProgressionCoSave
     };
     inline constexpr std::uint32_t kCapEntrySize = sizeof(std::uint32_t) + 4 * sizeof(float);
 
+    // One SLSM entry (Spell Research practice and memory): the 15% boundaries the spell has already paid
+    // into SR's memory, one bit each (SpellResearchMemoryMath::PaidMask)
+    inline constexpr std::uint32_t kMemoryPaidVersion = 1;
+    struct PaidEntry
+    {
+        std::uint32_t formId = 0;
+        std::uint8_t paid = 0;
+    };
+    inline constexpr std::uint32_t kPaidEntrySize = sizeof(std::uint32_t) + sizeof(std::uint8_t);
+
     enum class ReadResult
     {
         Ok,
@@ -225,6 +235,36 @@ namespace ProgressionCoSave
                 !Detail::Read(in, e.xpFromDirect) || !Detail::Read(in, e.xpFromSelf)) {
                 return ReadResult::ShortRead;
             }
+            entries.push_back(e);
+        }
+        return ReadResult::Ok;
+    }
+
+    // SLSM: count, then formId u32 + paid u8 per spell. False when a write failed.
+    template <class Stream>
+    [[nodiscard]] bool WritePaidEntries(Stream& out, const std::vector<PaidEntry>& entries)
+    {
+        const auto count = static_cast<std::uint32_t>(entries.size());
+        bool ok = Detail::Write(out, count);
+        for (const auto& e : entries) {
+            ok = ok && Detail::Write(out, e.formId) && Detail::Write(out, e.paid);
+        }
+        return ok;
+    }
+
+    // SLSM: a count the record cannot hold is refused before anything is allocated. On a short read the
+    // whole entries read so far are kept.
+    template <class Stream>
+    [[nodiscard]] ReadResult ReadPaidEntries(Stream& in, std::uint32_t recordLength, std::vector<PaidEntry>& entries)
+    {
+        entries.clear();
+        std::uint32_t count = 0;
+        if (!Detail::Read(in, count)) return ReadResult::ShortRead;
+        if (!Detail::CountFits(count, kPaidEntrySize, sizeof(count), recordLength)) return ReadResult::CountTooLarge;
+        entries.reserve(count);
+        for (std::uint32_t i = 0; i < count; ++i) {
+            PaidEntry e;
+            if (!Detail::Read(in, e.formId) || !Detail::Read(in, e.paid)) return ReadResult::ShortRead;
             entries.push_back(e);
         }
         return ReadResult::Ok;

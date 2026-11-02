@@ -3,10 +3,13 @@
 #include "librarian/LoadOrderSource.h"
 #include "librarian/SpellResearch.h"
 #include "SpellScanner.h"
+#include "ProgressionCoSave.h"
 
 #include <algorithm>
 #include <array>
 #include <format>
+#include <mutex>
+#include <unordered_map>
 
 // =============================================================================
 // LibrarianSpellResearchMemory - practice and memory, the game side
@@ -43,6 +46,12 @@ namespace Librarian::SpellResearchMemory
 
         // Written by ApplyConfig, read by the cast hooks: both on the game thread, no lock
         MM::Settings g_settings;
+
+        // The boundaries each spell has paid (SLSM). Not cleared by a relock, SetSpellXP or a progress reset
+        // (SR's globals are not either): only by a revert, a new game or another save's load. Locked because
+        // the co-save callbacks are SKSE's, not the cast hook's.
+        std::mutex g_paidLock;
+        std::unordered_map<RE::FormID, MM::PaidMask> g_paid;
 
         RE::FormID Resolve(const std::string& persistentId)
         {
@@ -291,15 +300,18 @@ namespace Librarian::SpellResearchMemory
     {
         // Cheat mode (unlock, relock, XP edits) is not practice: nothing becomes memory while it is on
         if (!g_settings.practiceToMemory || g_settings.cheatMode) return;
-        // LIMIT: no per-spell record of what was paid. Progress from other sources inside a chunk is paid
-        // by the next cast that crosses its boundary, and a boundary crossed by a non-cast source (a tome,
-        // passive, ISL study) pays nothing. A progress reset pays again: RelockSpell (cheat mode) or
-        // SetSpellXP(spell, 0) (Papyrus/C++ API, the panel's XP edit) puts the spell back below its
-        // boundaries, and practising it again pays its 7 payments a second time. Upgrade path: a per-spell
-        // "highest boundary paid" byte in the co-save progress record (a version bump), checked here.
+        // Each boundary pays once per spell (SLSM): a progress reset (RelockSpell, SetSpellXP 0) practised
+        // again pays nothing. A boundary crossed by a non-cast source (a tome, passive, ISL study) pays
+        // nothing then and stays unpaid, so a later cast over it (after a reset) still pays it.
         const int crossed = MM::BoundariesCrossed(progressBefore, progressAfter);
         if (crossed == 0) return;
+        const auto due = MM::PayableBoundaries(progressBefore, progressAfter, PaidBoundaries(spellId));
         const auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(spellId);
+        if (due.count == 0) {
+            logger::debug("SpellResearch memory: {} ({:08X}) crossed {} boundaries - nothing paid: all paid before "
+                          "(progress reset)", SpellName(spell), spellId, crossed);
+            return;
+        }
         std::string why;
         if (!Ready(why)) {
             logger::debug("SpellResearch memory: {} ({:08X}) crossed {} boundaries - nothing paid: {}",
@@ -318,11 +330,83 @@ namespace Librarian::SpellResearchMemory
                 SpellName(spell), spellId, g_settings.memoryMinutes);
             return;
         }
-        const std::size_t changed = Pay(*memory, crossed, value);
+        const std::size_t changed = Pay(*memory, due.count, value);
+        SetPaidBoundaries(spellId, due.paid);
         logger::info("SpellResearch memory: {} ({:08X}) {:.1f}% -> {:.1f}%, {} boundaries crossed - {} payment(s) of "
-                     "v {:.2f} at rank {} into {} archetypes ({} globals changed)",
-            SpellName(spell), spellId, progressBefore * 100.0f, progressAfter * 100.0f, crossed, crossed, value,
-            memory->rank, memory->archetypes.size(), changed);
+                     "v {:.2f} at rank {} into {} archetypes ({} globals changed), paid mask {:07b}",
+            SpellName(spell), spellId, progressBefore * 100.0f, progressAfter * 100.0f, crossed, due.count, value,
+            memory->rank, memory->archetypes.size(), changed, due.paid);
+    }
+
+    MM::PaidMask PaidBoundaries(RE::FormID spellId)
+    {
+        const std::scoped_lock lock(g_paidLock);
+        const auto it = g_paid.find(spellId);
+        return it != g_paid.end() ? it->second : MM::PaidMask{ 0 };
+    }
+
+    void SetPaidBoundaries(RE::FormID spellId, MM::PaidMask paid)
+    {
+        const std::scoped_lock lock(g_paidLock);
+        paid = static_cast<MM::PaidMask>(paid & MM::kAllPaid);
+        if (paid == 0) g_paid.erase(spellId);
+        else g_paid[spellId] = paid;
+    }
+
+    void SavePaidRecord(SKSE::SerializationInterface* a_intfc)
+    {
+        std::vector<ProgressionCoSave::PaidEntry> entries;
+        {
+            const std::scoped_lock lock(g_paidLock);
+            entries.reserve(g_paid.size());
+            for (const auto& [formId, paid] : g_paid) entries.push_back({ formId, paid });
+        }
+        if (!a_intfc->OpenRecord(kPaidRecord, ProgressionCoSave::kMemoryPaidVersion) ||
+            !ProgressionCoSave::WritePaidEntries(*a_intfc, entries)) {
+            logger::error("SpellResearch memory: failed to write the paid boundaries record ({} spells)", entries.size());
+            return;
+        }
+        logger::info("SpellResearch memory: saved paid boundaries for {} spells", entries.size());
+    }
+
+    bool ReadPaidRecord(SKSE::SerializationInterface* a_intfc, std::uint32_t type, std::uint32_t version,
+        std::uint32_t length)
+    {
+        if (type != kPaidRecord) return false;
+        if (version != ProgressionCoSave::kMemoryPaidVersion) {
+            logger::warn("SpellResearch memory: paid boundaries record version {} unknown (reads {}) - skipped, "
+                         "nothing counts as paid", version, ProgressionCoSave::kMemoryPaidVersion);
+            return true;
+        }
+        std::vector<ProgressionCoSave::PaidEntry> entries;
+        const auto result = ProgressionCoSave::ReadPaidEntries(*a_intfc, length, entries);
+        if (result != ProgressionCoSave::ReadResult::Ok) {
+            logger::error("SpellResearch memory: paid boundaries record unreadable ({}), {} entries read before it kept",
+                ProgressionCoSave::Describe(result), entries.size());
+        }
+        std::size_t dropped = 0;
+        const std::scoped_lock lock(g_paidLock);
+        for (const auto& e : entries) {
+            // LIMIT: ResolveFormID moves a light plugin's id but passes a runtime-made (0xFF) id through as it
+            // is; a runtime spell whose id another takes after the load shares its mask. Not seen in HoM's paths.
+            RE::FormID resolved = 0;
+            const auto paid = static_cast<MM::PaidMask>(e.paid & MM::kAllPaid);
+            if (paid == 0) continue;
+            if (!a_intfc->ResolveFormID(e.formId, resolved)) {
+                ++dropped;   // the spell's plugin is gone
+                continue;
+            }
+            g_paid[resolved] = paid;
+        }
+        logger::info("SpellResearch memory: loaded paid boundaries for {} spells ({} dropped, plugin gone)",
+            g_paid.size(), dropped);
+        return true;
+    }
+
+    void ClearPaid()
+    {
+        const std::scoped_lock lock(g_paidLock);
+        g_paid.clear();
     }
 
     float PracticeMultiplier(RE::FormID spellId)

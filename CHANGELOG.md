@@ -11,7 +11,9 @@
   know its archetypes at its level, measured on Spell Research's own spell-composing scale. Only casting counts (not tomes, passive learning or other mods). Both
   halves can be turned off and sized under Settings > Spell Tome Learning, below the Spell Research line (shown
   only with Spell Research installed); `config.json` `spellResearch.memoryExchange`. Both are off while cheat mode is on.
-  The four setting labels are in all 13 panel languages.
+  The four setting labels are in all 13 panel languages. Each 15% step pays into Spell Research once per spell:
+  a spell relocked or set back to 0 XP and practised again adds nothing (saved with the game; a save from before
+  this version starts with nothing counted as paid).
 
 ### Fixed
 

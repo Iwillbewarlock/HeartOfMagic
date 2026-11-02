@@ -3,6 +3,7 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 
 #include <nlohmann/json.hpp>
 
@@ -72,6 +73,35 @@ namespace Librarian::SpellResearchMemoryMath
             if (oldProgress < boundary && boundary <= newProgress) ++crossed;
         }
         return crossed;
+    }
+
+    // Which boundaries a spell has already paid: bit i is boundary i (bit 0 the 15%, bit 6 the 100%). One byte
+    // per spell in the co-save (SpellResearchMemory.h), so a progress reset (a relock, SetSpellXP 0) does not
+    // pay a boundary twice. Bits above the 7th are ignored.
+    using PaidMask = std::uint8_t;
+    inline constexpr PaidMask kAllPaid = static_cast<PaidMask>((1u << kBoundaryCount) - 1u);
+
+    struct Payable
+    {
+        int count = 0;        // payments due now
+        PaidMask paid = 0;    // the mask after paying them
+    };
+
+    // The boundaries in (oldProgress, newProgress] not yet in `paid`: one payment each, and their bits set.
+    // Nothing when the progress did not rise, or either end is NaN or negative.
+    [[nodiscard]] inline Payable PayableBoundaries(float oldProgress, float newProgress, PaidMask paid) noexcept
+    {
+        Payable result{ 0, static_cast<PaidMask>(paid & kAllPaid) };
+        if (!(oldProgress >= 0.0f) || !(newProgress > oldProgress)) return result;   // NaN fails both
+        const auto boundaries = Boundaries();
+        for (std::size_t i = 0; i < kBoundaryCount; ++i) {
+            const auto bit = static_cast<PaidMask>(1u << i);
+            if (oldProgress < boundaries[i] && boundaries[i] <= newProgress && (result.paid & bit) == 0) {
+                ++result.count;
+                result.paid = static_cast<PaidMask>(result.paid | bit);
+            }
+        }
+        return result;
     }
 
     // One research session's value: SR's _SR_GlobalResearchTimeBase (15.0) x hours.

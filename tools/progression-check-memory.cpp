@@ -143,6 +143,35 @@ namespace ProgressionCheck
         Check(std::isnan(MM::ApplyGain(nan, 5.0f)) && MM::ApplyGain(inf, 5.0f) == inf,
               "memory: a NaN or infinite global is left alone (SR: GetValue() < max is false for both)");
 
+        // ---- Paid boundaries (the co-save byte) -----------------------------------------------
+        const auto first = MM::PayableBoundaries(0.10f, 0.32f, 0);
+        Check(first.count == 2 && first.paid == 0b11, "memory paid: 10% -> 32% with nothing paid pays 15 and 30, bits 0-1 set");
+        const auto again = MM::PayableBoundaries(0.10f, 0.32f, first.paid);
+        Check(again.count == 0 && again.paid == 0b11, "memory paid: the same span again (a reset, practised again) pays nothing");
+        const auto next = MM::PayableBoundaries(0.32f, 0.47f, first.paid);
+        Check(next.count == 1 && next.paid == 0b111, "memory paid: 32% -> 47% after 15/30 paid pays only 45");
+        const auto mastered = MM::PayableBoundaries(0.0f, 1.0f, 0);
+        Check(mastered.count == 7 && mastered.paid == MM::kAllPaid, "memory paid: 0 -> mastery pays 7, all bits set");
+        Check(MM::PayableBoundaries(0.0f, 0.15f, MM::kAllPaid).count == 0 &&
+                  MM::PayableBoundaries(0.0f, 1.0f, MM::kAllPaid).count == 0,
+              "memory paid: relocked after mastery, cheat mode off, practised 0 -> 15% and -> 100%: nothing");
+        const auto skipped = MM::PayableBoundaries(0.0f, 0.50f, 0b0100);   // 45% paid by a cast after a tome jump
+        Check(skipped.count == 2 && skipped.paid == 0b0111,
+              "memory paid: a boundary a tome jumped (15, 30 unpaid) is still paid by a later cast; 45 is not paid again");
+        Check(MM::PayableBoundaries(0.50f, 0.20f, 0b1).paid == 0b1 && MM::PayableBoundaries(nan, 0.50f, 0b1).count == 0 &&
+                  MM::PayableBoundaries(-0.1f, 0.50f, 0).count == 0,
+              "memory paid: falling, NaN or negative progress pays nothing and keeps the mask");
+        Check(MM::PayableBoundaries(0.0f, 0.15f, 0xFF).paid == MM::kAllPaid &&
+                  MM::PayableBoundaries(0.0f, 0.15f, 0x80).count == 1,
+              "memory paid: bits above the 7th are dropped and do not count as paid");
+        bool sameAsCrossed = true;
+        for (const float from : { 0.0f, 0.10f, 0.15f, 0.44f, 0.89f, 0.95f }) {
+            for (const float to : { 0.15f, 0.30f, 0.50f, 0.90f, 1.0f }) {
+                sameAsCrossed = sameAsCrossed && MM::PayableBoundaries(from, to, 0).count == MM::BoundariesCrossed(from, to);
+            }
+        }
+        Check(sameAsCrossed, "memory paid: with nothing paid it pays exactly what BoundariesCrossed counts");
+
         // ---- Settings ------------------------------------------------------------------------
         using json = nlohmann::json;
         const auto defaults = MM::ReadSettings(json::object());

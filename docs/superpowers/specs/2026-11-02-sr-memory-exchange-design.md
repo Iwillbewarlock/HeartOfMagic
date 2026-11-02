@@ -50,12 +50,20 @@ researches. Kept small, both halves can be turned off.
   7 payments of v. SR's own research is not linear in session length either, so this is not "N research hours";
   it is "a short research session per 15% of practice". SR's curve on small v (< 1) shrinks the higher-rank
   gains, which is why it is not paid per cast.
-- LIMIT (in code): no per-spell record of what was paid. Progress from other sources inside a chunk is paid
-  with the next cast that crosses its boundary (a tome read to 25%, then a cast crossing 30%, pays 15%), and a
-  boundary crossed by a non-cast source pays nothing. A progress reset pays again: `RelockSpell` (cheat mode) or
-  `SetSpellXP(spell, 0)` (Papyrus/C++ API, the panel's XP edit) puts the spell below its boundaries, and practising
-  it again pays its 7 payments a second time (review round 1, 2026-11-02). Upgrade path: a per-spell "highest
-  boundary paid" byte in the co-save progress record (a version bump), checked before paying.
+- Each boundary pays once per spell (2026-11-02, the author's "막아"): a per-spell mask of the boundaries paid
+  (bit i = boundary i, `SpellResearchMemoryMath::PayableBoundaries`), in its own co-save record `SLSM` (count, then
+  formId u32 + mask u8; `ProgressionCoSave.h`). A cast pays the boundaries it crosses whose bit is clear and sets
+  them. A progress reset (`RelockSpell` in cheat mode, `SetSpellXP(spell, 0)`, the panel's XP edit) practised again
+  pays nothing. A boundary crossed by a non-cast source (a tome, passive, ISL study) pays nothing then and keeps its
+  bit clear, so a later cast over it (after a reset) still pays it. A mask, not "the highest boundary paid": with a
+  highest index, a tome to 30% then a cast past 45% would mark 15 and 30 paid without paying them (Codex design
+  review, 2026-11-02). Kept apart from `SpellProgress`, which a relock, `SetSpellXP` and `BeginLoad` rewrite;
+  cleared only by a revert and at the start of a load (`CoSave.cpp`). A save from before has no `SLSM`: nothing
+  counts as paid, so a spell mastered with an earlier build, then relocked and practised, pays its boundaries once
+  more. Not filled in from the progress: tome progress must not count as paid.
+- LIMIT: the mask is keyed by FormID through `ResolveFormID`, which handles light plugins moving but passes a
+  runtime-made (`0xFF`) id through as it is; a runtime spell whose id is reused by another after a load would
+  share its mask. Not seen in Heart of Magic's own paths.
 - Skip silently (debug log) when: SR not loaded, `_SR_GlobalIsSetup` != 1 or `_SR_GlobalImporting` != 0, the
   feature is off, the panel's cheat mode is on (top-level `cheatMode`; both halves, author's decision 2026-11-02:
   unlocking, relocking and XP edits are not practice), the spell is in no tier list or no archetype list.

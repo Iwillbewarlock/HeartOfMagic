@@ -293,6 +293,35 @@ namespace
         Check(CS::CapEntry{ 1, 0.0f, 0.0f, 0.0f, 0.0f }.IsEmpty() && !caps[0].IsEmpty(),
               "SLPX skips spells with nothing counted");
 
+        // SLSM (practice and memory: boundaries paid): round trip, cut short, a count too large
+        const std::vector<CS::PaidEntry> paid = { { 0x0001'2FCD, 0b0000011 }, { 0xFE00'0802, 0b1111111 } };
+        ByteWriter sm;
+        Check(CS::WritePaidEntries(sm, paid) && sm.bytes.size() == 4 + paid.size() * CS::kPaidEntrySize,
+              "SLSM written: count + 5 bytes per spell");
+        std::vector<CS::PaidEntry> paidBack;
+        ByteReader smIn{ sm.bytes };
+        Check(CS::ReadPaidEntries(smIn, static_cast<std::uint32_t>(sm.bytes.size()), paidBack) == CS::ReadResult::Ok &&
+                  paidBack.size() == 2 && paidBack[0].formId == 0x0001'2FCD && paidBack[0].paid == 0b0000011 &&
+                  paidBack[1].formId == 0xFE00'0802 && paidBack[1].paid == 0b1111111,
+              "SLSM round trip (a light plugin's id too)");
+        auto smCut = sm.bytes;
+        smCut.resize(smCut.size() - 1);
+        ByteReader smCutIn{ smCut };
+        Check(CS::ReadPaidEntries(smCutIn, static_cast<std::uint32_t>(sm.bytes.size()), paidBack) ==
+                      CS::ReadResult::ShortRead &&
+                  paidBack.size() == 1 && paidBack[0].paid == 0b0000011,
+              "SLSM cut short: the whole entry before the cut kept");
+        ByteReader smLenIn{ sm.bytes };
+        Check(CS::ReadPaidEntries(smLenIn, static_cast<std::uint32_t>(sm.bytes.size()) - 1, paidBack) ==
+                  CS::ReadResult::CountTooLarge,
+              "SLSM count larger than the record refused");
+        ByteWriter smEmpty;
+        Check(CS::WritePaidEntries(smEmpty, {}) && smEmpty.bytes.size() == 4, "SLSM with nothing paid is the count alone");
+        const std::vector<std::uint8_t> smNone;
+        ByteReader smNoneIn{ smNone };
+        Check(CS::ReadPaidEntries(smNoneIn, 0, paidBack) == CS::ReadResult::ShortRead && paidBack.empty(),
+              "SLSM: an empty stream is a short read, nothing kept");
+
         // Failure: cut inside a modded name - the record ends there, no misaligned entry after it
         ByteWriter broken;
         broken.Put(std::uint32_t{ 2 });

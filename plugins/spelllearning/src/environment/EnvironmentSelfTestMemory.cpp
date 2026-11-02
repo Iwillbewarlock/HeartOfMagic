@@ -21,11 +21,13 @@
 //                   B's multiplier against 1 + maxPracticeBoost% x the average of
 //                   min(1, global[a][R] / ((R + 1) x d)^2), worked out here - once paid, once restored
 //                   (1.0 while memoryToPractice is off).
-//   sr-memory-hook  The hook's own entry, OnPracticeProgress(spell, 10%, 32%) from the snapshot: two
-//                   boundaries, so every global must hold ApplyGain(ApplyGain(before, g), g). SKIP while
-//                   practiceToMemory is off.
-//   The snapshot is put back by an RAII guard, on an exception or early return too, and checked: the save
-//   is left as it was. SKIP without SR set up, without such a spell or with v 0 (memoryMinutes 0).
+//   sr-memory-hook  The hook's own entry, OnPracticeProgress(spell, 10%, 32%) from the snapshot and nothing
+//                   paid: two boundaries, so every global must hold ApplyGain(ApplyGain(before, g), g) and
+//                   the spell's paid mask 0000011. The same call again (a relock practised again) must
+//                   change nothing. SKIP while practiceToMemory is off or cheat mode is on.
+//   The snapshot and the spell's paid mask are put back by an RAII guard, on an exception or early return
+//   too, and checked: the save is left as it was. SKIP without SR set up, without such a spell or with v 0
+//   (memoryMinutes 0).
 // =============================================================================
 
 namespace Environment::SelfTest
@@ -64,17 +66,25 @@ namespace Environment::SelfTest
             for (const auto& slot : snapshot) slot.global->value = slot.before;
         }
 
-        // Puts every snapshotted global back when the check leaves, however it leaves
+        // Puts every snapshotted global and the spell's paid mask back when the check leaves, however it leaves
         class GlobalsRestore
         {
         public:
-            explicit GlobalsRestore(const Snapshot& snapshot) : m_snapshot(snapshot) {}
-            ~GlobalsRestore() { Restore(m_snapshot); }
+            GlobalsRestore(const Snapshot& snapshot, RE::FormID spellId) :
+                m_snapshot(snapshot), m_spellId(spellId), m_paid(Memory::PaidBoundaries(spellId))
+            {}
+            ~GlobalsRestore()
+            {
+                Restore(m_snapshot);
+                Memory::SetPaidBoundaries(m_spellId, m_paid);
+            }
             GlobalsRestore(const GlobalsRestore&) = delete;
             GlobalsRestore& operator=(const GlobalsRestore&) = delete;
 
         private:
             const Snapshot& m_snapshot;
+            RE::FormID m_spellId;
+            MM::PaidMask m_paid;
         };
 
         // Every global against `payments` payments of the gain table from its snapshot. The first mismatch
@@ -174,29 +184,42 @@ namespace Environment::SelfTest
         bool paidBOk = false;
         const auto hookSettings = Memory::CurrentSettings();
         const bool hookOn = hookSettings.practiceToMemory && !hookSettings.cheatMode;
+        const RE::FormID spellId = spell->GetFormID();
+        const MM::PaidMask paidBefore = Memory::PaidBoundaries(spellId);
+        MM::PaidMask paidAfterHook = 0;
+        std::size_t repeatMismatches = 0;
+        std::size_t repeatExpected = 0;
+        std::string repeatMismatch;
         {
-            const GlobalsRestore restore(snapshot);
+            const GlobalsRestore restore(snapshot, spellId);
             changed = Memory::Pay(*memory, 1, value);
             mismatches = Mismatches(snapshot, gains, 1, expectedChanges, firstMismatch);
             paidBOk = MultiplierMatches(spell, *memory, paidB);
 
             if (hookOn) {
+                // From nothing paid, whatever this save has paid for the spell (the guard puts it back)
                 Restore(snapshot);
-                Memory::OnPracticeProgress(spell->GetFormID(), kHookFrom, kHookTo);
+                Memory::SetPaidBoundaries(spellId, 0);
+                Memory::OnPracticeProgress(spellId, kHookFrom, kHookTo);
                 hookMismatches = Mismatches(snapshot, gains, kHookPayments, hookExpectedChanges, hookMismatch);
+                paidAfterHook = Memory::PaidBoundaries(spellId);
+                // The same span again, as after a relock: the boundaries are paid, nothing may change
+                Memory::OnPracticeProgress(spellId, kHookFrom, kHookTo);
+                repeatMismatches = Mismatches(snapshot, gains, kHookPayments, repeatExpected, repeatMismatch);
             }
         }
 
-        // The guard has run: every global as it was
+        // The guard has run: every global and the paid mask as they were
         std::size_t notRestored = 0;
         for (const auto& slot : snapshot) {
             if (slot.global->value != slot.before) ++notRestored;
         }
+        const bool paidRestored = Memory::PaidBoundaries(spellId) == paidBefore;
         std::string restoredB;
         const bool restoredBOk = MultiplierMatches(spell, *memory, restoredB);
 
         const bool ok = badNames == 0 && mismatches == 0 && changed == expectedChanges && paidBOk && restoredBOk &&
-                        notRestored == 0;
+                        notRestored == 0 && paidRestored;
         Report(kId, ok ? Outcome::kPass : Outcome::kFail,
             std::format("{} ({:08X}) rank {}, {} archetypes, v {:.2f}: {} rank names wrong{}; {} globals changed (math {}), "
                         "{} mismatches{}, {} not restored; B paid {}; B restored {}",
@@ -206,8 +229,14 @@ namespace Environment::SelfTest
             Report(kHookId, Outcome::kSkip, hookSettings.cheatMode ? "cheat mode is on" : "practiceToMemory is off");
             return;
         }
-        Report(kHookId, hookMismatches == 0 && notRestored == 0 ? Outcome::kPass : Outcome::kFail,
-            std::format("OnPracticeProgress {:.0f}% -> {:.0f}% ({} payments): {} globals to change, {} mismatches{}",
-                kHookFrom * kPercent, kHookTo * kPercent, kHookPayments, hookExpectedChanges, hookMismatches, hookMismatch));
+        const MM::PaidMask paidExpected = MM::PayableBoundaries(kHookFrom, kHookTo, 0).paid;
+        const bool hookOk = hookMismatches == 0 && notRestored == 0 && paidAfterHook == paidExpected &&
+                            repeatMismatches == 0 && paidRestored;
+        Report(kHookId, hookOk ? Outcome::kPass : Outcome::kFail,
+            std::format("OnPracticeProgress {:.0f}% -> {:.0f}% ({} payments): {} globals to change, {} mismatches{}; "
+                        "paid mask {:07b} (expected {:07b}); the same span again: {} mismatches{} (expected none: "
+                        "paid before); paid mask put back {:07b} -> {}",
+                kHookFrom * kPercent, kHookTo * kPercent, kHookPayments, hookExpectedChanges, hookMismatches, hookMismatch,
+                paidAfterHook, paidExpected, repeatMismatches, repeatMismatch, paidBefore, paidRestored ? "yes" : "NO"));
     }
 }
