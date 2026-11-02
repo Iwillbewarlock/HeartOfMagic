@@ -300,6 +300,23 @@ namespace PapyrusAPI
         });
     }
 
+    // Every school key holding this spell (perSchool or single mode). Like any target clear it takes back the
+    // weakened copy an early grant gave (SpellEffectivenessHook::RemoveEarlySpellFromPlayer): posted, so a
+    // script's AddSpell right after the call lands first and is then taken away - wait until the spell is no
+    // longer a target (SpellLearning.psc).
+    void ClearLearningTargetForSpell(RE::StaticFunctionTag*, RE::SpellItem* spell)
+    {
+        if (!spell) {
+            logger::warn("PapyrusAPI: ClearLearningTargetForSpell called with null spell");
+            return;
+        }
+        const RE::FormID formId = spell->GetFormID();
+        AddTaskToGameThread("Papyrus.ClearLearningTargetForSpell", [formId]() {
+            logger::info("PapyrusAPI: ClearLearningTargetForSpell({:08X})", formId);
+            ProgressionManager::GetSingleton()->ClearLearningTargetForSpell(formId);
+        });
+    }
+
     void ClearAllLearningTargets(RE::StaticFunctionTag*)
     {
         AddTaskToGameThread("Papyrus.ClearAllLearningTargets", []() {
@@ -484,6 +501,7 @@ namespace PapyrusAPI
         RegisterGameThreadNative<SetLearningTarget>(vm, "SetLearningTarget", SCRIPT_NAME);
         RegisterGameThreadNative<SetLearningTargetForSchool>(vm, "SetLearningTargetForSchool", SCRIPT_NAME);
         RegisterGameThreadNative<ClearLearningTarget>(vm, "ClearLearningTarget", SCRIPT_NAME);
+        RegisterGameThreadNative<ClearLearningTargetForSpell>(vm, "ClearLearningTargetForSpell", SCRIPT_NAME);
         RegisterGameThreadNative<ClearAllLearningTargets>(vm, "ClearAllLearningTargets", SCRIPT_NAME);
 
         // === Settings Queries ===
@@ -498,7 +516,7 @@ namespace PapyrusAPI
         RegisterGameThreadNative<NotificationText>(vm, "NotificationText", SCRIPT_NAME);
         RegisterGameThreadNative<NotificationsOff>(vm, "NotificationsOff", SCRIPT_NAME);
 
-        logger::info("PapyrusAPI: Registered {} functions under script '{}'", 29, SCRIPT_NAME);
+        logger::info("PapyrusAPI: Registered {} functions under script '{}'", 30, SCRIPT_NAME);
 
         return true;
     }

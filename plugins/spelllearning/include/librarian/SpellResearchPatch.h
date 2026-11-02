@@ -7,7 +7,8 @@
 //
 // Spell Research (SR) fills its archetype FormLists only when the player
 // presses Import in its MCM, and only with the spells its import quests name.
-// After that Import finishes - and at every save load - the catalog spells SR
+// After that Import finishes (its message box, or the mod event SR_ImportFinished)
+// - and at every save load - the catalog spells SR
 // does not know yet are added to its lists the way an SR import quest adds
 // them (BGSListForm::AddForm, so the entries live in the save and SR's next
 // Import clears them like its own). Spells an SR patch registered keep their
@@ -19,7 +20,9 @@
 namespace Librarian::SpellResearchPatch
 {
     // kDataLoaded: with SpellResearch.esp loaded, reads the rules file and
-    // starts listening for the message box SR shows when an Import finishes.
+    // starts listening for the end of an Import: the message box SR shows, or
+    // the SKSE mod event "SR_ImportFinished" a build without that box sends
+    // (Papyrus SendModEvent). Both run the same idempotent check.
     void Install();
 
     // kPostLoadGame: brings the loaded save's lists up to date.

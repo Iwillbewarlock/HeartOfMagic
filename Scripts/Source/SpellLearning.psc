@@ -111,6 +111,16 @@ Function SetLearningTargetForSchool(string schoolName, Spell akSpell) global nat
 ; Clear the learning target for a school
 Function ClearLearningTarget(string schoolName) global native
 
+; Stop learning this spell, whichever school holds it (perSchool or single mode).
+; Like any target clear, it takes back the weakened copy an early grant gave the
+; player. The call only queues the work (in order with SetLearningTarget and the
+; other clears) and returns: to give the player the full spell afterwards, wait
+; until GetAllLearningTargets() no longer holds it, then AddSpell. An AddSpell
+; made before that is taken away with the weakened copy. To let the player keep
+; the spell at full power instead, skip this and add XP up to GetSpellRequiredXP:
+; mastery keeps the spell and clears the target itself.
+Function ClearLearningTargetForSpell(Spell akSpell) global native
+
 ; Clear all learning targets
 Function ClearAllLearningTargets() global native
 
