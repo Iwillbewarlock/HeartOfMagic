@@ -229,7 +229,7 @@ HoM 의 시전 XP 는 "연습", SR 의 아키타입 XP(아키타입 60개 x 등�
   (0..4 안만)에 대해 `global[a][t] += v ^ ((s + R + 1) / 3)`, 주문이 든 모든 아키타입 a 에. SR 의
   `ModGlobalVariable` 규칙: 값이 10,000,000 미만일 때만 더하고 넘으면 10,000,000 으로 자른다. 경계마다 고정
   금액인 이유: 공식이 선형이 아니라 넘은 폭을 합쳐 내면 총액이 잘린 방식에 따라 달라진다.
-- **B. 기억이 연습을 이끈다.** 같은 함수에서 마법책 소지 보너스 바로 뒤, 출처별 상한 앞:
+- **B. 기억이 연습을 돕는다.** 같은 함수에서 마법책 소지 보너스 바로 뒤, 출처별 상한 앞:
   `xpGain x (1 + maxPracticeBoost% x known)`. `known` = 주문의 아키타입마다 `min(1, global[a][R] / KnownFull(R))`
   의 평균, `KnownFull(R) = ((R + 1) x d)^2`, d = `_SR_GlobalCraftSpellDifficulty`(0x9EB3, ESP 값 3.0; 호출마다 읽고
   없거나 0 이하·유한하지 않으면 3.0). Novice 9, Master 225. 기준을 SR 의 조합 난이도 척도로 잡은 이유: SR 이
