@@ -459,6 +459,7 @@ int main(int argc, char** argv)
     CoSaveCases();
     ProgressionCheck::MathCases();
     ProgressionCheck::RequiredXPCases();
+    ProgressionCheck::MemoryCases();
     using ProgressionCheck::g_cases;
     using ProgressionCheck::g_failures;
     std::printf("%d of %d cases passed\n", g_cases - g_failures, g_cases);

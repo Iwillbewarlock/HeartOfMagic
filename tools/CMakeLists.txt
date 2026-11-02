@@ -241,11 +241,13 @@ target_link_libraries(tree-remap-check PRIVATE
 # The plugin's own ProgressionCoSave.h and ProgressionMath.h (header only, no game
 # types): --self-test writes and reads SLPR v1-v3, SLPX and SLTX records in byte
 # buffers (cut short, over the limits) and runs the cap, study and mastery numbers;
-# ConfigRenames.h moves renamed settings (passive XP per game day).
+# ConfigRenames.h moves renamed settings (passive XP per game day); librarian/SpellResearchMemoryMath.h
+# the Spell Research practice and memory numbers (progression-check-memory.cpp).
 
 add_executable(progression-check
     progression-check.cpp
     progression-check-math.cpp
+    progression-check-memory.cpp
 )
 
 target_compile_features(progression-check PRIVATE cxx_std_23)

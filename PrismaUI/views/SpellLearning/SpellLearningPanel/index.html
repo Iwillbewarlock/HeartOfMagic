@@ -1567,6 +1567,38 @@
                                     <span class="setting-desc" id="spellResearchStatusText"></span>
                                 </div>
                             </div>
+
+                            <!-- Spell Research practice and memory (modules/spellResearchMemorySetting.js; shown and hidden with the line above) -->
+                            <div class="setting-row" id="srPracticeToMemoryRow" style="display: none;">
+                                <div class="setting-info">
+                                    <span class="setting-label" data-i18n="settings.tomeLearning.srPracticeToMemory">Practice becomes memory</span>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="srPracticeToMemoryToggle" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            <div class="setting-row" id="srMemoryMinutesRow" style="display: none;">
+                                <div class="setting-info">
+                                    <span class="setting-label" data-i18n="settings.tomeLearning.srMemoryMinutes">Memory per 15% of practice (research minutes)</span>
+                                </div>
+                                <input type="number" id="srMemoryMinutesInput" class="tier-xp-input" value="25" min="0" max="240">
+                            </div>
+                            <div class="setting-row" id="srMemoryToPracticeRow" style="display: none;">
+                                <div class="setting-info">
+                                    <span class="setting-label" data-i18n="settings.tomeLearning.srMemoryToPractice">Memory guides practice</span>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="srMemoryToPracticeToggle" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            <div class="setting-row" id="srMaxPracticeBoostRow" style="display: none;">
+                                <div class="setting-info">
+                                    <span class="setting-label" data-i18n="settings.tomeLearning.srMaxPracticeBoost">Most practice bonus from memory (%)</span>
+                                </div>
+                                <input type="number" id="srMaxPracticeBoostInput" class="tier-xp-input" value="25" min="0" max="100">
+                            </div>
                         
                             <div class="setting-row">
                                 <div class="setting-info">
@@ -2069,6 +2101,7 @@
     <script src="modules/notificationSetting.js"></script>
     <script src="modules/panelOpenSetting.js"></script>
     <script src="modules/autoBuildSetting.js"></script>
+    <script src="modules/spellResearchMemorySetting.js"></script>
     <script src="modules/spellResearchStatus.js"></script>
     <script src="modules/requiredXPSync.js"></script>
     <script src="modules/designEffectsSetting.js"></script>

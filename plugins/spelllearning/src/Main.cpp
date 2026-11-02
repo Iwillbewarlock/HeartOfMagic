@@ -24,6 +24,7 @@
 #include "environment/EnvironmentTwins.h"
 #include "librarian/PerkAdapterPatch.h"
 #include "librarian/SpellResearchPatch.h"
+#include "librarian/SpellResearchMemory.h"
 #include "tomereach/TomeReach.h"
 
 // =============================================================================
@@ -341,6 +342,8 @@ void OnDataLoaded()
 
     // Spell Research learns the catalog spells after its Import (docs/librarian/SPELL_RESEARCH.md)
     Librarian::SpellResearchPatch::Install();
+    // Practice and memory: casting XP <-> SR archetype XP (SpellResearchMemory.h)
+    Librarian::SpellResearchMemory::Install();
 
     // Tomes that teach nothing (Spell Research Synthesizer) and the spell each
     // stands for, before the tome reach pass takes the tomes (SpellTomes.h)
@@ -431,6 +434,7 @@ void OnPostLoadGame()
     SpellTomes::Rebuild(SpellTomes::kReasonSaveLoaded);
     steps.Mark("tomes");
     Librarian::SpellResearchPatch::OnGameLoaded();
+    Librarian::SpellResearchMemory::OnGameLoaded();   // one line: the memory globals this save holds
     steps.Mark("Spell Research");
     Librarian::PerkAdapters::Reassert("save loaded");
     steps.Mark("perk adapters");

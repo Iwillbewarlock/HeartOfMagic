@@ -8,7 +8,8 @@
  * (LibrarianSpellResearchPatch.cpp), so they never show in SR's own import
  * messages. This line says that it happened. The plugin sends its state when
  * the panel opens and whenever a run changes it (window.onSpellResearchStatus,
- * UIManager::NotifySpellResearchStatus); without SR the row stays hidden.
+ * UIManager::NotifySpellResearchStatus); without SR the row stays hidden, and so do
+ * the practice and memory rows under it (spellResearchMemorySetting.js).
  *
  * Depends on: t() (i18n.js); languageSetting.js redraws it after a language switch
  */
@@ -67,7 +68,9 @@ var SpellResearchStatus = {
         var row = document.getElementById('spellResearchStatusRow');
         var out = document.getElementById('spellResearchStatusText');
         if (!row || !out) return;
-        if (!this._last) {
+        var shown = !!this._last;
+        if (typeof SpellResearchMemorySetting !== 'undefined') SpellResearchMemorySetting.show(shown);
+        if (!shown) {
             row.style.display = 'none';
             return;
         }

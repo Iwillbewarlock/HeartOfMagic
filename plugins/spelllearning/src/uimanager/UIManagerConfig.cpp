@@ -16,6 +16,7 @@
 #include "HudNotify.h"
 #include "PassiveLearningSource.h"
 #include "ThreadUtils.h"
+#include "librarian/SpellResearchMemory.h"
 
 // =============================================================================
 // SETTINGS (Legacy - now uses Unified Config)
@@ -257,6 +258,9 @@ void ApplySettingsFromConfig(const nlohmann::json& config)
                 castHandler->GetNotificationInterval());
         }
     }
+
+    // Spell Research practice and memory (spellResearch.memoryExchange; missing keys are the defaults)
+    Librarian::SpellResearchMemory::ApplyConfig(config);
 }
 
 void ApplyGameplayConfig(const nlohmann::json& config)
@@ -381,6 +385,16 @@ json GenerateDefaultConfig() {
             {"weakenedSpellNotifications", true},
             {"weakenedSpellInterval", 10.0f},
             {"language", "panel"}
+        }},
+        // Spell Research practice and memory (SpellResearchMemoryMath.h). "enabled" (the registrations,
+        // LibrarianSpellResearchPatch.cpp) is left out: absent means on, and a player's false stays in the file
+        {"spellResearch", {
+            {"memoryExchange", {
+                {"practiceToMemory", true},
+                {"memoryMinutes", 25},
+                {"memoryToPractice", true},
+                {"maxPracticeBoost", 25}
+            }}
         }},
         {"schoolColors", json::object()},
         {"customProfiles", json::object()}

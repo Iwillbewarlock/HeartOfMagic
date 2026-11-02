@@ -214,3 +214,50 @@ SR 의 메시지 상자와 메뉴를 PrismaUI 창으로 바꾸는 모드. `_SR_Q
 - SR 게임플레이(연구 세션·저널·실험 실패) 재구현, SR 어휘를 사서 태그로 채택(Concept.md).
 - `_SR_ListUndiscoverableSpells`: 등록하는 주문은 모두 마법책이 가르치는 주문이라 비워 둔다.
 - 유물·연금 목록: 주문이 아니다.
+
+## 9. 연습과 기억 (2026-11-02, 빌드만 됨 · 게임 확인 전)
+
+HoM 의 시전 XP 는 "연습", SR 의 아키타입 XP(아키타입 60개 x 등급 5개의 GlobalVariable)는 "기억"이다. 둘이 서로를
+채운다. 설계와 이유: `docs/superpowers/specs/2026-11-02-sr-memory-exchange-design.md`.
+코드: `include/librarian/SpellResearchMemoryMath.h`(순수 계산, `progression-check --self-test` 가 확인) ·
+`include/librarian/SpellResearchMemory.h` · `src/librarian/LibrarianSpellResearchMemory.cpp`(게임 쪽).
+
+- **A. 연습이 기억으로 남는다.** `ProgressionManager::OnSpellCast` 에서 `AddXP` 앞뒤의 진행도를 비교해, 이번
+  시전이 넘은 경계(15, 30, ... 90%, 그리고 100%) 하나마다 연구 한 번 값을 낸다:
+  `v = _SR_GlobalResearchTimeBase(0x2B82, 15.0) x memoryMinutes / 60`(기본 25분 → 6.25). SR 의 연구 공식
+  (`_SR_EffectResearchScript.UpdateArchetypeList`)대로, 주문 등급 R, 슬롯 s = 0..6, 대상 등급 t = R + 2 - s
+  (0..4 안만)에 대해 `global[a][t] += v ^ ((s + R + 1) / 3)`, 주문이 든 모든 아키타입 a 에. SR 의
+  `ModGlobalVariable` 규칙: 값이 10,000,000 미만일 때만 더하고 넘으면 10,000,000 으로 자른다. 경계마다 고정
+  금액인 이유: 공식이 선형이 아니라 넘은 폭을 합쳐 내면 총액이 잘린 방식에 따라 달라진다.
+- **B. 기억이 연습을 이끈다.** 같은 함수에서 마법책 소지 보너스 바로 뒤, 출처별 상한 앞:
+  `xpGain x (1 + maxPracticeBoost% x known)`, `known` = 주문의 아키타입 중 그 등급 R 의 값이 0 보다 큰 비율
+  (SR MCM 의 "안다" 와 같은 기준). 상한은 그대로 걸린다.
+- **시전 XP 만.** 마법책 읽기, 패시브, ISL 공부, DEST, BookXP, 다른 모드 출처, `AddRawXP`/`SetSpellXP` 는 A 에
+  들어가지 않는다(SR 이 HoM 에 주는 `spell_research` 몫이 기억으로 되돌아오지 않게).
+- **안 하는 때(디버그 로그만):** `SpellResearch.esp` 없음, `_SR_GlobalIsSetup` != 1 이거나 `_SR_GlobalImporting`
+  != 0, 해당 스위치 꺼짐, 주문이 SR 등급 목록(`lists.allSpells`)이나 아키타입 목록 어디에도 없음. 등급은 주문이
+  든 가장 낮은 등급 목록.
+- **목록:** `_SR_ListSpellsArchetypes`(`lists.archetypeSpells`, 0xD9E, FormList 60개)와
+  `_SR_ListGlobalsArchetypes`(`lists.archetypeGlobals`, 0x133D, FormList 60개 x TESGlobal 5개, 0 Novice ... 4 Master)를
+  같은 순서로 짝짓는다. 소속은 `HasForm`(플러그인 항목 + `scriptAddedTempForms`, SR 의 Import 와 우리 등록이
+  있는 곳). 폼은 kDataLoaded 에 한 번 찾고(두 바깥 목록의 길이가 다르면 기능 전체를 끈다), 등급과 소속은
+  호출마다 새로 읽는다(캐시 없음: Import 가 목록 크기를 그대로 두고 내용을 바꿀 수 있다).
+- **로그:** 지급마다 info 한 줄(주문 이름·formID, 진행도, 넘은 경계 수, v, 등급, 아키타입 수, 바뀐 전역 수).
+  B 의 배율은 debug. kPostLoadGame 에 SR 이 준비돼 있으면 info 한 줄: 기억 전역 300개의 합과 0 보다 큰 개수
+  (전역에 직접 쓴 값이 세이브에 남는지 확인용 - 저장 → 불러오기 뒤 이 줄이 같아야 한다).
+- **설정:** `config.json` `spellResearch.memoryExchange` = `{ practiceToMemory: true, memoryMinutes: 25,
+  memoryToPractice: true, maxPracticeBoost: 25 }`. 빠진 키는 기본값, `memoryMinutes` 0 - 240, `maxPracticeBoost`
+  0 - 100(%)로 자른다. 패널: 설정 > 마법서 학습, "Spell Research" 줄 아래 스위치 둘과 숫자 둘(SR 이 없으면 줄과
+  함께 숨는다, `modules/spellResearchMemorySetting.js`). `spellResearch.enabled`(등록 스위치)와는 따로다.
+- **한계(코드에 `// LIMIT:`):** (1) 주문마다 얼마를 냈는지 기록하지 않는다. 다른 출처가 올린 진행은 그 구간의
+  경계를 넘는 다음 시전 때 함께 치러지고, 시전이 아닌 출처가 넘긴 경계는 치러지지 않는다(경계당 한 구간까지
+  어긋남). (2) SR 의 Papyrus `GlobalVariable.Mod` 는 GetValue 후 SetValue 라, 그 사이에 C++ 쓰기가 끼면 한쪽이
+  사라진다. SR 연구가 도는 중에 시전이 경계를 넘을 때만, 한 번에 한 지급까지. 막지 않는다.
+- **SR 자체 연구 모드 보상과 겹친다**(`_SR_EffectResearchScript.OnSpellCast`, 연구 중 장착 주문 시전마다 v = 1.5):
+  둘 다 연습이라 일부러 둔다.
+- **테스트:** `progression-check --self-test` 의 `memory:` 사례(경계, 등급별 이득표, 상한, 아는 비율, 배율, 설정).
+  게임 안: 개발용 자가 테스트 `sr-memory`(`src/environment/EnvironmentSelfTestMemory.cpp`): 등급 목록에서 아키타입이
+  있는 첫 주문의 전역을 저장해 두고, 게임 쪽 `Pay` 로 한 번 지급한 뒤 모든 전역을 계산 헤더의 값과 비교하고,
+  RAII 가드로 되돌린 뒤(예외·중도 반환에도) 되돌려졌는지와 B 의 배율을 공식과 비교한다. SR 이 준비되지 않았으면 SKIP.
+- **게임 확인 할 것:** 학습 대상 주문을 시전해 15% 를 넘길 때 로그의 지급 줄, SR MCM 의 아키타입 지식이 늘었는지,
+  저장 → 불러오기 뒤 kPostLoadGame 줄의 합이 그대로인지(직접 쓴 전역이 세이브에 남는지는 증명되지 않았다).

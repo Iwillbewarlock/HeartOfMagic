@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### New
+
+- **Spell Research: practice and memory.** With Spell Research installed and imported, casting a spell you are
+  learning now also teaches Spell Research: every 15% of progress a cast crosses (and mastery) adds a short
+  research session (25 research minutes by default) to the spell's Spell Research archetypes, by Spell Research's
+  own research formula. The other way round, casting XP for a spell rises by up to 25% with the share of its
+  archetypes you already know at its level. Only casting counts (not tomes, passive learning or other mods). Both
+  halves can be turned off and sized under Settings > Spell Tome Learning, below the Spell Research line (shown
+  only with Spell Research installed); `config.json` `spellResearch.memoryExchange`.
+
 ### Fixed
 
 - **Don't Eat Spell Tomes and the mods that use it.** With the real Don't Eat Spell Tomes installed (LoreRim, for

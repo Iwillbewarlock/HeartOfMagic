@@ -23,4 +23,9 @@ namespace ProgressionCheck
     void MathCases();
     /// RequiredXPTable.h: required XP by kind, what a revert keeps
     void RequiredXPCases();
+
+    // progression-check-memory.cpp
+    /// librarian/SpellResearchMemoryMath.h: practice and memory (boundaries, SR's gain table and cap,
+    /// known share, practice multiplier, settings)
+    void MemoryCases();
 }

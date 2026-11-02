@@ -440,6 +440,21 @@ SR's next Import clears them with its own; tome pairs only while a tier's two to
 Report: `spell_research_report.json`; switch: `config.json` `spellResearch.enabled` (default on).
 docs/librarian/SPELL_RESEARCH.md.
 
+**Spell Research practice and memory (2026-11-02).** `Librarian::SpellResearchMemory`
+(`LibrarianSpellResearchMemory.cpp`; the numbers in `include/librarian/SpellResearchMemoryMath.h`, checked by
+`progression-check --self-test`) links casting XP and SR's archetype XP (60 archetypes x 5 ranks of TESGlobal,
+`_SR_ListGlobalsArchetypes`). A: in `ProgressionManager::OnSpellCast`, after `AddXP`, each 15% boundary (and 100%)
+the target's progress crossed pays one research session of `memoryMinutes` (v = `_SR_GlobalResearchTimeBase` x
+minutes / 60) into the spell's archetypes through SR's gain table (`global[a][R+2-s] += v^((s+R+1)/3)`, SR's 10,000,000
+cap). B: right after the tome inventory boost and before the source caps, the cast's XP for the target x (1 +
+`maxPracticeBoost`% x the share of its archetypes whose global at its rank is above 0). Casting XP only; skipped
+(1.0) unless SR's Import finished and none runs and the spell is in a tier list and an archetype list. Rank and
+archetypes are read on each call (no cache); the forms are resolved once at kDataLoaded from
+`compat/spellresearch.json` (`lists.archetypeSpells`, `lists.archetypeGlobals`, `researchTimeBase`). kPostLoadGame
+logs the memory globals' sum. Settings: `config.json` `spellResearch.memoryExchange` (below; not tied to
+`spellResearch.enabled`). Design: docs/superpowers/specs/2026-11-02-sr-memory-exchange-design.md;
+docs/librarian/SPELL_RESEARCH.md, "연습과 기억".
+
 `castByVampires: true` marks a spell a vampire NPC carries - an NPC whose record has the `Vampire`
 keyword, or whose race has it or has an editor id holding "vamp" (case-insensitive: vanilla
 FalmerFrozenVampRace, CC's HorkerRaceVampire and Vigilant's vampire races lack the keyword; the engine
@@ -2214,8 +2229,10 @@ went with the LLM feature on 2026-09-28.
 Player casts spell → SpellCastHandler::ProcessEvent()
   (or CastSpellImmediate hook → OnImmediateCast(), e.g. SpellHotbar 2; same task, known spells only)
   → Identify spell school → ProgressionManager::OnSpellCast()
-  → Calculate XP (direct/school/any multipliers, self-cast bonus)
-  → Update progress
+  → Calculate XP (direct/school/any multipliers, self-cast bonus, tome inventory boost,
+    Spell Research memory: SpellResearchMemory::PracticeMultiplier)
+  → Update progress (AddXP), then SpellResearchMemory::OnPracticeProgress: each 15% boundary
+    crossed pays Spell Research archetype XP
   → If progress >= unlockThreshold (default 25%):
       → SpellEffectivenessHook::GrantEarlySpell() - Add spell to player (nerfed)
   → If progress == 100%:
@@ -2373,10 +2390,26 @@ All settings stored in single config file, managed through UI:
   "spellBlacklist": [],
   "pluginWhitelist": [],
 
+  "spellResearch": {
+    "enabled": true,
+    "memoryExchange": {
+      "practiceToMemory": true,
+      "memoryMinutes": 25,
+      "memoryToPractice": true,
+      "maxPracticeBoost": 25
+    }
+  },
+
   "schoolColors": {...},
   "customProfiles": {...}
 }
 ```
+
+`spellResearch.enabled` (no panel control) turns the Spell Research registrations off; `memoryExchange` is the
+practice and memory exchange (Settings > Spell Tome Learning, shown only with Spell Research installed;
+`modules/spellResearchMemorySetting.js` writes only that object). Missing keys are the defaults; `memoryMinutes`
+is clamped to 0 - 240, `maxPracticeBoost` (percent) to 0 - 100 (`SpellResearchMemoryMath::ReadSettings`). They
+apply at game start, at the panel's config load and at every save (`ApplySettingsFromConfig`).
 
 ---
 

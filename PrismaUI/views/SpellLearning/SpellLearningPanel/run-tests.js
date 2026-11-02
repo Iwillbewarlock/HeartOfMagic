@@ -101,6 +101,7 @@ loadModule('prereqEditTest', './modules/prereqEditTest.js');
 loadModule('notificationSettingTest', './modules/notificationSettingTest.js');
 loadModule('panelOpenSettingTest', './modules/panelOpenSettingTest.js');
 loadModule('spellResearchStatusTest', './modules/spellResearchStatusTest.js');
+loadModule('spellResearchMemorySettingTest', './modules/spellResearchMemorySettingTest.js');
 loadModule('spellSearchTest', './modules/spellSearchTest.js');
 loadModule('treeToolsScaleTest', './modules/treeToolsScaleTest.js');
 loadModule('learningTargetKeysTest', './modules/learningTargetKeysTest.js');

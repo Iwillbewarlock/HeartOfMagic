@@ -11,6 +11,7 @@
 #include "SpellTomeHook.h"
 #include "SpellScanner.h"
 #include "ProgressionMath.h"
+#include "librarian/SpellResearchMemory.h"
 
 // =============================================================================
 // XP SETTINGS
@@ -186,6 +187,8 @@ void ProgressionManager::OnSpellCast(const std::string& school, RE::FormID castS
                     targetId, xpGain);
             }
         }
+        // Memory guides practice: Spell Research archetypes remembered at the spell's rank (1.0 when skipped)
+        xpGain *= Librarian::SpellResearchMemory::PracticeMultiplier(targetId);
 
         // =========================================================================
         // CHECK XP CAPS - limit contribution from each source type
@@ -241,7 +244,10 @@ void ProgressionManager::OnSpellCast(const std::string& school, RE::FormID castS
         // In "single" mode, only the first learning target gets XP
         // In "perSchool" mode, each school's target gets XP independently.
         // Per target at debug level: the cast's one info line follows the loop
+        const float progressBefore = progRef.progressPercent;   // by value: AddXP may clear the target
         AddXP(targetId, actualXPGain);
+        // Practice becomes memory: each 15% boundary (and 100%) crossed pays Spell Research archetype XP
+        Librarian::SpellResearchMemory::OnPracticeProgress(targetId, progressBefore, GetProgress(targetId).progressPercent);
         totalXP += actualXPGain;
         const bool single = m_xpSettings.learningMode == "single";
         LogXPGrant(a_path, targetId, actualXPGain,

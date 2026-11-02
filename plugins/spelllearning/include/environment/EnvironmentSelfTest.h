@@ -41,6 +41,7 @@ namespace Environment::SelfTest
     void CheckGameThreadFlag();   // EnvironmentSelfTestTomes.cpp
     void CheckOwnedOutside();     // EnvironmentSelfTestTomes.cpp
     void CheckTreeGraft();        // EnvironmentSelfTestGraft.cpp: the main menu's tree graft
+    void CheckSpellResearchMemory();   // EnvironmentSelfTestMemory.cpp: SR practice and memory
 
     enum class Outcome
     {
