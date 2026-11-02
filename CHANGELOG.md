@@ -11,6 +11,7 @@
   know its archetypes at its level, measured on Spell Research's own spell-composing scale. Only casting counts (not tomes, passive learning or other mods). Both
   halves can be turned off and sized under Settings > Spell Tome Learning, below the Spell Research line (shown
   only with Spell Research installed); `config.json` `spellResearch.memoryExchange`. Both are off while cheat mode is on.
+  The four setting labels are in all 13 panel languages.
 
 ### Fixed
 
