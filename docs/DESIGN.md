@@ -1827,7 +1827,7 @@ with XP Alerts off; a preset never changes it): the game draws the corner with i
 panel language in a script that font lacks (Japanese on a Korean game font) showed boxes.
 **Spell Tomes:** How reading spell tomes interacts with progression. With Spell Research loaded, its first line
 says what Heart of Magic last added to Spell Research's lists (`modules/spellResearchStatus.js`,
-docs/librarian/SPELL_RESEARCH.md section 3); hidden without it. Under it, shown and hidden with it, practice and
+docs/librarian/SPELL_RESEARCH.md section 3); hidden without it. Under it, shown and hidden with it (and only when its state says `memoryReady`), practice and
 memory (`modules/spellResearchMemorySetting.js`, `spellResearch.memoryExchange`, SPELL_RESEARCH.md section 9): two
 switches (Practice becomes memory, Memory guides practice) and two numbers in `tier-xp-input` boxes (research minutes
 per 15% of practice, 0 - 240; most practice bonus from memory, 0 - 100%), each number greyed out (`disabled-controls`)

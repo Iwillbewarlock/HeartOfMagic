@@ -18,7 +18,8 @@
 //    progress crosses on a cast pays one short research session (memoryMinutes)
 //    into the spell's SR archetype globals, through SR's research gain table.
 // B. Memory guides practice: a cast's XP for a target x (1 + maxPracticeBoost x the
-//    share of the spell's archetypes remembered (> 0) at the spell's rank).
+//    share of the spell's archetypes remembered at the spell's rank, each archetype's
+//    global measured against SR's compose scale ((R + 1) x d)^2).
 //
 // Both do nothing unless SpellResearch.esp is loaded, SR's Import finished and
 // none runs (_SR_GlobalIsSetup 1, _SR_GlobalImporting 0), the half's switch is on
@@ -74,8 +75,13 @@ namespace Librarian::SpellResearchMemory
     // `payments` payments of v into the spell's archetypes (SR's cap rule each time). The
     // switches are not checked here. Returns how many globals changed.
     std::size_t Pay(const SpellMemory& memory, int payments, float value);
-    // The share of the spell's archetypes whose global at its rank is above 0.
+    // The share of the spell's archetypes remembered at its rank: the average of
+    // min(1, global[a][R] / ((R + 1) x d)^2), d = SR's compose difficulty (SpellResearchMemoryMath::KnownShare).
     [[nodiscard]] float KnownShare(const SpellMemory& memory);
+    // d now: _SR_GlobalCraftSpellDifficulty, or 3.0 when missing, not positive or not finite.
+    [[nodiscard]] float CraftDifficulty();
+    // The lists and globals were found at kDataLoaded (the panel shows the memory rows only then).
+    [[nodiscard]] bool Installed();
     // The settings ApplyConfig took last.
     [[nodiscard]] SpellResearchMemoryMath::Settings CurrentSettings();
     // The first spell in SR's tier lists that has an archetype, or nullptr.

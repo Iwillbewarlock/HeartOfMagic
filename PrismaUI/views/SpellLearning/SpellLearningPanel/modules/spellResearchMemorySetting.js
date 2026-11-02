@@ -12,8 +12,9 @@
  * Saved as config.spellResearch.memoryExchange = { practiceToMemory, memoryMinutes,
  * memoryToPractice, maxPracticeBoost }. Only that object is written: the C++ save
  * merges objects key by key, so spellResearch.enabled (set by hand) stays. Shown
- * only with Spell Research installed: spellResearchStatus.js shows and hides the
- * rows with its own line. Not in settings presets.
+ * only with Spell Research installed and the plugin's memory part ready (the status
+ * line's memoryReady): spellResearchStatus.js shows and hides the rows with its own
+ * line. Not in settings presets.
  *
  * Depends on: settings, autoSaveSettings (optional)
  */

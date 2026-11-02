@@ -59,10 +59,17 @@ namespace ProgressionCheck
         Check(masterOk, "memory: R=4 gains: rank t gets v^((6 - t + 5) / 3), Master v^(7/3) ... Novice v^(11/3)",
               std::to_string(master[4]) + " .. " + std::to_string(master[0]));
 
-        const float share = MM::KnownShare(2, 3);
-        Check(Near(share, 2.0f / 3.0f) && Near(MM::PracticeMultiplier(25.0f, share), 1.0f + 0.25f * 2.0f / 3.0f),
-              "memory: 2 of 3 archetypes known -> multiplier 1 + 0.25 x 2/3");
-        Check(Near(MM::PracticeMultiplier(25.0f, 1.0f), 1.25f), "memory: every archetype known -> x1.25");
+        // Known share: each archetype's global against SR's compose scale ((R + 1) x d)^2, averaged
+        Check(Near(MM::KnownFraction(4.5f, 0, 3.0f), 0.5f) && Near(MM::KnownFraction(112.5f, 4, 3.0f), 0.5f),
+              "memory: a global at half of KnownFull is known 0.5 (Novice 4.5 of 9, Master 112.5 of 225)");
+        const float values[] = { 9.0f, 4.5f, 0.0f };
+        const float share = MM::KnownShare(values, 3, 0, 3.0f);
+        Check(Near(share, 0.5f) && Near(MM::PracticeMultiplier(25.0f, share), 1.125f),
+              "memory: archetypes known 1, 0.5, 0 -> share 0.5, multiplier 1 + 0.25 x 0.5");
+        Check(Near(MM::PracticeMultiplier(25.0f, 1.0f), 1.25f), "memory: every archetype fully known -> x1.25");
+        // One payment of v = 6.25 into a Novice spell gives its rank 6.25 of 9: not yet all known
+        Check(Near(MM::KnownFraction(MM::GainTable(0, v)[0], 0, 3.0f), 6.25f / 9.0f),
+              "memory: one payment leaves a Novice spell's archetype 6.25 / 9 known (B does not saturate at once)");
 
         Check(Near(MM::ApplyGain(10.0f, 5.5f), 15.5f), "memory: a gain under the cap is added");
 
@@ -83,6 +90,25 @@ namespace ProgressionCheck
               "memory: R=2 pays all five ranks, Master by slot 0 (v^1)");
         Check(PaidRanks(MM::GainTable(1, v)) == 4 && MM::GainTable(1, v)[4] == 0.0f,
               "memory: R=1 pays Novice to Expert only");
+        const auto apprentice = MM::GainTable(1, v);
+        bool apprenticeOk = true;
+        for (int t = 0; t <= 3; ++t) {
+            const int slot = 1 + 2 - t;
+            apprenticeOk = apprenticeOk && NearRelative(apprentice[static_cast<std::size_t>(t)], std::pow(6.25, (slot + 1 + 1) / 3.0));
+        }
+        Check(apprenticeOk, "memory: R=1 gains: Expert v^(2/3), Adept v^1, Apprentice v^(4/3), Novice v^(5/3)");
+        const auto expert = MM::GainTable(3, v);
+        bool expertOk = PaidRanks(expert) == 5;
+        for (int t = 0; t <= 4; ++t) {
+            const int slot = 3 + 2 - t;
+            expertOk = expertOk && NearRelative(expert[static_cast<std::size_t>(t)], std::pow(6.25, (slot + 3 + 1) / 3.0));
+        }
+        Check(expertOk, "memory: R=3 gains: Master v^(5/3) ... Novice v^(9/3), all five ranks");
+        Check(Near(MM::KnownFull(0, 3.0f), 9.0f) && Near(MM::KnownFull(4, 3.0f), 225.0f),
+              "memory: KnownFull at d = 3 is 9 for Novice and 225 for Master");
+        Check(Near(MM::KnownFraction(9.0f, 0, 3.0f), 1.0f) && Near(MM::KnownFraction(500.0f, 4, 3.0f), 1.0f) &&
+                  Near(MM::KnownFraction(0.0f, 2, 3.0f), 0.0f),
+              "memory: a global at or over KnownFull is known 1, at 0 known 0");
 
         // ---- Failure -------------------------------------------------------------------------
         const float nan = std::numeric_limits<float>::quiet_NaN();
@@ -91,8 +117,18 @@ namespace ProgressionCheck
         Check(MM::BoundariesCrossed(nan, 0.50f) == 0 && MM::BoundariesCrossed(0.10f, nan) == 0 &&
                   MM::BoundariesCrossed(-0.10f, 0.50f) == 0,
               "memory: NaN or negative progress pays nothing");
-        Check(Near(MM::KnownShare(0, 0), 0.0f) && Near(MM::PracticeMultiplier(25.0f, MM::KnownShare(0, 0)), 1.0f),
-              "memory: no archetypes -> multiplier 1");
+        Check(Near(MM::KnownShare(values, 0, 0, 3.0f), 0.0f) && Near(MM::KnownShare(nullptr, 3, 0, 3.0f), 0.0f) &&
+                  Near(MM::PracticeMultiplier(25.0f, MM::KnownShare(values, 0, 0, 3.0f)), 1.0f),
+              "memory: no archetypes -> share 0, multiplier 1");
+        Check(Near(MM::KnownFull(0, 0.0f), 9.0f) && Near(MM::KnownFull(0, -2.0f), 9.0f) && Near(MM::KnownFull(0, nan), 9.0f) &&
+                  Near(MM::KnownFull(4, std::numeric_limits<float>::infinity()), 225.0f),
+              "memory: a difficulty <= 0, NaN or infinite falls back to 3.0");
+        const float nanValues[] = { nan, 9.0f };
+        Check(Near(MM::KnownFraction(nan, 0, 3.0f), 0.0f) && Near(MM::KnownFraction(-4.0f, 0, 3.0f), 0.0f) &&
+                  Near(MM::KnownShare(nanValues, 2, 0, 3.0f), 0.5f),
+              "memory: a NaN or negative global counts as 0 known");
+        Check(Near(MM::KnownFull(5, 3.0f), 0.0f) && Near(MM::KnownFraction(9.0f, 5, 3.0f), 0.0f),
+              "memory: a rank past Master has no scale and nothing known");
         Check(Near(MM::PracticeMultiplier(0.0f, 1.0f), 1.0f) && Near(MM::PracticeMultiplier(nan, 1.0f), 1.0f) &&
                   Near(MM::PracticeMultiplier(25.0f, nan), 1.0f),
               "memory: no boost, NaN boost or NaN share -> multiplier 1");
@@ -103,6 +139,9 @@ namespace ProgressionCheck
         Check(PaidRanks(MM::GainTable(5, v)) == 0, "memory: a rank past Master pays nothing");
         Check(Near(MM::ApplyGain(10.0f, nan), 10.0f) && Near(MM::ApplyGain(10.0f, -3.0f), 10.0f),
               "memory: a NaN or negative gain changes nothing");
+        const float inf = std::numeric_limits<float>::infinity();
+        Check(std::isnan(MM::ApplyGain(nan, 5.0f)) && MM::ApplyGain(inf, 5.0f) == inf,
+              "memory: a NaN or infinite global is left alone (SR: GetValue() < max is false for both)");
 
         // ---- Settings ------------------------------------------------------------------------
         using json = nlohmann::json;

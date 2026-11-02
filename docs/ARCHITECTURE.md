@@ -447,10 +447,13 @@ docs/librarian/SPELL_RESEARCH.md.
 the target's progress crossed pays one research session of `memoryMinutes` (v = `_SR_GlobalResearchTimeBase` x
 minutes / 60) into the spell's archetypes through SR's gain table (`global[a][R+2-s] += v^((s+R+1)/3)`, SR's 10,000,000
 cap). B: right after the tome inventory boost and before the source caps, the cast's XP for the target x (1 +
-`maxPracticeBoost`% x the share of its archetypes whose global at its rank is above 0). Casting XP only; skipped
+`maxPracticeBoost`% x the average of min(1, global[a][R] / ((R + 1) x d)^2), d = `_SR_GlobalCraftSpellDifficulty`,
+SR's compose scale, 3.0 when missing). Casting XP only; skipped
 (1.0) unless SR's Import finished and none runs and the spell is in a tier list and an archetype list. Rank and
 archetypes are read on each call (no cache); the forms are resolved once at kDataLoaded from
-`compat/spellresearch.json` (`lists.archetypeSpells`, `lists.archetypeGlobals`, `researchTimeBase`). kPostLoadGame
+`compat/spellresearch.json` (`lists.archetypeSpells`, `lists.archetypeGlobals`, `researchTimeBase`,
+`craftSpellDifficulty`); the outer lists by index, a null entry keeping its slot. The panel's rows show only when
+the Spell Research status carries `memoryReady: true` (UIManager::NotifySpellResearchStatus adds it). kPostLoadGame
 logs the memory globals' sum. Settings: `config.json` `spellResearch.memoryExchange` (below; not tied to
 `spellResearch.enabled`). Design: docs/superpowers/specs/2026-11-02-sr-memory-exchange-design.md;
 docs/librarian/SPELL_RESEARCH.md, "연습과 기억".

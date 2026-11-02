@@ -230,8 +230,13 @@ HoM 의 시전 XP 는 "연습", SR 의 아키타입 XP(아키타입 60개 x 등�
   `ModGlobalVariable` 규칙: 값이 10,000,000 미만일 때만 더하고 넘으면 10,000,000 으로 자른다. 경계마다 고정
   금액인 이유: 공식이 선형이 아니라 넘은 폭을 합쳐 내면 총액이 잘린 방식에 따라 달라진다.
 - **B. 기억이 연습을 이끈다.** 같은 함수에서 마법책 소지 보너스 바로 뒤, 출처별 상한 앞:
-  `xpGain x (1 + maxPracticeBoost% x known)`, `known` = 주문의 아키타입 중 그 등급 R 의 값이 0 보다 큰 비율
-  (SR MCM 의 "안다" 와 같은 기준). 상한은 그대로 걸린다.
+  `xpGain x (1 + maxPracticeBoost% x known)`. `known` = 주문의 아키타입마다 `min(1, global[a][R] / KnownFull(R))`
+  의 평균, `KnownFull(R) = ((R + 1) x d)^2`, d = `_SR_GlobalCraftSpellDifficulty`(0x9EB3, ESP 값 3.0; 호출마다 읽고
+  없거나 0 이하·유한하지 않으면 3.0). Novice 9, Master 225. 기준을 SR 의 조합 난이도 척도로 잡은 이유: SR 이
+  조합 확률에 쓰는 크기(`_SR_EffectComposeSpellScript.psc:249`, `Math.Pow((SpellRank + 1) x difficulty, 2)`)라
+  "이 등급에서 이만큼이면 충분히 안다" 를 SR 이 정한 값으로 잴 수 있다. 처음 설계의 "값 > 0" 은 A 의 슬롯 2
+  지급(t = R)이 첫 15% 에서 모든 global[a][R] 를 0 보다 크게 만들어 B 가 곧바로 +25% 고정이 됐다(리뷰 1차,
+  2026-11-02). 상한은 그대로 걸린다.
 - **시전 XP 만.** 마법책 읽기, 패시브, ISL 공부, DEST, BookXP, 다른 모드 출처, `AddRawXP`/`SetSpellXP` 는 A 에
   들어가지 않는다(SR 이 HoM 에 주는 `spell_research` 몫이 기억으로 되돌아오지 않게).
 - **안 하는 때(디버그 로그만):** `SpellResearch.esp` 없음, `_SR_GlobalIsSetup` != 1 이거나 `_SR_GlobalImporting`
@@ -239,7 +244,9 @@ HoM 의 시전 XP 는 "연습", SR 의 아키타입 XP(아키타입 60개 x 등�
   든 가장 낮은 등급 목록.
 - **목록:** `_SR_ListSpellsArchetypes`(`lists.archetypeSpells`, 0xD9E, FormList 60개)와
   `_SR_ListGlobalsArchetypes`(`lists.archetypeGlobals`, 0x133D, FormList 60개 x TESGlobal 5개, 0 Novice ... 4 Master)를
-  같은 순서로 짝짓는다. 소속은 `HasForm`(플러그인 항목 + `scriptAddedTempForms`, SR 의 Import 와 우리 등록이
+  같은 순서로 짝짓는다. 바깥 목록은 인덱스로 읽는다(`forms[i]`, 그다음 스크립트 추가분을 저장된 순서대로):
+  빈 항목도 자리를 지켜 뒤 아키타입이 이웃의 전역으로 밀리지 않는다(`ForEachForm` 은 빈 항목을 건너뛴다).
+  소속은 `HasForm`(플러그인 항목 + `scriptAddedTempForms`, SR 의 Import 와 우리 등록이
   있는 곳). 폼은 kDataLoaded 에 한 번 찾고(두 바깥 목록의 길이가 다르면 기능 전체를 끈다), 등급과 소속은
   호출마다 새로 읽는다(캐시 없음: Import 가 목록 크기를 그대로 두고 내용을 바꿀 수 있다).
 - **로그:** 지급마다 info 한 줄(주문 이름·formID, 진행도, 넘은 경계 수, v, 등급, 아키타입 수, 바뀐 전역 수).
@@ -248,16 +255,22 @@ HoM 의 시전 XP 는 "연습", SR 의 아키타입 XP(아키타입 60개 x 등�
 - **설정:** `config.json` `spellResearch.memoryExchange` = `{ practiceToMemory: true, memoryMinutes: 25,
   memoryToPractice: true, maxPracticeBoost: 25 }`. 빠진 키는 기본값, `memoryMinutes` 0 - 240, `maxPracticeBoost`
   0 - 100(%)로 자른다. 패널: 설정 > 마법서 학습, "Spell Research" 줄 아래 스위치 둘과 숫자 둘(SR 이 없으면 줄과
-  함께 숨는다, `modules/spellResearchMemorySetting.js`). `spellResearch.enabled`(등록 스위치)와는 따로다.
+  함께 숨는다, `modules/spellResearchMemorySetting.js`). 상태 줄의 `memoryReady`(이 부분이 kDataLoaded 에 SR 의
+  목록과 전역을 찾았는지)가 true 일 때만 보인다. `spellResearch.enabled`(등록 스위치)와는 따로다.
 - **한계(코드에 `// LIMIT:`):** (1) 주문마다 얼마를 냈는지 기록하지 않는다. 다른 출처가 올린 진행은 그 구간의
-  경계를 넘는 다음 시전 때 함께 치러지고, 시전이 아닌 출처가 넘긴 경계는 치러지지 않는다(경계당 한 구간까지
-  어긋남). (2) SR 의 Papyrus `GlobalVariable.Mod` 는 GetValue 후 SetValue 라, 그 사이에 C++ 쓰기가 끼면 한쪽이
+  경계를 넘는 다음 시전 때 함께 치러지고, 시전이 아닌 출처가 넘긴 경계는 치러지지 않는다. 진행도를 되돌리면
+  다시 치러진다: `RelockSpell`(치트 모드)이나 `SetSpellXP(주문, 0)`(Papyrus/C++ API, 패널의 XP 편집) 뒤 다시
+  연습하면 같은 주문이 7번을 또 낸다. 고칠 길: 코세이브 진행 기록에 주문마다 "낸 가장 높은 경계" 1바이트(버전
+  올림). (2) SR 의 Papyrus `GlobalVariable.Mod` 는 GetValue 후 SetValue 라, 그 사이에 C++ 쓰기가 끼면 한쪽이
   사라진다. SR 연구가 도는 중에 시전이 경계를 넘을 때만, 한 번에 한 지급까지. 막지 않는다.
 - **SR 자체 연구 모드 보상과 겹친다**(`_SR_EffectResearchScript.OnSpellCast`, 연구 중 장착 주문 시전마다 v = 1.5):
   둘 다 연습이라 일부러 둔다.
 - **테스트:** `progression-check --self-test` 의 `memory:` 사례(경계, 등급별 이득표, 상한, 아는 비율, 배율, 설정).
   게임 안: 개발용 자가 테스트 `sr-memory`(`src/environment/EnvironmentSelfTestMemory.cpp`): 등급 목록에서 아키타입이
   있는 첫 주문의 전역을 저장해 두고, 게임 쪽 `Pay` 로 한 번 지급한 뒤 모든 전역을 계산 헤더의 값과 비교하고,
-  RAII 가드로 되돌린 뒤(예외·중도 반환에도) 되돌려졌는지와 B 의 배율을 공식과 비교한다. SR 이 준비되지 않았으면 SKIP.
+  RAII 가드로 되돌린 뒤(예외·중도 반환에도) 되돌려졌는지와 B 의 배율을 공식과 비교한다. 등급 대응은 이름으로
+  따로 본다(각 전역의 editor id 가 `<t+1><Rank>` 로 끝나야 한다: `_SR_GlobalArchetype{Group}{Name}{1..5}{Rank}`).
+  `sr-memory-hook`: 같은 가드 안에서 훅이 부르는 `OnPracticeProgress(주문, 10%, 32%)` 가 두 번 지급하는지(전역마다
+  `ApplyGain(ApplyGain(전, g), g)`); practiceToMemory 가 꺼져 있으면 SKIP. SR 이 준비되지 않았으면 둘 다 SKIP.
 - **게임 확인 할 것:** 학습 대상 주문을 시전해 15% 를 넘길 때 로그의 지급 줄, SR MCM 의 아키타입 지식이 늘었는지,
   저장 → 불러오기 뒤 kPostLoadGame 줄의 합이 그대로인지(직접 쓴 전역이 세이브에 남는지는 증명되지 않았다).

@@ -7,7 +7,8 @@
  * save -> load round trip into config.spellResearch.memoryExchange with a hand-set
  * spellResearch.enabled left in place, a number greyed out while its switch is off,
  * a typed number clamped and saved, Reset to Defaults, and the rows shown and hidden
- * with the Spell Research line (spellResearchStatus.js render).
+ * with the Spell Research line (spellResearchStatus.js render) - only when its state
+ * says memoryReady: true.
  *
  * Depends on: spellResearchMemorySetting.js and spellResearchStatus.js - under node
  * this file runs them into the global scope the way the page's script tags do. Swaps
@@ -157,10 +158,17 @@ var SpellResearchMemorySettingTest = {
                 SRS.receive(null);
                 self.check(els.srPracticeToMemoryRow.style.display === 'none' && els.srMaxPracticeBoostRow.style.display === 'none',
                     'no Spell Research state: the rows are hidden');
-                SRS.receive({ state: 'upToDate', srSpells: 10, time: '12:00' });
+                SRS.receive({ state: 'upToDate', srSpells: 10, time: '12:00', memoryReady: true });
                 self.check(els.srPracticeToMemoryRow.style.display === '' && els.srMemoryMinutesRow.style.display === '' &&
                     els.srMemoryToPracticeRow.style.display === '' && els.srMaxPracticeBoostRow.style.display === '' &&
-                    els.spellResearchStatusRow.style.display === '', 'a Spell Research state shows the line and the four rows');
+                    els.spellResearchStatusRow.style.display === '', 'a Spell Research state with memoryReady shows the line and the four rows');
+                SRS.receive({ state: 'upToDate', srSpells: 10, time: '12:00', memoryReady: false });
+                self.check(els.spellResearchStatusRow.style.display === '' && els.srPracticeToMemoryRow.style.display === 'none' &&
+                    els.srMaxPracticeBoostRow.style.display === 'none',
+                    'memoryReady false (the memory part did not install): the line shows, the rows stay hidden');
+                SRS.receive({ state: 'notImported', time: '12:00' });
+                self.check(els.srMemoryMinutesRow.style.display === 'none', 'a state without memoryReady hides the rows');
+                SRS.receive({ state: 'added', added: 3, srSpells: 13, time: '12:01', memoryReady: true });
                 SRS.receive('not json');
                 self.check(els.srMemoryMinutesRow.style.display === 'none', 'bad input hides the rows again');
                 SRS._last = null;

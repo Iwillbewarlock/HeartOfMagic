@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <array>
+#include <format>
 
 // =============================================================================
 // LibrarianSpellResearchMemory - practice and memory, the game side
@@ -34,6 +35,7 @@ namespace Librarian::SpellResearchMemory
         RE::TESGlobal* g_isSetup = nullptr;
         RE::TESGlobal* g_importing = nullptr;
         RE::TESGlobal* g_timeBase = nullptr;
+        RE::TESGlobal* g_craftDifficulty = nullptr;   // optional: MM::kDefaultCraftDifficulty without it
         // _SR_ListSpellsArchetypes and _SR_ListGlobalsArchetypes, in the same archetype order.
         // An archetype whose globals did not resolve to five TESGlobal has a null spell list.
         std::vector<RE::BGSListForm*> g_archetypeSpells;
@@ -60,16 +62,22 @@ namespace Librarian::SpellResearchMemory
             return (found != object.end() && found->is_string()) ? found->get<std::string>() : std::string();
         }
 
-        // A FormList's entries in GetAt order (record entries, then script-added ones)
-        std::vector<RE::TESForm*> Entries(const RE::BGSListForm* list)
+        // A FormList's slots by index: the record entries (forms[i]), then the script-added ones as stored.
+        // A null or unresolved entry keeps its slot (nullptr): ForEachForm skips it, which would move every
+        // later archetype onto its neighbour's globals. SR's outer and per-archetype lists come from the ESP;
+        // the index order of script-added entries is not verified, so any there are counted for a warning.
+        std::vector<RE::TESForm*> Slots(const RE::BGSListForm* list, std::size_t& scriptAdded)
         {
-            std::vector<RE::TESForm*> entries;
-            if (!list) return entries;
-            list->ForEachForm([&](RE::TESForm* form) {
-                entries.push_back(form);
-                return RE::BSContainer::ForEachResult::kContinue;
-            });
-            return entries;
+            std::vector<RE::TESForm*> slots;
+            if (!list) return slots;
+            for (std::uint32_t i = 0; i < list->forms.size(); ++i) slots.push_back(list->forms[i]);
+            if (list->scriptAddedTempForms) {
+                for (const RE::FormID id : *list->scriptAddedTempForms) {
+                    slots.push_back(RE::TESForm::LookupByID(id));
+                    ++scriptAdded;
+                }
+            }
+            return slots;
         }
 
         // The 60 x 5 memory globals and the 60 spell lists, paired by index. False (with a
@@ -77,8 +85,9 @@ namespace Librarian::SpellResearchMemory
         // another archetype's.
         bool ResolveArchetypes(RE::BGSListForm* spellsOuter, RE::BGSListForm* globalsOuter)
         {
-            const auto spellLists = Entries(spellsOuter);
-            const auto globalLists = Entries(globalsOuter);
+            std::size_t scriptAdded = 0;
+            const auto spellLists = Slots(spellsOuter, scriptAdded);
+            const auto globalLists = Slots(globalsOuter, scriptAdded);
             if (spellLists.empty() || spellLists.size() != globalLists.size()) {
                 logger::warn("SpellResearch memory: {} archetype spell lists but {} archetype global lists - off",
                     spellLists.size(), globalLists.size());
@@ -89,7 +98,7 @@ namespace Librarian::SpellResearchMemory
                 auto* spells = spellLists[a] ? spellLists[a]->As<RE::BGSListForm>() : nullptr;
                 RankGlobals globals{};
                 const auto* inner = globalLists[a] ? globalLists[a]->As<RE::BGSListForm>() : nullptr;
-                const auto entries = Entries(inner);
+                const auto entries = Slots(inner, scriptAdded);
                 bool whole = spells && entries.size() == MM::kRanks;
                 for (std::size_t t = 0; whole && t < MM::kRanks; ++t) {
                     globals[t] = entries[t] ? entries[t]->As<RE::TESGlobal>() : nullptr;
@@ -106,6 +115,10 @@ namespace Librarian::SpellResearchMemory
             if (incomplete > 0) {
                 logger::warn("SpellResearch memory: {} of {} archetypes have no spell list or not five globals - left out",
                     incomplete, spellLists.size());
+            }
+            if (scriptAdded > 0) {
+                logger::warn("SpellResearch memory: {} script-added entries in SR's archetype lists (expected none: the "
+                             "ESP fills them) - their order is taken as stored", scriptAdded);
             }
             return incomplete < spellLists.size();
         }
@@ -133,11 +146,17 @@ namespace Librarian::SpellResearchMemory
         const std::string spellsId = Text(*section, "archetypeSpells");
         const std::string globalsId = Text(*section, "archetypeGlobals");
         const std::string timeBaseId = Text(rules, "researchTimeBase");
+        const std::string difficultyId = Text(rules, "craftSpellDifficulty");
 
         for (std::size_t t = 0; t < MM::kRanks; ++t) g_tierLists[t] = ResolveAs<RE::BGSListForm>(lists.allSpells[t]);
         g_isSetup = ResolveAs<RE::TESGlobal>(lists.isSetup);
         g_importing = ResolveAs<RE::TESGlobal>(lists.importing);
         g_timeBase = ResolveAs<RE::TESGlobal>(timeBaseId);
+        g_craftDifficulty = ResolveAs<RE::TESGlobal>(difficultyId);
+        if (!g_craftDifficulty) {
+            logger::warn("SpellResearch memory: craftSpellDifficulty '{}' not found - the practice boost uses difficulty {:.1f}",
+                difficultyId, MM::kDefaultCraftDifficulty);
+        }
         auto* spellsOuter = ResolveAs<RE::BGSListForm>(spellsId);
         auto* globalsOuter = ResolveAs<RE::BGSListForm>(globalsId);
         const bool tiers = std::ranges::all_of(g_tierLists, [](const auto* list) { return list != nullptr; });
@@ -155,10 +174,33 @@ namespace Librarian::SpellResearchMemory
 
     void ApplyConfig(const nlohmann::json& config)
     {
-        g_settings = MM::ReadSettings(config);
-        logger::info("SpellResearch memory: settings - practice to memory {} ({:.0f} research minutes per 15%), "
-                     "memory to practice {} (up to +{:.0f}%)", g_settings.practiceToMemory, g_settings.memoryMinutes,
-            g_settings.memoryToPractice, g_settings.maxPracticeBoost);
+        static bool applied = false;   // the first call (game start) logs at info
+        const MM::Settings next = MM::ReadSettings(config);
+        const bool changed = !applied || next.practiceToMemory != g_settings.practiceToMemory ||
+                             next.memoryMinutes != g_settings.memoryMinutes ||
+                             next.memoryToPractice != g_settings.memoryToPractice ||
+                             next.maxPracticeBoost != g_settings.maxPracticeBoost;
+        applied = true;
+        g_settings = next;
+        // Every panel save comes through here: info only when a value changed
+        const std::string line = std::format("SpellResearch memory: settings - practice to memory {} ({:.0f} research "
+            "minutes per 15%), memory to practice {} (up to +{:.0f}%)", g_settings.practiceToMemory,
+            g_settings.memoryMinutes, g_settings.memoryToPractice, g_settings.maxPracticeBoost);
+        if (changed) {
+            logger::info("{}", line);
+        } else {
+            logger::debug("{}", line);
+        }
+    }
+
+    bool Installed()
+    {
+        return g_installed;
+    }
+
+    float CraftDifficulty()
+    {
+        return MM::CraftDifficulty(g_craftDifficulty ? g_craftDifficulty->value : 0.0f);
     }
 
     bool Ready(std::string& why)
@@ -229,12 +271,13 @@ namespace Librarian::SpellResearchMemory
 
     float KnownShare(const SpellMemory& memory)
     {
-        std::size_t known = 0;
+        std::vector<float> values;
+        values.reserve(memory.archetypes.size());
         for (const std::size_t a : memory.archetypes) {
             const auto* global = Global(a, memory.rank);
-            if (global && global->value > 0.0f) ++known;
+            values.push_back(global ? global->value : 0.0f);
         }
-        return MM::KnownShare(known, memory.archetypes.size());
+        return MM::KnownShare(values.data(), values.size(), memory.rank, CraftDifficulty());
     }
 
     MM::Settings CurrentSettings()
@@ -247,8 +290,10 @@ namespace Librarian::SpellResearchMemory
         if (!g_settings.practiceToMemory) return;
         // LIMIT: no per-spell record of what was paid. Progress from other sources inside a chunk is paid
         // by the next cast that crosses its boundary, and a boundary crossed by a non-cast source (a tome,
-        // passive, ISL study) pays nothing: at most one chunk off per boundary. A co-save record of the
-        // paid progress is the upgrade if that ever matters.
+        // passive, ISL study) pays nothing. A progress reset pays again: RelockSpell (cheat mode) or
+        // SetSpellXP(spell, 0) (Papyrus/C++ API, the panel's XP edit) puts the spell back below its
+        // boundaries, and practising it again pays its 7 payments a second time. Upgrade path: a per-spell
+        // "highest boundary paid" byte in the co-save progress record (a version bump), checked here.
         const int crossed = MM::BoundariesCrossed(progressBefore, progressAfter);
         if (crossed == 0) return;
         const auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(spellId);

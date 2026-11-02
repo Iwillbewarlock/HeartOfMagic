@@ -5,11 +5,13 @@
     "elements and techniques into SR's. Persistent ids, because FormLists keep no editor id at runtime.",
     "docs/librarian/SPELL_RESEARCH.md has the mapping and the measurements behind it.",
     "Practice and memory (LibrarianSpellResearchMemory.cpp) reads lists.archetypeSpells (_SR_ListSpellsArchetypes),",
-    "lists.archetypeGlobals (_SR_ListGlobalsArchetypes) and researchTimeBase (_SR_GlobalResearchTimeBase)."
+    "lists.archetypeGlobals (_SR_ListGlobalsArchetypes), researchTimeBase (_SR_GlobalResearchTimeBase) and",
+    "craftSpellDifficulty (_SR_GlobalCraftSpellDifficulty, the compose scale its practice boost measures memory against)."
   ],
   "perkMod": "Spell Research 2.2.3",
   "measured": "2026-10-03",
   "researchTimeBase": "SpellResearch.esp|0x2B82",
+  "craftSpellDifficulty": "SpellResearch.esp|0x9EB3",
   "requires": {
     "any": [
       "SpellResearch.esp"

@@ -108,12 +108,43 @@ namespace Librarian::SpellResearchMemoryMath
         return next > kGlobalCap ? kGlobalCap : next;
     }
 
-    // The share of a spell's archetypes remembered at its rank (SR's MCM: known = value > 0)
-    [[nodiscard]] inline float KnownShare(std::size_t known, std::size_t archetypes) noexcept
+    // SR's compose difficulty (_SR_GlobalCraftSpellDifficulty, 3.0 in SpellResearch.esp): the fallback when the
+    // global is missing, not positive or not finite
+    inline constexpr float kDefaultCraftDifficulty = 3.0f;
+
+    [[nodiscard]] inline float CraftDifficulty(float difficulty) noexcept
     {
-        if (archetypes == 0) return 0.0f;
-        if (known >= archetypes) return 1.0f;
-        return static_cast<float>(known) / static_cast<float>(archetypes);
+        return (std::isfinite(difficulty) && difficulty > 0.0f) ? difficulty : kDefaultCraftDifficulty;
+    }
+
+    // How much archetype XP at rank R counts as fully remembered: ((R + 1) x d)^2, the scale SR's compose
+    // chance uses for a spell of that rank (_SR_EffectComposeSpellScript: Math.Pow((SpellRank + 1) x difficulty, 2)).
+    // 9 for Novice and 225 for Master at d = 3. 0 for a rank past Master.
+    [[nodiscard]] inline float KnownFull(std::size_t rank, float difficulty) noexcept
+    {
+        if (rank >= kRanks) return 0.0f;
+        const float scaled = static_cast<float>(rank + 1) * CraftDifficulty(difficulty);
+        return scaled * scaled;
+    }
+
+    // One archetype's share remembered: min(1, value / KnownFull(R)). A NaN or negative value is 0.
+    [[nodiscard]] inline float KnownFraction(float value, std::size_t rank, float difficulty) noexcept
+    {
+        const float full = KnownFull(rank, difficulty);
+        if (!(full > 0.0f) || !(value > 0.0f)) return 0.0f;   // NaN too
+        const float fraction = value / full;
+        return fraction < 1.0f ? fraction : 1.0f;
+    }
+
+    // The share of a spell's archetypes remembered at its rank: the average of KnownFraction over its
+    // archetypes' globals at that rank (0 with none). Proportional, not "> 0": A's first payment puts
+    // something into every one of them, which would make the share 1 after the first 15%.
+    [[nodiscard]] inline float KnownShare(const float* values, std::size_t count, std::size_t rank, float difficulty) noexcept
+    {
+        if (!values || count == 0) return 0.0f;
+        double sum = 0.0;
+        for (std::size_t i = 0; i < count; ++i) sum += KnownFraction(values[i], rank, difficulty);
+        return static_cast<float>(sum / static_cast<double>(count));
     }
 
     // B: casting XP x (1 + maxPracticeBoost% x known share); 1 with nothing known or no boost

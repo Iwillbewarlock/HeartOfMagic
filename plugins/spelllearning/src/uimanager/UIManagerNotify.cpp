@@ -5,6 +5,7 @@
 #include "uimanager/UIManagerInternal.h"
 #include "environment/EnvironmentSelfTest.h"
 #include "librarian/SpellResearchPatch.h"
+#include "librarian/SpellResearchMemory.h"
 #include "ProgressionManager.h"
 
 // =============================================================================
@@ -313,8 +314,16 @@ void UIManager::SendProgressData(const std::string& jsonData)
 
 void UIManager::NotifySpellResearchStatus()
 {
-    const auto status = Librarian::SpellResearchPatch::StatusJson();
+    auto status = Librarian::SpellResearchPatch::StatusJson();
     if (status.empty() || !ViewReady()) return;
+    // memoryReady: the practice and memory rows show only when that module found SR's lists too
+    try {
+        auto payload = nlohmann::json::parse(status);
+        payload["memoryReady"] = Librarian::SpellResearchMemory::Installed();
+        status = JsonText::Dump(payload);
+    } catch (const std::exception& e) {
+        logger::warn("UIManager: Spell Research status not JSON ({}) - sent without memoryReady", e.what());
+    }
     CallView("onSpellResearchStatus", status.c_str());
 }
 

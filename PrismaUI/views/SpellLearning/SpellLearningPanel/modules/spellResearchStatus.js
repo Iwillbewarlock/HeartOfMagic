@@ -9,7 +9,8 @@
  * messages. This line says that it happened. The plugin sends its state when
  * the panel opens and whenever a run changes it (window.onSpellResearchStatus,
  * UIManager::NotifySpellResearchStatus); without SR the row stays hidden, and so do
- * the practice and memory rows under it (spellResearchMemorySetting.js).
+ * the practice and memory rows under it (spellResearchMemorySetting.js), which also
+ * need the state's memoryReady: true (the plugin found SR's archetype lists and globals).
  *
  * Depends on: t() (i18n.js); languageSetting.js redraws it after a language switch
  */
@@ -69,7 +70,9 @@ var SpellResearchStatus = {
         var out = document.getElementById('spellResearchStatusText');
         if (!row || !out) return;
         var shown = !!this._last;
-        if (typeof SpellResearchMemorySetting !== 'undefined') SpellResearchMemorySetting.show(shown);
+        if (typeof SpellResearchMemorySetting !== 'undefined') {
+            SpellResearchMemorySetting.show(shown && this._last.memoryReady === true);
+        }
         if (!shown) {
             row.style.display = 'none';
             return;

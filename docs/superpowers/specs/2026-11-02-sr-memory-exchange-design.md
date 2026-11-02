@@ -41,7 +41,7 @@ researches. Kept small, both halves can be turned off.
   the cast's XP. Only casting counts. Tome reading, passive, ISL study, DEST, BookXP, other mods' sources and
   `AddRawXP`/`SetSpellXP` do not: they are not practice, and SR's own share (`spell_research`) and compose's
   head start would otherwise come back as memory.
-- Chunks, no state: progress is cut at every 15% (`kMemoryChunk`: 15, 30, ... 90) and at 100%. Each boundary a
+- Chunks, no state: progress is cut at every 15% (`kChunkPercent`: 15, 30, ... 90) and at 100%. Each boundary a
   cast crosses pays one fixed payment, as if the spell were researched once for `memoryMinutes` (default 25):
   `v = timeBase x memoryMinutes / 60` (6.25 at defaults), put through SR's gain table once per boundary. The
   payment is fixed, not the span: SR's gain `v ^ ((s + R + 1) / 3)` is not linear, so paying a summed span
@@ -52,8 +52,10 @@ researches. Kept small, both halves can be turned off.
   gains, which is why it is not paid per cast.
 - LIMIT (in code): no per-spell record of what was paid. Progress from other sources inside a chunk is paid
   with the next cast that crosses its boundary (a tome read to 25%, then a cast crossing 30%, pays 15%), and a
-  boundary crossed by a non-cast source pays nothing. At most one chunk off per boundary; a co-save record of the
-  paid progress is the upgrade if that ever matters.
+  boundary crossed by a non-cast source pays nothing. A progress reset pays again: `RelockSpell` (cheat mode) or
+  `SetSpellXP(spell, 0)` (Papyrus/C++ API, the panel's XP edit) puts the spell below its boundaries, and practising
+  it again pays its 7 payments a second time (review round 1, 2026-11-02). Upgrade path: a per-spell "highest
+  boundary paid" byte in the co-save progress record (a version bump), checked before paying.
 - Skip silently (debug log) when: SR not loaded, `_SR_GlobalIsSetup` != 1 or `_SR_GlobalImporting` != 0, the
   feature is off, the spell is in no tier list or no archetype list.
 - One info log line per payout: spell, boundaries crossed, v, rank, archetypes paid.
@@ -68,9 +70,14 @@ researches. Kept small, both halves can be turned off.
 
 ## B. Memory guides practice
 
-- `known = |{ a in archetypes(spell) : global[a][R] > 0 }| / |archetypes(spell)|`,
-  `multiplier = 1 + maxPracticeBoost x known`, `maxPracticeBoost` default 0.25 (the size of the existing tome
-  inventory boost). Applied to `xpGain` right after the tome inventory boost, before the source caps, so the caps
+- `known = average over a in archetypes(spell) of min(1, global[a][R] / KnownFull(R))`, with
+  `KnownFull(R) = ((R + 1) x d)^2` and d = `_SR_GlobalCraftSpellDifficulty` (`SpellResearch.esp|0x9EB3`, 3.0 in the
+  ESP; read at call time, 3.0 when missing, not positive or not finite): SR's own compose scale
+  (`_SR_EffectComposeSpellScript.psc:249`, MinChance x `Math.Pow((SpellRank + 1) x difficulty, 2)`), 9 for Novice
+  and 225 for Master. Proportional, not "value > 0" (the first design, review round 1 2026-11-02): A's slot 2
+  payment (t = R) puts something into every global[a][R] of the spell, so a "> 0" share was 1 after the first 15%
+  and B a flat bonus. `multiplier = 1 + maxPracticeBoost% x known`, `maxPracticeBoost` default 25% (the size of the
+  existing tome inventory boost). Applied to `xpGain` right after the tome inventory boost, before the source caps, so the caps
   still bound it. 1.0 whenever A's skip conditions hold.
 - No loop growth: B is capped, A pays only from cast XP, a mastered spell takes no more XP.
 - Cost: no cache. Each cast reads the spell's rank (5 tier lists) and archetypes (60 lists, `HasForm` over
@@ -95,11 +102,15 @@ Panel: Settings > Spell Tome Learning, under the Spell Research line: the two sw
 - `include/librarian/SpellResearchMemory.h`, `src/librarian/LibrarianSpellResearchMemory.cpp`: the game side
   (form lookups through the compat json persistent ids, the global writes, settings). Game thread only.
 - `compat/spellresearch.json`: `lists.archetypeSpells` (0xD9E), `lists.archetypeGlobals` (0x133D),
-  `researchTimeBase` (0x2B82).
+  `researchTimeBase` (0x2B82), `craftSpellDifficulty` (0x9EB3). The outer lists are read by index (`forms[i]`,
+  then the script-added part as stored), a null entry keeping its slot, so archetype a stays paired with its globals.
 - Dev self-test `sr-memory` (EnvironmentSelfTest): with SR set up, one spell in SR's lists: snapshot its globals,
   pay a chunk through the game-side function, compare every changed global with the math header, restore the
   snapshot through an RAII guard (also on an exception or early return; the test leaves the save as it was); then
-  B's multiplier against the formula. PASS/FAIL/SKIP.
+  B's multiplier against the formula. The rank mapping is checked by name (each global's editor id ends with
+  `<t+1><Rank>`). `sr-memory-hook`: `OnPracticeProgress(spell, 10%, 32%)`, the hook's own entry, must pay two
+  payments (SKIP with practiceToMemory off). The panel shows its rows only when the status says `memoryReady`.
+  PASS/FAIL/SKIP.
 - Save persistence of direct `TESGlobal::value` writes: the save's global variable table holds every global, but
   that the engine collects a native write was not proven (Codex: 추정). At `kPostLoadGame`, with SR set up, one
   info line: the sum of the 300 memory globals and how many are above 0. The author's normal save and reload
