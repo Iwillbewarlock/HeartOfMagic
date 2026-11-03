@@ -60,7 +60,7 @@ namespace MasteryMath
         std::array<float, kTierCount> tierXP = kDefaultTierXP;
         // One per rank from rank 1; a shorter list repeats its last value, an empty one is 1
         std::vector<float> rankMultipliers = std::vector<float>(kDefaultRanks, kDefaultRankMultiplier);
-        float skillAtMin = kDefaultSkillAtMin;   // the XP factor at the tier's starting skill
+        float skillAtMin = kDefaultSkillAtMin;   // the XP factor at skill 0 (one line for every tier)
         float skillAt100 = kDefaultSkillAt100;   // ... and at skill 100, straight line between, clamped
         float xpRate = kDefaultXPRate;
     };
