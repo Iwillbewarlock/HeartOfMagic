@@ -181,6 +181,13 @@ namespace MasteryMath
         return unlocked || progress >= 1.0f || masteredOtherwise;
     }
 
+    // The read API's answer: the stored XP for a spell mastered now, else 0 (review 2026-11-04: the
+    // documented "0 for a spell not mastered" did not hold)
+    [[nodiscard]] constexpr float ReportedXP(bool masteredNow, float storedXP) noexcept
+    {
+        return masteredNow && storedXP > 0.0f ? storedXP : 0.0f;
+    }
+
     // What decides whether a cast earns mastery XP (MasteryKeyForCast fills it in)
     struct CastFacts
     {

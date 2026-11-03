@@ -138,6 +138,14 @@ namespace ProgressionCheck
             Check(!MX::EarnsFromCast(learning) && !MX::EarnsFromCast(off) && !MX::EarnsFromCast(notMastered),
                   "mastery cast: weakened or ISL-held, ranks off, or not mastered: none");
 
+            // I4: the read API answers 0 for a spell not mastered now
+            Check(Near(MX::ReportedXP(true, 150.0f), 150.0f) && MX::RankFor(MX::ReportedXP(true, 150.0f), MX::Settings{}, 0) == 1,
+                  "mastery read: a mastered spell reports its XP and rank");
+            Check(Near(MX::ReportedXP(false, 150.0f), 0.0f) && MX::RankFor(MX::ReportedXP(false, 150.0f), MX::Settings{}, 0) == 0,
+                  "mastery read: a spell not mastered now reports 0 XP and rank 0, its stored XP kept");
+            Check(Near(MX::ReportedXP(true, nan), 0.0f) && Near(MX::ReportedXP(true, -4.0f), 0.0f),
+                  "mastery read: a stored NaN or negative value reports 0");
+
             // B1: who keeps the ranks after a cheat-mode XP edit
             Check(MX::CountsAsMastered(true, 0.4f, false), "mastery kept: an unlocked spell set to 40% keeps its ranks");
             Check(MX::CountsAsMastered(false, 1.0f, false) && MX::CountsAsMastered(false, 0.0f, true),

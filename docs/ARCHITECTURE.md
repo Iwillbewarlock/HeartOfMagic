@@ -1134,7 +1134,9 @@ costs, so a lower skill later (Legendary) never takes a rank away.
   reads as learning progress, `isSpellMastered`); `UIManager::NotifyProgressUpdate` adds `mastery` and `masteryOnly`
   (no learning progress entry: the panel takes the mastery part only). The card: docs/DESIGN.md, "Mastery rank row".
 - **Read API.** C++ `ISpellLearningAPI::GetMasteryRank` / `GetMasteryXP` (API version 3), Papyrus
-  `SpellLearning.GetMasteryRank` / `GetMasteryXP` (docs/PLAN-PUBLIC-MODDER-API.md).
+  `SpellLearning.GetMasteryRank` / `GetMasteryXP` (docs/PLAN-PUBLIC-MODDER-API.md): 0 for a spell not mastered now
+  (`IsMasteredForRanks`, `MasteryMath::ReportedXP`); the panel reads the stored XP (`GetStoredMasteryXP`) and shows it
+  on a mastered card only.
 - **Threads.** Everything here is ProgressionManager state: game thread only, as the class header says. The C++ API
   reads are game thread only (their header says so); the Papyrus reads run on the game thread through
   `RunOnGameThreadAndWait` like the other progress reads and answer 0 when it does not answer within `kPapyrusWait`.

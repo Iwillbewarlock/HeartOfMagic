@@ -87,7 +87,7 @@ bool Function IsSpellUnlocked(Spell akSpell) global native
 
 ; Mastery ranks: a mastered spell keeps earning mastery XP when cast. The rank reached
 ; (0 up to the configured number of ranks, 3 by default; 0 for none or not mastered)
-; and the raw mastery XP behind it. Another plugin's copy reads the tree spell's.
+; and the raw mastery XP behind it (both 0 while the spell is not mastered). Another plugin's copy reads the tree spell's.
 int Function GetMasteryRank(Spell akSpell) global native
 float Function GetMasteryXP(Spell akSpell) global native
 

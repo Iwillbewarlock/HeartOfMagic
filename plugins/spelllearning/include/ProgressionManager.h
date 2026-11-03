@@ -338,9 +338,12 @@ public:
     // One cast's mastery XP (MasteryMath::GainFor with the player's school skill); a rank reached
     // shows hud.masteryRankUp and sends SpellLearning_MasteryRankUp (school, rank, the spell)
     void OnMasteredCast(RE::FormID masteryKey, RE::FormID castSpellId, float baseXP);
-    // Raw mastery XP, rank and where it stands; a copy's id reads its tree spell's. 0 / rank 0 for none
+    // The read API (C++ API, Papyrus): mastery XP and rank, 0 for none or a spell not mastered now
+    // (IsMasteredForRanks); a copy's id reads its tree spell's
     float GetMasteryXP(RE::FormID spellId) const;
     int GetMasteryRank(RE::FormID spellId) const;
+    // What is stored, mastered or not (the panel, which shows it on a mastered card only; the self-test)
+    float GetStoredMasteryXP(RE::FormID spellId) const;
     MasteryMath::Progress GetMasteryProgress(RE::FormID spellId) const;
     // Every spell with mastery XP, for a read-only look (the panel's progress reply)
     const std::unordered_map<RE::FormID, float>& GetAllMasteryXP() const { return m_masteryXP; }

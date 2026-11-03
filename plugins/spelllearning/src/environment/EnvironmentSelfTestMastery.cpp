@@ -53,7 +53,7 @@ namespace Environment::SelfTest
         {
         public:
             explicit MasteryRestore(RE::FormID spellId) :
-                m_spellId(spellId), m_before(ProgressionManager::GetSingleton()->GetMasteryXP(spellId))
+                m_spellId(spellId), m_before(ProgressionManager::GetSingleton()->GetStoredMasteryXP(spellId))
             {}
             ~MasteryRestore() { ProgressionManager::GetSingleton()->SetMasteryXPForTest(m_spellId, m_before); }
             MasteryRestore(const MasteryRestore&) = delete;

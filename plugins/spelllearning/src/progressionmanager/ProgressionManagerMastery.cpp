@@ -161,7 +161,7 @@ void ProgressionManager::ClearMastery(RE::FormID spellId)
 // QUERIES
 // =============================================================================
 
-float ProgressionManager::GetMasteryXP(RE::FormID spellId) const
+float ProgressionManager::GetStoredMasteryXP(RE::FormID spellId) const
 {
     const auto found = m_masteryXP.find(MasteryKeyOf(spellId));
     return found != m_masteryXP.end() ? found->second : 0.0f;
@@ -170,12 +170,21 @@ float ProgressionManager::GetMasteryXP(RE::FormID spellId) const
 MasteryMath::Progress ProgressionManager::GetMasteryProgress(RE::FormID spellId) const
 {
     const RE::FormID key = MasteryKeyOf(spellId);
-    return MasteryMath::ProgressFor(GetMasteryXP(key), m_mastery, MasteryTierOf(key));
+    return MasteryMath::ProgressFor(GetStoredMasteryXP(key), m_mastery, MasteryTierOf(key));
+}
+
+float ProgressionManager::GetMasteryXP(RE::FormID spellId) const
+{
+    // The read API's contract: nothing for a spell not mastered now (taken away by a console or
+    // another mod, which clears nothing here)
+    const RE::FormID key = MasteryKeyOf(spellId);
+    return MasteryMath::ReportedXP(IsMasteredForRanks(key), GetStoredMasteryXP(key));
 }
 
 int ProgressionManager::GetMasteryRank(RE::FormID spellId) const
 {
-    return GetMasteryProgress(spellId).rank;
+    const RE::FormID key = MasteryKeyOf(spellId);
+    return MasteryMath::RankFor(GetMasteryXP(key), m_mastery, MasteryTierOf(key));
 }
 
 void ProgressionManager::SetMasteryXPForTest(RE::FormID spellId, float xp)

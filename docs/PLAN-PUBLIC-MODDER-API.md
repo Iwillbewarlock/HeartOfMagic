@@ -373,7 +373,7 @@ float Function GetMasteryXP(Spell akSpell) global native             ; Raw maste
 
 **Mastery ranks** (2026-11-03, docs/ARCHITECTURE.md, "Mastery ranks"): a mastered spell keeps earning mastery XP when
 the player casts it. `GetMasteryRank` is the rank reached, 0 up to `config.json` `mastery.ranks` (3 by default); 0
-for a spell with none or not mastered. `GetMasteryXP` is the raw XP. Another plugin's copy of a tree spell reads the
+for a spell with none or not mastered. `GetMasteryXP` is the raw XP; both answer 0 for a spell not mastered now (the XP stays saved). Another plugin's copy of a tree spell reads the
 tree spell's. Both are read only and run on the game thread like the other progress queries (0 when it does not
 answer in time). No effect on the spell yet: a later step reads these.
 
