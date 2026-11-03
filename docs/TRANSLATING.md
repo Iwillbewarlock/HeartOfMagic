@@ -102,6 +102,7 @@ fine, it has its own fonts).
 | `hud.learnedWeakened` | {{step}} {{spell}} learned (weakened) | `step` = power step label (as the player wrote it in Power Steps) |
 | `hud.powerIncreased` | {{spell}} power increased to {{percent}}% | |
 | `hud.mastered` | {{spell}} MASTERED. Full power unlocked. | |
+| `hud.masteryRankUp` | {{spell}}: mastery rank {{rank}} of {{ranks}} | a mastered spell's cast reached a mastery rank; an XP alert |
 | `hud.castPowerXP` / `hud.castPower` | {{spell}} operating at {{percent}}% power (+{{xp}} XP) | weakened spell alert |
 | `hud.beginStudy`, `hud.review`, `hud.learned`, `hud.alreadyKnown` | reading a spell tome | `spell` |
 | `hud.mustMaster` | You must first master {{spells}} to grasp this tome | `spells` joined with `hud.listSeparator` and `hud.listLastSeparator` (", " and " and ") |
@@ -122,6 +123,14 @@ To see which keys your file lacks, compare it with `en.json`:
 ```
 node -e "var en=require('./lang/en.json'),x=require('./lang/fr.json');console.log(Object.keys(en).filter(k=>!(k in x)).join('\n'))"
 ```
+
+## Keys added for mastery ranks (2026-11-03)
+
+`details.masteryRank` ("Mastery rank {{rank}}/{{ranks}}", the spell card), `hud.masteryRankUp` (the corner message
+above), `settings.progression.masteryRanks`, `settings.progression.masteryEnable` and
+`settings.progression.masteryEnableDesc` (Settings > Learning > Mastery Ranks). They are in `en.json` and `ko.json`;
+the other eleven languages show the English text until they are translated (keep `{{rank}}`, `{{ranks}}`,
+`{{spell}}` and the `config.json, "mastery"` name as they are).
 
 ## Generating the Preload File
 

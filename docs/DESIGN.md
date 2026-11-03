@@ -1280,6 +1280,17 @@ wrong). Replay sits under the preview it plays in. The Alternate Pathways tab (n
 Mode. EASY / COMPLEX stays one click at the top right; Complex keeps all its tree generation controls. The
 vertical rules between stats and filters and between actions and preview are gone.
 
+**Mastery rank row** (2026-11-03, `modules/spellCardMastery.js`; ranks past mastery, docs/ARCHITECTURE.md,
+"Mastery ranks"). Under the state line of a mastered spell's card: "Mastery rank 1/3" in the state line's size and
+ink (`--text-primary`) and a 3 px bar under it, the same track (`--divider`) and fill (`--accent-gold`) as the state
+bar - the share of the way from the rank reached to the next, full at the last rank. Theme variables only, in
+`panel-card.css`, which no design add-on overrides for the state bar either, so every design (Skald and the five
+add-ons) draws it in its own colours. No row for a spell being learned, while the ranks are off (Settings >
+Learning > Mastery Ranks) or when the DLL sent no mastery data (an older version). A mastered spell with no
+mastery XP yet reads "Mastery rank 0/3" over an empty bar. Drawn by `SpellCardNeeds.render` on every card
+redraw; the text keyed (`details.masteryRank`), so a language switch writes it again. Tests:
+`spellCardMasteryTest.js`.
+
 **Spell card around "can I learn this now"** (`modules/spellCardNeeds.js`; the bar under the tree and the right
 sidebar alike). Top: name, then school (in its colour), level, Magicka and type on one line, then the effect
 line (the description, revealed by progress as before) and the keyword chips. The state line is one sentence in
@@ -2038,6 +2049,8 @@ Visual-First builds that used them.
 | `settingsCategories.js` | Settings one category at a time (Display, Learning, Spell Tomes, Advanced), each category's scroll kept for the session (`SettingsCategories`, 2.0 layout) |
 | `scanStage.js` | The Scan page's summary line, its one stage button (Scan / Build / Apply, pressing the real hidden buttons), the small actions, Scan details and the filter lines (`ScanStage`, 2.0 layout) |
 | `spellCardNeeds.js` | The spell card's state line, "Still needed" / "Met" chips, the reason beside a locked Learn and the folded Unlocks (`SpellCardNeeds`, 2.0 layout) |
+| `spellCardMastery.js` | The spell card's mastery rank row for a mastered spell ("Mastery rank 1/3" and a bar; `SpellCardMastery`) |
+| `masterySetting.js` | Settings > Learning > Mastery Ranks: the switch, saved as `mastery.enabled` only (`MasterySetting`) |
 | `treeLegend.js` | The node states key behind the tree footer's "?" (`TreeLegend`, 2.0 layout) |
 | `treeStatusLine.js` | The tree footer's status line: `setTreeStatus` / `setTreeStatusKey`; a success line goes back to "Ready" after a few seconds, a warning or error is not covered (`TreeStatusLine`, 1.6) |
 | `prereqMaster.js` | Pre Req Master system |

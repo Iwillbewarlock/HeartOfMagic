@@ -367,7 +367,15 @@ bool Function IsSpellMastered(Spell akSpell) global native           ; 100% + un
 bool Function IsSpellUnlocked(Spell akSpell) global native           ; Granted to player
 bool Function IsSpellAvailableToLearn(Spell akSpell) global native   ; In tree, prereqs met
 bool Function ArePrerequisitesMet(Spell akSpell) global native       ; Tree prereqs check
+int Function GetMasteryRank(Spell akSpell) global native             ; Mastery rank past 100% (0 = none)
+float Function GetMasteryXP(Spell akSpell) global native             ; Raw mastery XP behind it
 ```
+
+**Mastery ranks** (2026-11-03, docs/ARCHITECTURE.md, "Mastery ranks"): a mastered spell keeps earning mastery XP when
+the player casts it. `GetMasteryRank` is the rank reached, 0 up to `config.json` `mastery.ranks` (3 by default); 0
+for a spell with none or not mastered. `GetMasteryXP` is the raw XP. Another plugin's copy of a tree spell reads the
+tree spell's. Both are read only and run on the game thread like the other progress queries (0 when it does not
+answer in time). No effect on the spell yet: a later step reads these.
 
 ### Learning Target Control
 
@@ -431,6 +439,7 @@ All use SKSE's `ModCallbackEvent(string eventName, string strArg, float numArg, 
 | `SpellLearning_TargetChanged` | Target set or cleared (also a key cleared because the spell was set under another school, and each key changed when a save loads) | School name | 1.0=set, 0.0=cleared | Spell or None |
 | `SpellLearning_ProgressMilestone` | Power step crossed | Step label | Effectiveness % | Spell form |
 | `SpellLearning_SourceRegistered` | New modded source registered | Source ID | 0.0 | None |
+| `SpellLearning_MasteryRankUp` | A cast of a mastered spell reached a mastery rank (not a settings change) | School name (as `SpellMastered`) | Rank reached (1 ..) | Spell form (the tree's record) |
 
 The school of `SpellMastered` and `SpellEarlyGranted` (1.2.1) is the key the spell is a learning target under, the
 one `TargetChanged` named (the tree school, see above); 1.2.0 sent the costliest effect's school, which differs
@@ -481,7 +490,7 @@ Copy `SpellLearningAPI.h` from the HeartOfMagic source into your plugin.
 
 ```cpp
 namespace SpellLearning {
-    constexpr uint32_t kAPIVersion = 2;   // 2 (1.2.1): ShowNotification
+    constexpr uint32_t kAPIVersion = 3;   // 2 (1.2.1): ShowNotification; 3: GetMasteryRank, GetMasteryXP
 
     // Message type broadcasted by SpellLearning at kPostPostLoad.
     // Register with: messaging->RegisterListener("SpellLearning", callback)
@@ -522,9 +531,18 @@ namespace SpellLearning {
         // player turned notifications off. namesAndValues: pairCount {{name}}/value pairs, flattened.
         virtual bool ShowNotification(const char* key, const char* englishText,
                                       const char* const* namesAndValues, uint32_t pairCount) = 0;
+
+        // Mastery ranks (API version 3), read only: the rank reached past 100% (0 for none or not
+        // mastered) and the raw mastery XP. Game thread only.
+        virtual int32_t GetMasteryRank(uint32_t spellFormID) const = 0;
+        virtual float GetMasteryXP(uint32_t spellFormID) const = 0;
     };
 }
 ```
+
+**GetMasteryRank / GetMasteryXP** (version 3): added at the end of the interface, so a plugin built against version 1
+or 2 keeps working; a plugin that calls them must check `GetAPIVersion() >= 3` first. Game thread only (an SKSE task,
+a Papyrus native, an event sink), like every call: the mastery XP has no lock.
 
 **ShowNotification** (version 2, 1.2.1): the text of `key` from the panel's `lang/<locale>.json` (pass a key no
 file has and you get `englishText`), `{{name}}` placeholders filled, shown in the corner; returns `false` and
@@ -713,6 +731,7 @@ Modded source **settings** (multiplier, cap, enabled) persist in unified config 
 - [ ] `SpellLearning_SpellMastered` -- fires when spell hits 100%
 - [ ] `SpellLearning_TargetChanged` -- fires on set/clear
 - [ ] `SpellLearning_SourceRegistered` -- fires when new source registered
+- [ ] `SpellLearning_MasteryRankUp` -- fires once when a cast of a mastered spell reaches a rank, with the rank
 
 ### Edge Cases
 - [ ] Call API with None/null spell -- returns 0, no crash

@@ -4,6 +4,18 @@
 
 ### New
 
+- **Mastery ranks.** A spell you have mastered keeps growing: every cast of it earns mastery XP toward three mastery
+  ranks, shown on its spell card ("Mastery rank 1/3" and a bar) with a corner message at each rank. A rank costs more
+  for a higher-level spell (Novice 100 XP ... Master 1500 XP by default), and a higher skill in the spell's school
+  gives more XP per cast (up to twice as much at 100), so a skill lowered later (Legendary) never takes a rank away.
+  Only casting the mastered spell itself counts; the cast that masters a spell earns none, and relocking a spell or
+  setting it below 100% clears it. The ranks have no effect on the spell yet: a later version builds on them. Settings
+  > Learning > Mastery Ranks turns them off; the numbers are in `config.json`, `"mastery"`. Mods can read a spell's
+  rank (Papyrus `SpellLearning.GetMasteryRank`, the C++ API version 3) and listen for `SpellLearning_MasteryRankUp`.
+  Saved with the game in a record of its own: a save from before starts every spell at 0, and **saving again with an
+  older version of Heart of Magic drops the mastery XP** (everything else stays). The card's and the setting's text
+  is in English and Korean; the other languages show English for now.
+
 - **Spell Research: practice and memory.** With Spell Research installed and imported, casting a spell you are
   learning now also teaches Spell Research: every 15% of progress a cast crosses (and mastery) adds a short
   research session (25 research minutes by default) to the spell's Spell Research archetypes, by Spell Research's

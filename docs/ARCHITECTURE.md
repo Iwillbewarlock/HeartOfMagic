@@ -919,11 +919,12 @@ read their records (a record whose reader threw is skipped; `GetNextRecordInfo` 
 | `SLPX` | ProgressionManager | 1 | count, then per spell with anything counted: formId, `xpFromAny`, `xpFromSchool`, `xpFromDirect`, `xpFromSelf` (f32) |
 | `SLEL` | SpellEffectivenessHook | 2 (reads 1-2) | count, then the early-learned spells' formIds; v2 + count, then the ones ISL holds (`IsHeldForISL`; not tied to the early set) |
 | `SLTX` | SpellTomeHook | 1 | count, then the spells a tome already gave XP (`HasGrantedTomeXP`) |
+| `SLMX` | ProgressionManager (mastery ranks) | 1 | count, then per spell with mastery XP: formId u32, raw mastery XP f32 (`MasteryMath.h`; the rank is worked out from it). Written by its own `CoSave` step (`SaveMasteryRecord`), apart from `SLPR`; read in `ReadRecord` (values not positive, finite and reachable - `MasteryMath::IsValidSavedXP` - and unresolved ids dropped, two ids on one spell keep the larger); cleared on revert and at the start of a load (`ClearAllProgress`); `EndLoad` drops ids that are no spell. Not tied to an `SLPR` entry: a spell learned outside the tree keeps it. A save without it (before 2026-11-03) starts every spell at 0; an older version saving again drops it |
 | `SLSM` | Librarian::SpellResearchMemory | 1 | count, then per spell with a boundary paid: formId u32, paid mask u8 (bit i = the i-th 15% boundary paid into Spell Research's memory). Kept through relocks and `SetSpellXP`; cleared on revert and at the start of a load; a save without it (before 2026-11-02) starts with nothing paid |
 | `DEST` | DESTIntegration | 1 | CommonLib `RegistrationSet`: count (size_t), then the VM handles of the aliases registered for `OnSpellTomeRead`. Read by `LoadChecked` (a subclass of CommonLib's set): the count must match the length before any handle is read, every read size-checked (CommonLib's own `Load` checks nothing it reads); a save without it (before 2026-10-27) starts with none. Cleared on revert; `AutoRegisterISLAliases` (`OnPostLoadGame`) adds ISL's aliases on every load as before |
 
 - The layouts are `include/ProgressionCoSave.h` (header only, no game types, templated on the stream);
-  `tools/progression-check --self-test` writes and reads `SLTR`, `SLPR` v1-v3, `SLPX`, `SLEL` v1-v2, `SLTX` and `SLSM`
+  `tools/progression-check --self-test` writes and reads `SLTR`, `SLPR` v1-v3, `SLPX`, `SLEL` v1-v2, `SLTX`, `SLSM` and `SLMX`
   records in byte buffers. Every field is read with its size checked (`ReadRecordData` returns the bytes read: a
   form id cut to 3 of its 4 bytes used to pass as read and name another spell); `SLTR` through
   `ProgressionCoSave::ReadTargets`, `SLEL`'s lists through `ReadFormIds`.
@@ -1080,6 +1081,60 @@ struct XPSettings {
 // Direct prerequisites tracked per learning target
 std::unordered_map<RE::FormID, std::vector<RE::FormID>> m_targetPrerequisites;
 ```
+
+#### Mastery ranks (2026-11-03)
+
+`src/progressionmanager/ProgressionManagerMastery.cpp`, the numbers in `include/MasteryMath.h` (pure, no game
+types; `tools/progression-check-mastery.cpp` runs them), the settings reader in `include/MasteryConfig.h`. A
+mastered spell keeps earning XP when the player casts it, toward `mastery.ranks` ranks (3 by default). This base
+has no effect on the spell yet: XP, ranks, the save (`SLMX`), the card and a read API. The design decisions
+(author 2026-11-03): mastery XP only from casting the mastered spell itself (it need not be a learning target);
+the XP a rank costs follows the spell's tier, and the school skill raises the XP a cast gives, not what a rank
+costs, so a lower skill later (Legendary) never takes a rank away.
+
+- **Which cast earns.** `OnSpellCast` asks `MasteryKeyForCast(castSpellId)` before it pays any learning XP and
+  calls `OnMasteredCast` after its targets loop, so the cast that takes a spell from 99% to 100% earns learning XP
+  only. A cast earns when `mastery.enabled`; its tree spell (`SpellScanner::TreeSpellForTome`: the tree's record of
+  a duplicate group, else the spell) is a tree node (`IsTreeSpell`); the player has the cast spell, the tree's
+  record or a copy (`PlayerKnowsCopyOf`); neither is early learned and the tree spell is not held for ISL; and the
+  tree spell is unlocked or `IsSpellMastered` (100%, or known from outside the tree - such spells earn too). The XP
+  is kept under the tree spell's id (`MasteryKeyOf`): a copy's cast, a query by a copy's id, the relock and the
+  panel all use that key.
+- **How much.** One cast: the cast's base XP (`SpellCastHandler`: Magicka cost / 10, at least 1) x `mastery.xpRate`
+  x the skill factor (`MasteryMath::GainFor`). The skill factor reads the player's base value of the spell's
+  school (`ActorValueOwner::GetBaseActorValue`: the levelled skill; a Fortify potion or enchantment does not count)
+  and goes in a straight line from `skillFactor.atMin` at the tier's starting skill (Novice 0, Apprentice 25, Adept
+  50, Expert 75, Master 100 - the tier, not the effect's `minimumSkill`, which modded Master spells often leave at 0)
+  to `skillFactor.at100` at skill 100, held at both ends; a Master spell has no line (1 below 100, `at100` from 100).
+  No global XP multiplier, early-learning self bonus, tome inventory boost or Spell Research multiplier.
+- **Ranks.** Rank r costs `tierXP[tier] x rankMultipliers[r - 1]` (a shorter list repeats its last value); the rank is
+  the number of whole ranks the raw XP covers (`RankFor`, reached exactly at its floor). The XP stops at the total of
+  the configured ranks (`Accumulate`); XP already over a lowered total is kept, not cut, and a rank a setting change
+  reaches shows no message. A rank reached by a cast: `hud.masteryRankUp` (an XP alert: off with Settings > XP
+  Alerts) and the ModEvent `SpellLearning_MasteryRankUp` (strArg the school as `SpellMastered` names it, numArg the
+  rank, sender the spell). Every gain posts `ProgressionNotify::Progress` for the spell, so an open card follows.
+- **Back to nothing.** `RelockSpell` (before its early return for a spell with no progress entry) and `SetSpellXP`
+  leaving the progress below 100% (cheat mode, the API, Papyrus) clear the spell's mastery XP (`ClearMastery`).
+- **Save.** `SLMX` (table above), independent of `SLPR`.
+- **Settings** (`config.json` `"mastery"`, read by `MasteryMath::ReadSettings` at game start, at the panel's config
+  load and at every save; each bad value - wrong type, not finite, not positive, out of range - is the default and a
+  warning in the log): `enabled` (true), `ranks` (3, a whole number 1 - 10), `tierXP` (`novice` 100, `apprentice`
+  200, `adept` 400, `expert` 800, `master` 1500; up to 1,000,000), `rankMultipliers` ([1, 1, 1], each above 0 and up
+  to 100), `skillFactor` (`atMin` 1.0, `at100` 2.0, up to 10), `xpRate` (1.0, up to 100). The defaults are starting
+  values, not measured. The default config writes only `enabled`; the panel's Settings > Learning > Mastery Ranks
+  switch writes only `mastery.enabled` (the C++ save merges objects key by key, the rest stays).
+- **Panel.** `GetProgressJSON` adds `mastery` (`enabled`, `ranks`) and `spellMastery` (every spell with mastery XP,
+  progress entry or not: `xp`, `rank`, `ranks`, `floor`, `next`), apart from `spellProgress` (whose entries the panel
+  reads as learning progress, `isSpellMastered`); `UIManager::NotifyProgressUpdate` adds `mastery` and `masteryOnly`
+  (no learning progress entry: the panel takes the mastery part only). The card: docs/DESIGN.md, "Mastery rank row".
+- **Read API.** C++ `ISpellLearningAPI::GetMasteryRank` / `GetMasteryXP` (API version 3), Papyrus
+  `SpellLearning.GetMasteryRank` / `GetMasteryXP` (docs/PLAN-PUBLIC-MODDER-API.md).
+- **Threads.** Everything here is ProgressionManager state: game thread only, as the class header says. The C++ API
+  reads are game thread only (their header says so); the Papyrus reads run on the game thread through
+  `RunOnGameThreadAndWait` like the other progress reads and answer 0 when it does not answer within `kPapyrusWait`.
+- **Tests.** Offline: `progression-check --self-test` (ranks, gain, skill factor, settings, `SLMX` round trip, cut
+  short, count too large, bad values). In game (dev self-test): `mastery-cast` and `mastery-gate`
+  (docs/ENVIRONMENT.md).
 
 ### 4. **SpellEffectivenessHook** (`plugins/spelllearning/src/spelleffectiveness/`, `plugins/spelllearning/include/SpellEffectivenessHook.h`)
 Split across: SpellEffectivenessHookCore.cpp, SpellEffectivenessHookDisplay.cpp, SpellEffectivenessHookLegacy.cpp, SpellEffectivenessHookGrant.cpp
@@ -1595,6 +1650,9 @@ Note on "game thread": SKSE drains its task queue one task at a time, but not al
 - Papyrus native functions (PapyrusAPI, ISLIntegration) - **not called there**: the script VM runs natives on its own worker threads. Natives that return nothing post their work with `AddTaskToGameThread()`; natives that return a value use `RunOnGameThreadAndWait()` and hand the script a fallback if the game thread does not answer. `IsMenuOpen` is the exception and reads an atomic flag directly
 - SKSE serialization callbacks (co-save read/write)
 - UIManager callbacks dispatch to game thread via `AddTaskToGameThread()`
+- Mastery ranks (`ProgressionManagerMastery.cpp`): run from `OnSpellCast` (a queued cast task), the save callbacks,
+  the panel's progress reply and the read API (C++ on the game thread by contract; Papyrus via
+  `RunOnGameThreadAndWait`) - no lock, as the rest of ProgressionManager
 
 **Background threads:**
 - `PassiveLearningSource` — dedicated `std::thread` polling every 3s, dispatches XP grants back to game thread via `AddTaskToGameThread()`
@@ -2244,6 +2302,7 @@ went with the LLM feature on 2026-09-28.
 Player casts spell → SpellCastHandler::ProcessEvent()
   (or CastSpellImmediate hook → OnImmediateCast(), e.g. SpellHotbar 2; same task, known spells only)
   → Identify spell school → ProgressionManager::OnSpellCast()
+  → MasteryKeyForCast: does this cast earn mastery XP (decided before any learning XP)
   → Calculate XP (direct/school/any multipliers, self-cast bonus, tome inventory boost,
     Spell Research memory: SpellResearchMemory::PracticeMultiplier)
   → Update progress (AddXP), then SpellResearchMemory::OnPracticeProgress: each 15% boundary
@@ -2253,6 +2312,7 @@ Player casts spell → SpellCastHandler::ProcessEvent()
   → If progress == 100%:
       → SpellEffectivenessHook::MarkMastered() - Full power restored
       → ClearLearningTargetForSpell() - Auto-select next spell
+  → OnMasteredCast (when MasteryKeyForCast answered a spell): mastery XP, rank-up message and ModEvent
   → Notify UI
 ```
 
@@ -2415,10 +2475,22 @@ All settings stored in single config file, managed through UI:
     }
   },
 
+  "mastery": {
+    "enabled": true,
+    "ranks": 3,
+    "tierXP": { "novice": 100, "apprentice": 200, "adept": 400, "expert": 800, "master": 1500 },
+    "rankMultipliers": [1, 1, 1],
+    "skillFactor": { "atMin": 1.0, "at100": 2.0 },
+    "xpRate": 1.0
+  },
+
   "schoolColors": {...},
   "customProfiles": {...}
 }
 ```
+
+`mastery` (mastery ranks, ProgressionManager, "Mastery ranks" above): only `enabled` has a panel control and is
+written by default; the other keys are read when present (`MasteryMath::ReadSettings`).
 
 `spellResearch.enabled` (no panel control) turns the Spell Research registrations off; `memoryExchange` is the
 practice and memory exchange (Settings > Spell Tome Learning, shown only with Spell Research installed;
@@ -2467,7 +2539,8 @@ HeartOfMagic/
 │   │   │   ├── ElapsedMs.h                  ✅ MsSince: the one elapsed-milliseconds helper of the timing lines
 │   │   │   ├── MainMenuWatch.h              ✅ the one MainMenu opening sink: the panel's task, then the scan's
 │   │   │   ├── CoSave.h                     ✅ SKSE serialization callbacks (save, load, revert)
-│   │   │   ├── ProgressionCoSave.h          ✅ SLPR (writes v2, reads v1-v3), SLPX and SLTX record layouts, templated on the stream (no game types)
+│   │   │   ├── ProgressionCoSave.h          ✅ SLPR (writes v2, reads v1-v3), SLPX, SLTX, SLSM and SLMX record layouts, templated on the stream (no game types)
+│   │   │   ├── MasteryMath.h / MasteryConfig.h  ✅ mastery ranks: costs, ranks, skill factor, gain; config.json "mastery" reader
 │   │   │   ├── ProgressionManager.h         ✅ XP tracking header
 │   │   │   ├── ProgressionMath.h            ✅ XP cap, study, SetSpellXP clamp and mastery arithmetic (no game types)
 │   │   │   ├── SimdKernels.h                ✅ SIMD kernel header
