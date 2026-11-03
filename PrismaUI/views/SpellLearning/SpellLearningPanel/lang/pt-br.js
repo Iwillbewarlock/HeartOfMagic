@@ -786,5 +786,10 @@ window._i18nPreload = {
     "treeGrowth.treeBuilt": "Árvore construída",
     "treeGrowth.readyToBuild": "Pronto para construir",
     "treeViewer.noSettingsAvailable": "Nenhuma configuração disponível",
-    "treeViewer.treeGrowthPreview": "Pré-visualização do Crescimento da Árvore"
+    "treeViewer.treeGrowthPreview": "Pré-visualização do Crescimento da Árvore",
+    "details.masteryRank": "Ranque de domínio {{rank}}/{{ranks}}",
+    "hud.masteryRankUp": "{{spell}}: ranque de domínio {{rank}} de {{ranks}}",
+    "settings.progression.masteryRanks": "Ranques de Domínio",
+    "settings.progression.masteryEnable": "Ranques Além do Domínio",
+    "settings.progression.masteryEnableDesc": "Lançar uma magia dominada concede XP de domínio para subir de ranque (3 por padrão). Os valores estão em config.json, em \"mastery\"."
 };

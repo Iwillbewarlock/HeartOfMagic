@@ -786,5 +786,10 @@ window._i18nPreload = {
     "treeGrowth.treeBuilt": "樹建構完成",
     "treeGrowth.readyToBuild": "可以建構",
     "treeViewer.noSettingsAvailable": "無可用設定",
-    "treeViewer.treeGrowthPreview": "樹生長預覽"
+    "treeViewer.treeGrowthPreview": "樹生長預覽",
+    "details.masteryRank": "精通等級 {{rank}}/{{ranks}}",
+    "hud.masteryRankUp": "{{spell}}：精通等級 {{rank}}/{{ranks}}",
+    "settings.progression.masteryRanks": "精通等級",
+    "settings.progression.masteryEnable": "精通後額外等級",
+    "settings.progression.masteryEnableDesc": "施放已精通的法術可獲得精通經驗以提升精通等級（預設為 3 級）。具體數值位於 config.json 的 \"mastery\" 中。"
 };

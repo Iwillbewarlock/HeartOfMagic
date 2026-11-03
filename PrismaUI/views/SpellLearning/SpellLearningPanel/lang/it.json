@@ -815,5 +815,10 @@
     "treeGrowth.readyToBuild": "Pronto per la costruzione",
 
     "treeViewer.noSettingsAvailable": "Nessuna impostazione disponibile",
-    "treeViewer.treeGrowthPreview": "Anteprima Crescita Albero"
+    "treeViewer.treeGrowthPreview": "Anteprima Crescita Albero",
+    "details.masteryRank": "Grado di padronanza {{rank}}/{{ranks}}",
+    "hud.masteryRankUp": "{{spell}}: grado di padronanza {{rank}} di {{ranks}}",
+    "settings.progression.masteryRanks": "Gradi di padronanza",
+    "settings.progression.masteryEnable": "Gradi oltre la padronanza",
+    "settings.progression.masteryEnableDesc": "Lanciare un incantesimo padroneggiato conferisce XP di padronanza per salire di grado (3 di base). I valori si trovano in config.json, sotto \"mastery\"."
 }

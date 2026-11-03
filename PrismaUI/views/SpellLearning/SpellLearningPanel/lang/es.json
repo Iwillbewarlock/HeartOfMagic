@@ -815,5 +815,10 @@
     "treeGrowth.readyToBuild": "Listo para construir",
 
     "treeViewer.noSettingsAvailable": "No hay ajustes disponibles",
-    "treeViewer.treeGrowthPreview": "Vista Previa de Crecimiento del Árbol"
+    "treeViewer.treeGrowthPreview": "Vista Previa de Crecimiento del Árbol",
+    "details.masteryRank": "Rango de dominio {{rank}}/{{ranks}}",
+    "hud.masteryRankUp": "{{spell}}: rango de dominio {{rank}} de {{ranks}}",
+    "settings.progression.masteryRanks": "Rangos de dominio",
+    "settings.progression.masteryEnable": "Rangos tras el dominio",
+    "settings.progression.masteryEnableDesc": "Lanzar un hechizo dominado otorga EXP de dominio para subir de rango (3 por defecto). Los valores están en config.json, bajo \"mastery\"."
 }

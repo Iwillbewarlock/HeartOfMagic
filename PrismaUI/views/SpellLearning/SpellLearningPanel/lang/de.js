@@ -786,5 +786,10 @@ window._i18nPreload = {
     "treeGrowth.treeBuilt": "Baum erstellt",
     "treeGrowth.readyToBuild": "Bereit zum Erstellen",
     "treeViewer.noSettingsAvailable": "Keine Einstellungen verfügbar",
-    "treeViewer.treeGrowthPreview": "Baumwuchs-Vorschau"
+    "treeViewer.treeGrowthPreview": "Baumwuchs-Vorschau",
+    "details.masteryRank": "Meisterschaftsrang {{rank}}/{{ranks}}",
+    "hud.masteryRankUp": "{{spell}}: Meisterschaftsrang {{rank}} von {{ranks}}",
+    "settings.progression.masteryRanks": "Meisterschaftsränge",
+    "settings.progression.masteryEnable": "Ränge nach Meisterschaft",
+    "settings.progression.masteryEnableDesc": "Das Wirken eines gemeisterten Zaubers bringt Meisterschafts-EP für weitere Ränge (Standard: 3). Die Werte stehen in der config.json unter \"mastery\"."
 };

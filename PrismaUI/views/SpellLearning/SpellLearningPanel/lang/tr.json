@@ -815,5 +815,10 @@
     "treeGrowth.readyToBuild": "Oluşturmaya hazır",
 
     "treeViewer.noSettingsAvailable": "Ayar mevcut değil",
-    "treeViewer.treeGrowthPreview": "Ağaç Büyüme Önizleme"
+    "treeViewer.treeGrowthPreview": "Ağaç Büyüme Önizleme",
+    "details.masteryRank": "Ustalık kademesi {{rank}}/{{ranks}}",
+    "hud.masteryRankUp": "{{spell}}: ustalık kademesi {{rank}}/{{ranks}}",
+    "settings.progression.masteryRanks": "Ustalık Kademeleri",
+    "settings.progression.masteryEnable": "Ustalık Ötesi Kademeler",
+    "settings.progression.masteryEnableDesc": "Ustalaşılan bir büyüyü kullanmak, sonraki kademeler için ustalık XP'si kazandırır (varsayılan 3). Değerler config.json içindeki \"mastery\" bölümündedir."
 }

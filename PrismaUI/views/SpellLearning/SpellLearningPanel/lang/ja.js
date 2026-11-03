@@ -786,5 +786,10 @@ window._i18nPreload = {
     "treeGrowth.treeBuilt": "ツリー構築完了",
     "treeGrowth.readyToBuild": "構築の準備完了",
     "treeViewer.noSettingsAvailable": "利用可能な設定がありません",
-    "treeViewer.treeGrowthPreview": "ツリー成長プレビュー"
+    "treeViewer.treeGrowthPreview": "ツリー成長プレビュー",
+    "details.masteryRank": "習熟ランク {{rank}}/{{ranks}}",
+    "hud.masteryRankUp": "{{spell}}: 習熟ランク {{rank}}/{{ranks}}",
+    "settings.progression.masteryRanks": "習熟ランク",
+    "settings.progression.masteryEnable": "習得後の習熟ランク",
+    "settings.progression.masteryEnableDesc": "習得済みの呪文を唱えると習熟XPを獲得し、追加ランク（初期値3）が上がります。数値は config.json の \"mastery\" で設定できます。"
 };

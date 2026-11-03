@@ -815,5 +815,10 @@
     "treeGrowth.readyToBuild": "可以构建",
 
     "treeViewer.noSettingsAvailable": "无可用设置",
-    "treeViewer.treeGrowthPreview": "树生长预览"
+    "treeViewer.treeGrowthPreview": "树生长预览",
+    "details.masteryRank": "精通等级 {{rank}}/{{ranks}}",
+    "hud.masteryRankUp": "{{spell}}：精通等级 {{rank}}/{{ranks}}",
+    "settings.progression.masteryRanks": "精通等级",
+    "settings.progression.masteryEnable": "精通后额外等级",
+    "settings.progression.masteryEnableDesc": "施放已精通的法术可获得精通经验以提升精通等级（默认为 3 级）。具体数值位于 config.json 的 \"mastery\" 中。"
 }

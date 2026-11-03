@@ -815,5 +815,10 @@
     "treeGrowth.readyToBuild": "Можно строить",
 
     "treeViewer.noSettingsAvailable": "Настройки недоступны",
-    "treeViewer.treeGrowthPreview": "Предпросмотр роста дерева"
+    "treeViewer.treeGrowthPreview": "Предпросмотр роста дерева",
+    "details.masteryRank": "Ранг освоения {{rank}}/{{ranks}}",
+    "hud.masteryRankUp": "{{spell}}: ранг освоения {{rank}} из {{ranks}}",
+    "settings.progression.masteryRanks": "Ранги освоения",
+    "settings.progression.masteryEnable": "Ранги сверх освоения",
+    "settings.progression.masteryEnableDesc": "Применение освоенного заклинания даёт опыт освоения для повышения ранга (по умолчанию 3). Значения задаются в config.json, в разделе \"mastery\"."
 }

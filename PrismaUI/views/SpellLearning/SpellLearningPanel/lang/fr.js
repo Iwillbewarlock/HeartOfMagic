@@ -786,5 +786,10 @@ window._i18nPreload = {
     "treeGrowth.treeBuilt": "Arbre généré",
     "treeGrowth.readyToBuild": "Prêt à générer",
     "treeViewer.noSettingsAvailable": "Aucun paramètre disponible",
-    "treeViewer.treeGrowthPreview": "Aperçu de la croissance de l'arbre"
+    "treeViewer.treeGrowthPreview": "Aperçu de la croissance de l'arbre",
+    "details.masteryRank": "Rang de maîtrise {{rank}}/{{ranks}}",
+    "hud.masteryRankUp": "{{spell}} : rang de maîtrise {{rank}} sur {{ranks}}",
+    "settings.progression.masteryRanks": "Rangs de maîtrise",
+    "settings.progression.masteryEnable": "Rangs au-delà de la maîtrise",
+    "settings.progression.masteryEnableDesc": "Lancer un sort maîtrisé confère de l'XP de maîtrise pour gagner des rangs (3 par défaut). Les valeurs se trouvent dans config.json, sous \"mastery\"."
 };
