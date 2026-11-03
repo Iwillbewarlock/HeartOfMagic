@@ -100,7 +100,7 @@ void ProgressionManager::SetRequiredXP(RE::FormID formId, float required, Requir
     const float before = progress.requiredXP;
     progress.requiredXP = kind == RequiredXP::Kind::kCharacter ? required : BaseRequiredXP(formId);
     // The per-source counts keep their share of the required XP, both ways (ProgressionMath::RescaleTrackers)
-    ProgressionMath::RescaleSettlingFirst(progress, before, progress.requiredXP);
+    ProgressionMath::RescaleSettlingFirst(progress, before, progress.requiredXP, m_treeRequiredApplied);
 }
 
 void ProgressionManager::SetRequiredXPOverrides(RequiredXP::Table::Map overrides)
@@ -111,7 +111,7 @@ void ProgressionManager::SetRequiredXPOverrides(RequiredXP::Table::Map overrides
         if (m_requiredXP.HasCharacterValue(formId)) continue;
         const float before = progress.requiredXP;
         progress.requiredXP = BaseRequiredXP(formId);
-        ProgressionMath::RescaleSettlingFirst(progress, before, progress.requiredXP);
+        ProgressionMath::RescaleSettlingFirst(progress, before, progress.requiredXP, m_treeRequiredApplied);
         ++updated;
     }
     logger::info("ProgressionManager: {} per-spell XP overrides from the settings ({} entries sized again)",

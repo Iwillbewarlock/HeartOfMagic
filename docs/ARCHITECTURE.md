@@ -1655,8 +1655,11 @@ and fitted once to the XP held (`SettlePendingFit`) as soon as the required XP i
 `EndLoad` itself when the tree's numbers were already applied this session (`LoadEndFit`, `m_treeRequiredApplied`:
 a tree read at the main menu, then the save loaded - no tree read follows); else after the tree's numbers are in
 (`SettlePendingTrackerFits` at the end of `SyncRequiredXPFromTree`, both the game start tree and the panel's tree
-load); at the first required XP change (`RescaleSettlingFirst`: fitted at the number before the change, then scaled
-- a change is never left unscaled, which reopened a cap: 100 -> 200 kept 5/15 where 10/30 is the share); or at the
+load); at the first required XP change once the tree's numbers are in this session (`RescaleSettlingFirst`: fitted at the
+number before the change, then scaled - a change is never left unscaled, which reopened a cap: 100 -> 200 kept
+5/15 where 10/30 is the share; while the tree's sync is still setting its numbers, `m_treeRequiredApplied` false,
+a change leaves the pending counts alone and the sync's end fits them once at the tree's number - fitting at the
+passing tier number and scaling up would lift a saved sum between the two above what was saved); or at the
 spell's first XP (the cast loop, `AddSourcedXP` - mods, BookXP, passive learning). Until then a save writes basis 0
 for them (`BasisToSave`: the next load marks them again); `SetSpellXP` and a relock clear the mark.
 

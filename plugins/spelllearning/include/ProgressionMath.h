@@ -313,12 +313,17 @@ namespace ProgressionMath
         return true;
     }
 
-    // A required XP change from `oldRequired`: a pending fit is settled first, at `oldRequired` (the number in
-    // force until now), then every count is scaled as RescaleTrackers says. Never a change left unscaled: that
-    // reopened a cap (100 -> 200 kept 5/15 where 10/30 is the share). True when anything changed.
+    // A required XP change from `oldRequired`. Not pending: RescaleTrackers. Pending, `oldIsFinal` (the tree's
+    // numbers were applied this session): settled first at `oldRequired`, then scaled - never a change left
+    // unscaled, which reopened a cap (100 -> 200 kept 5/15 where 10/30 is the share). Pending and not final
+    // (the tree's sync is setting its numbers one by one, SettlePendingTrackerFits follows at its end): the
+    // counts are left alone - a fit at the passing tier number then a rescale to the tree's would lift a sum
+    // between p x R_tier and p x R_tree above what was saved and close capped sources early. True when
+    // anything changed.
     template <class Progress>
-    bool RescaleSettlingFirst(Progress& progress, float oldRequired, float newRequired)
+    bool RescaleSettlingFirst(Progress& progress, float oldRequired, float newRequired, bool oldIsFinal)
     {
+        if (progress.fitPending && !oldIsFinal) return false;
         bool changed = false;
         if (progress.fitPending) {
             progress.fitPending = false;
