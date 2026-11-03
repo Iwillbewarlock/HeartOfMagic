@@ -1,6 +1,6 @@
 # Changelog
 
-## Magic Menu Rewrite - next version (after 1.0.1)
+## Magic Menu Rewrite 1.1.0
 
 ### New
 
