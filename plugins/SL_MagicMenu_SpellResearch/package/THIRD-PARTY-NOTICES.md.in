@@ -11,20 +11,26 @@ needs Magic Menu Rewrite to show anything.
   those terms: `licenses/CommonLibSSE-NG/COPYING.txt` (GNU GPL version 3) and `licenses/CommonLibSSE-NG/EXCEPTIONS.md`
   (the two exceptions).
 - **The block's own source files are MIT** (`MagicMenuRewrite_SpellResearch-LICENSE.txt` next to this file): the C++
-  in the Heart of Magic repository's `plugins/SL_MagicMenu_SpellResearch/` (and `Common.h`, `PCH.h` and
-  `WideFileSink.h` from `plugins/`), the ini file and the language files. MIT is compatible with the GPL; files you
-  take from it on their own stay MIT.
+  in the Heart of Magic repository's `plugins/SL_MagicMenu_SpellResearch/` except the two files below (and `Common.h`,
+  `PCH.h` and `WideFileSink.h` from `plugins/`), the ini file and the language files. MIT is compatible with the GPL;
+  files you take from it on their own stay MIT.
 
-## Parts from Spell Research - Prisma UI
+## Parts from Spell Research - Prisma UI by Innocento (used with the author's permission)
 
-- `src/SRPrismaAPI.h` declares Spell Research - Prisma UI's interface, which the block calls to open its windows.
-- `src/ArchetypeIcons.h` is generated (`tools/sr-icons/convert.mjs` in the Heart of Magic repository) from
-  Spell Research - Prisma UI's own archetype icons (`tools/icons/skald-icons.js` of its repository).
+These two files are Innocento's work, not this project's, and are not under its MIT license. Spell Research - Prisma
+UI's source files (0.2.0) carry no license file; they are used here with the author's permission.
+
+- `plugins/SL_MagicMenu_SpellResearch/src/SRPrismaAPI.h` declares Spell Research - Prisma UI's interface, which the
+  block calls to open its windows.
+- `plugins/SL_MagicMenu_SpellResearch/src/ArchetypeIcons.h` is generated (`tools/sr-icons/convert.mjs` in the Heart of
+  Magic repository) from Spell Research - Prisma UI's own archetype icons (`tools/icons/skald-icons.js` of its
+  repository).
 
 ## Corresponding Source
 
 The complete Corresponding Source for the DLL is public at <https://github.com/Iwillbewarlock/HeartOfMagic>, tag
-`spell-research-block-v@SPELL_RESEARCH_BLOCK_VERSION@` (the tag of this block's release). CommonLibSSE-NG is its git
+`spell-research-block-v@SPELL_RESEARCH_BLOCK_VERSION@`, made on the commit this package was built from when Spell
+Research - Prisma UI 2 is released. CommonLibSSE-NG is its git
 submodule `plugins/external/commonlibsse-ng` at tag `v10.0.0` (<https://github.com/alandtse/CommonLibVR>, branch `ng`);
 `git submodule update --init --recursive` fetches it. The third-party libraries below come from the vcpkg manifest
 `vcpkg.json`. Building: `BuildRelease.ps1` (see the repository's README and CLAUDE.md); the build puts these files in
