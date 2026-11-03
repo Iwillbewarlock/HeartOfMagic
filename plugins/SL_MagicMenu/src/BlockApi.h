@@ -67,7 +67,13 @@
 //
 // kMessageHeight ('SLMH'): add-on -> MagicMenuRewrite, data = a HeightRequest (below), dataLen its size: the block's height for
 // this menu, for content that needs less room than the block registered with. The registered height is the block's maximum
-// and its size in the layout mode; every magic menu opens at it. On the next UI frame the columns are laid out again with the
+// and its size in the layout mode. A menu opens with the block at its registered height - or, since 2026-11-03, at the
+// height it last asked for this game session when it asks again for its height right after its first draw of a menu (in
+// that draw, or before the host's next UI frame): a block that did so in the last menu it was drawn in opens the next one
+// at its last asked height, so the blocks under it do not jump. A block that then does not ask again after its first draw
+// is put back to its registered height at the next frame (and opens later menus at it); a block that never asks at its
+// first draw (a compact toggle on a key, say) always opens at its registered height, as before. The layout mode still
+// shows every block at its registered height. On the next UI frame the columns are laid out again with the
 // new height - a smaller height than the block has waits about 150 ms first (the host's shrink delay, so a block that grows
 // back at once does not jump; a larger height, or the present one, applies at once and drops a waiting shrink; in the layout
 // mode every height applies at once) - (the blocks below move up or down, the column's scroll follows) and the block is drawn again into its new size
@@ -144,6 +150,11 @@
 // open, else the host's fallback 1.25). frameSeq (added 2026-10-31 at the end; read it only when structSize reaches
 // kContextFrameSeqNeeded): the host's UI frame number this menu, the same for every frame call of one frame and new each
 // frame, from 1 (0 = a host that does not send it) - an add-on with several blocks does its shared work once per frame.
+// columnRoom (added 2026-11-03 after a reserved field; read it only when structSize reaches kContextColumnRoomNeeded): the
+// room from the content clip's top down to the bottom of its column's visible area (the column's area cut to the movie's
+// visible frame, measured each frame) as if the column were not scrolled - the most the block can show without the player
+// scrolling, the same at any scroll position (stage units; 0 or less when the clip starts below that bottom). Fit content
+// to it rather than to viewTop..viewBottom, which shrink as the column scrolls.
 //
 // kMessageShowSpell ('SLMS'): add-on -> MagicMenuRewrite, data = a ShowSpellRequest, dataLen its size: show this spell as a
 // click on it in the add-on's block would - selected in the list when it is there, else on the menu's card (and in the 3D
@@ -257,6 +268,8 @@ namespace BlockApi
         float viewLeft = 0.0f, viewTop = 0.0f, viewRight = 0.0f, viewBottom = 0.0f;  // the visible part, content clip coordinates
         float rowSize = 0.0f, lineFirst = 0.0f, linePitch = 0.0f;  // the SkyUI list's text metrics, 0 until measured
         std::uint32_t frameSeq = 0;           // 2026-10-31: the host's UI frame number this menu (from 1; 0 = not sent)
+        std::uint32_t reserved = 0;           // 2026-11-03: 0; keeps columnRoom past the 88 bytes an older host sends
+        float columnRoom = 0.0f;              // 2026-11-03: the column's visible room below the content clip's top, unscrolled
     };
 
     /// a_clip: the lent content clip; a_width / a_height: its drawable size in stage units; a_user: Registration::user
@@ -349,9 +362,12 @@ namespace BlockApi
     inline constexpr std::uint32_t kRegistrationV3Size = sizeof(Registration);
     static_assert(sizeof(void*) != 8 || kRegistrationV3Size == 104, "the v3 layout of x64 builds is 104 bytes");
     static_assert(sizeof(void*) != 8 || offsetof(Context, frameSeq) == 80, "the v3 Context of x64 builds was 80 bytes; frameSeq follows it");
-    static_assert(sizeof(void*) != 8 || sizeof(Context) == 88, "the v3 Context of x64 builds is 88 bytes with frameSeq");
+    static_assert(sizeof(void*) != 8 || offsetof(Context, columnRoom) == 88, "columnRoom follows the 88 bytes of the 2026-10-31 Context");
+    static_assert(sizeof(void*) != 8 || sizeof(Context) == 96, "the v3 Context of x64 builds is 96 bytes with columnRoom");
     /// structSize a Context needs for frameSeq to be read (an older host sends 80)
     inline constexpr std::uint32_t kContextFrameSeqNeeded = offsetof(Context, frameSeq) + sizeof(std::uint32_t);
+    /// structSize a Context needs for columnRoom to be read (a host of 2026-10-31 sends 88)
+    inline constexpr std::uint32_t kContextColumnRoomNeeded = offsetof(Context, columnRoom) + sizeof(float);
 
     enum class Status : std::uint32_t
     {

@@ -396,6 +396,9 @@ namespace Widget
             int addonHeightLogs = 0;                        // height lines logged this menu (kMaxHeightLogs)
             int fitLogs = 0;                                // L7 fit lines logged this menu (FitBlock)
             std::set<Layout::BlockId> addonTooTallLogged;   // blocks whose too-tall request was logged this menu (once each)
+            // 2026-11-03: the add-ons opened at their session height (SeedOpeningHeights), and the check after each one's first draw
+            std::set<Layout::BlockId> openedAtSession;
+            std::map<Layout::BlockId, BlockRules::OpenCheck> openChecks;
             int addonClickLogs = 0;
             // Block API v3: what made the last selection and the last kMessageShowSpell served (Context::source, servedRequest);
             // the blocks a kMessageVisible hid (their places kept); panels made per column (an overlay below a newer one is made
@@ -1119,6 +1122,9 @@ namespace Widget
         // (BlockRules::Enqueue), taken by the frame handler (TakeAddonHeights); emptied at each menu open
         std::mutex g_heightLock;
         std::vector<std::pair<std::string, double>> g_heightQueue;
+        // 2026-11-03: each add-on's last asked height this game session and whether it asked again after its first draw
+        // (BlockRules::SessionHeight; UI thread only) - the next menu opens it at that height (SeedOpeningHeights)
+        std::map<BlockId, BlockRules::SessionHeight> g_sessionHeights;
         // Block API v3: kMessageShowSpell (newest per id, with the selection sequence it was sent at), kMessageVisible (last per id)
         // and the keyboard downs (QueueAddonKey) from any thread, taken by the frame handler; emptied at each menu open
         std::mutex g_v3Lock;
@@ -2759,6 +2765,7 @@ namespace Widget
                 }
                 if (addon->click && !OwnMouse(*addon)) MakeAddonHit(a_movie, a_widget, id, left, top, width, height);
                 if (g_menu.addonDrawn.insert(id).second) {
+                    g_menu.openChecks[id] = { static_cast<std::uint64_t>(g_menu.frame), false };  // 2026-11-03: does it ask again?
                     // "v<apiVersion>:" (SR's v2 line as before); a v3 block adds its v3 fields
                     const std::string v3 = addon->apiVersion < BlockApi::kVersion ? std::string{} :
                         std::format("{}{}, pad {}, flags 0x{:X}", addon->frame ? ", frame" : "", addon->key ? ", key" : "",
@@ -2951,6 +2958,51 @@ namespace Widget
             return fitted;
         }
 
+        // 2026-11-03 (BlockApi.h "kMessageHeight"): every add-on opens at the height it last asked for this game session when it asked
+        // again after its first draw in the last menu it was drawn in (BlockRules::OpeningHeight) - before anything is laid out
+        void SeedOpeningHeights()
+        {
+            for (const auto& addon : g_addons) {
+                const auto it = g_sessionHeights.find(addon.id);
+                const auto height = BlockRules::OpeningHeight(it != g_sessionHeights.end() ? std::optional{ it->second } : std::nullopt, addon.height);
+                if (!height) continue;
+                g_menu.fitHeight[addon.id] = *height;
+                g_menu.openedAtSession.insert(addon.id);
+                logger::info("Widget: add-on block {} opens at {:.1f}, the height it asked for last (registered {:.1f})", addon.id, *height, addon.height);
+            }
+        }
+
+        // 2026-11-03: the checks after the add-ons' first draws - a request in a_requests (the add-ons' own) marks its block as asking
+        // again; from the frame after the first draw on the block's reasks flag is set, and one that opened at its session height and
+        // did not ask is put back to its registered height (BlockRules::JudgeOpen). True when a height was put back
+        bool JudgeOpenings(const std::vector<std::pair<std::string, double>>& a_requests)
+        {
+            for (const auto& request : a_requests) {
+                if (const auto it = g_menu.openChecks.find(request.first); it != g_menu.openChecks.end()) it->second.asked = true;
+            }
+            bool reverted = false;
+            for (auto it = g_menu.openChecks.begin(); it != g_menu.openChecks.end();) {
+                const auto& id = it->first;
+                const auto check = it->second;
+                const bool seeded = g_menu.openedAtSession.contains(id);
+                const auto verdict = BlockRules::JudgeOpen(check, static_cast<std::uint64_t>(g_menu.frame), seeded);
+                if (verdict == BlockRules::OpenVerdict::kWait) {
+                    ++it;
+                    continue;
+                }
+                if (check.asked || g_sessionHeights.contains(id)) g_sessionHeights[id].reasks = check.asked;
+                if (verdict == BlockRules::OpenVerdict::kRevert) {
+                    g_menu.fitHeight.erase(id);
+                    g_menu.heldShrink.erase(id);
+                    reverted = true;
+                    logger::info("Widget: add-on block {} opened at its last asked height but did not ask again after its first draw - back to "
+                                 "its registered height (later menus open at it)", id);
+                }
+                it = g_menu.openChecks.erase(it);
+            }
+            return reverted;
+        }
+
         // Block API v2: the kMessageHeight requests queued since it last ran. A new height lays the columns out again
         // (Rearrange: the blocks below move, the column's scroll is clamped, the resized block is due to be drawn again with its
         // hit clip); in the layout mode it is kept for the mode's end. Unknown ids (once per id) and heights over the
@@ -2963,6 +3015,7 @@ namespace Widget
                 const std::scoped_lock lock(g_heightLock);
                 requests.swap(g_heightQueue);
             }
+            bool changed = JudgeOpenings(requests);  // 2026-11-03: the add-ons' own requests only (not the held shrinks added below)
             // user 2026-10-30: an add-on's held shrink whose delay has passed comes back as its request (the add-on sent it once)
             if (!g_menu.layout.active) {
                 const double now = NowMs();
@@ -2972,7 +3025,6 @@ namespace Widget
                     if (const auto due = BlockRules::DueShrink(FitStateOf(id), now, false)) requests.emplace_back(id, *due);
                 }
             }
-            bool changed = false;
             for (const auto& [id, height] : requests) {
                 const auto* addon = KnownAddon(id, "height request ('SLMH')");
                 if (!addon) continue;
@@ -3004,6 +3056,7 @@ namespace Widget
                         g_menu.layout.active ? " - kept for the layout mode's end" : "", g_menu.addonHeightLogs == kMaxHeightLogs ? " - later ones this menu not logged" : "");
                 }
                 g_menu.fitHeight[id] = height;
+                BlockRules::RememberHeight(g_sessionHeights, id, height, addon->height);  // 2026-11-03: the next menu opens at it
                 changed = true;
             }
             if (!changed || g_menu.layout.active) return false;
@@ -3322,8 +3375,10 @@ namespace Widget
             return overlay;
         }
 
+        Settings::Rect VisibleStage(RE::GFxMovieView* a_movie);  // the movie's visible frame (below, with the board)
+
         // The Context of one frame call (BlockApi.h "Context")
-        BlockApi::Context ContextOf(std::size_t a_index, const BlockRegistry::Block& a_addon, int a_column)
+        BlockApi::Context ContextOf(std::size_t a_index, const BlockRegistry::Block& a_addon, int a_column, double a_visibleBottom)
         {
             BlockApi::Context context;
             context.shown = ShownForm();
@@ -3336,7 +3391,8 @@ namespace Widget
             context.layoutMode = g_menu.layout.active;
             context.overlayGeneration = g_overlayTracks[a_index].generation;
             context.contentGeneration = g_contentGenerations[a_index];
-            const auto view = BlockRules::ViewInContent(AddonContentRect(a_addon.id, a_addon), ColumnViewport(a_column));
+            const auto contentRect = AddonContentRect(a_addon.id, a_addon);
+            const auto view = BlockRules::ViewInContent(contentRect, ColumnViewport(a_column));
             context.viewLeft = static_cast<float>(view.left);
             context.viewTop = static_cast<float>(view.top);
             context.viewRight = static_cast<float>(view.right);
@@ -3345,6 +3401,9 @@ namespace Widget
             context.lineFirst = static_cast<float>(g_menu.lineFirst);
             context.linePitch = static_cast<float>(g_menu.linePitch);
             context.frameSeq = static_cast<std::uint32_t>(g_menu.frame) + 1;  // one value per UI frame (AddonFrames runs after ++g_menu.frame)
+            // 2026-11-03: the room from the content clip's top to the column's visible bottom, unscrolled (BlockRules::ColumnRoom)
+            context.columnRoom = static_cast<float>(
+                BlockRules::ColumnRoom(contentRect.top, g_menu.scroll[a_column], ColumnViewport(a_column).bottom, a_visibleBottom));
             return context;
         }
 
@@ -3364,10 +3423,10 @@ namespace Widget
                                 a_context.viewBottom <= box.height + kSlack;
             const bool originOk = content && overlay && std::abs(content->first - overlay->first) <= kSlack && std::abs(content->second - overlay->second) <= kSlack;
             SelfTest(std::format("L9 addon {} frame {} - content 0,0 in _root {}, overlay 0,0 {}; view {:.0f},{:.0f}..{:.0f},{:.0f} of {:.0f} x {:.0f}, "
-                                 "selection seq {}, tab bits 0x{:X}, layout mode {}, generations overlay {} content {}",
+                                 "column room {:.0f}, selection seq {}, tab bits 0x{:X}, layout mode {}, generations overlay {} content {}",
                 a_addon.id, originOk && viewOk ? "PASS" : "FAIL", content ? std::format("{:.1f},{:.1f}", content->first, content->second) : std::string("not read"),
                 overlay ? std::format("{:.1f},{:.1f}", overlay->first, overlay->second) : std::string("not read"), a_context.viewLeft,
-                a_context.viewTop, a_context.viewRight, a_context.viewBottom, box.width, box.height, a_context.selectionSeq, a_context.tabBits,
+                a_context.viewTop, a_context.viewRight, a_context.viewBottom, box.width, box.height, a_context.columnRoom, a_context.selectionSeq, a_context.tabBits,
                 a_context.layoutMode, a_context.overlayGeneration, a_context.contentGeneration));
         }
 
@@ -3383,6 +3442,7 @@ namespace Widget
             // pressed on a tab a block is not on is never handed to it later
             const auto keys = TakeAddonKeys();
             const bool columnsUp = Visibility().any;
+            const double visibleBottom = VisibleStage(a_movie).bottom;  // Context::columnRoom: the column cut to the visible frame
             for (std::size_t i = 0; i < g_addons.size(); ++i) {
                 const auto& addon = g_addons[i];
                 if (!addon.frame && !addon.key) continue;
@@ -3422,7 +3482,7 @@ namespace Widget
                 if (!content.IsDisplayObject()) continue;  // not drawn yet (DrawAddons logs a content clip it could not make)
                 // the keys right before the frame call (after every check that could skip it): a key acts in the frame it is given in
                 if (deliver && !AddonKeys(a_widget, addon, keys)) continue;  // its key callback threw: failed, no frame call
-                const auto context = ContextOf(i, addon, *column);
+                const auto context = ContextOf(i, addon, *column, visibleBottom);
                 RE::GFxValue* overlayArg = overlay.IsDisplayObject() ? &overlay : nullptr;
                 const auto error = GuardedCall([&] { addon.frame(a_movie, content, overlayArg, context, addon.user); });
                 if (!error.empty()) {
@@ -6194,6 +6254,7 @@ namespace Widget
             if (root.GetMember(kRootName, &existing) && existing.IsDisplayObject()) return;  // already on this movie
 
             g_menu = MenuState{};
+            SeedOpeningHeights();           // 2026-11-03: before anything is arranged in this menu
             PlaceColumnsArea(movie, root);  // Nexus report 2026-11-01: before anything is arranged in this menu
             ApplyHiddenSetting();  // 2026-10-31: [Blocks] sHidden as the menu sink read it, before anything is arranged
             KeyHints::OnMenuOpen();
@@ -6202,7 +6263,7 @@ namespace Widget
                 g_redrawQueue.clear();
             }
             {
-                const std::scoped_lock lock(g_heightLock);  // nor a height: every menu opens at the registered heights
+                const std::scoped_lock lock(g_heightLock);  // nor a height: a menu opens at the registered or the session heights
                 g_heightQueue.clear();
             }
             {
