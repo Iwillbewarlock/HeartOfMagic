@@ -90,6 +90,27 @@ namespace TreeData
             return std::isfinite(number) ? std::optional{ number } : std::nullopt;
         }
 
+        constexpr std::string_view kElementPrefix = "element.", kKindPrefix = "kind.";
+        constexpr std::size_t kMaxTraits = 32;         // a node's traits read at most (HoM's carry a handful)
+        constexpr std::size_t kMaxTraitLength = 64;    // a longer entry is not one of the vocabulary's
+
+        /// The node's "traits": its element.* and kind.* strings, each once, in file order (anything else, a non-string, an
+        /// over-long entry or a wrong-typed field skipped)
+        void ReadTraits(const Json& a_object, std::vector<std::string>& a_elements, std::vector<std::string>& a_kinds)
+        {
+            const auto* traits = Field(a_object, "traits");
+            if (!traits || !traits->is_array()) return;
+            std::size_t read = 0;
+            for (const auto& trait : *traits) {
+                if (read++ >= kMaxTraits) break;
+                if (!trait.is_string()) continue;
+                const auto& text = trait.get_ref<const std::string&>();
+                if (text.size() > kMaxTraitLength) continue;
+                auto* list = text.starts_with(kElementPrefix) ? &a_elements : text.starts_with(kKindPrefix) ? &a_kinds : nullptr;
+                if (list && std::ranges::find(*list, text) == list->end()) list->push_back(text);
+            }
+        }
+
         int IntField(const Json& a_object, const char* a_key)
         {
             // A number outside int (a hand-edited or corrupt file) is 0: the cast would be undefined
@@ -303,6 +324,7 @@ namespace TreeData
             }
             node.isRoot = BoolField(a_json, "isRoot");
             NormalisePrereqs(node, a_json, a_schoolRoot);
+            ReadTraits(a_json, node.elements, node.kinds);
             return node;
         }
 
@@ -364,6 +386,7 @@ namespace TreeData
                         if (!node.hasXY) {
                             ++tree.nodesWithoutXY;
                         }
+                        if (!node.elements.empty() || !node.kinds.empty()) ++tree.nodesWithTraits;
                         tree.byId.try_emplace(node.id, index);  // a repeated id text keeps its first node
                         if (node.formId != 0) {
                             tree.byFormId[node.formId].push_back(index);

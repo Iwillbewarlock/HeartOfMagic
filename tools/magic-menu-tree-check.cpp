@@ -20,6 +20,7 @@
 #include "TreeData.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -555,6 +556,60 @@ namespace
             "a soft list present: no legacy promotion, softNeeded 0 stays");
     }
 
+    // 2026-11-03: a node's "traits" - its element.* and kind.* strings kept (the progress card's next-spell order)
+    void TestTraits()
+    {
+        std::printf("traits: element.* and kind.* read per node\n");
+        const std::string longTrait = "element." + std::string(80, 'x');
+        const std::string json = R"({"schools": {"A": {"nodes": [
+            {"formId": "0x01", "x": 0, "y": 0, "traits": ["element.fire", "kind.rune", "form.projectile", "element.fire", 5, null, ")" +
+                                 longTrait + R"(", "school.destruction"]},
+            {"formId": "0x02", "x": 1, "y": 0},
+            {"formId": "0x03", "x": 2, "y": 0, "traits": "element.fire"},
+            {"formId": "0x04", "x": 3, "y": 0, "traits": ["kind.cloak"]}
+        ]}}})";
+        std::string error;
+        const auto tree = TreeData::Parse(json, &error);
+        Expect(tree.has_value(), "parses");
+        if (!tree) {
+            std::printf("    error: %s\n", error.c_str());
+            return;
+        }
+        const auto& n = tree->nodes;
+        Expect(n[0].elements == std::vector<std::string>{ "element.fire" } && n[0].kinds == std::vector<std::string>{ "kind.rune" },
+            "element.fire once, kind.rune; form.*, school.*, a number, null and an over-long entry left out");
+        Expect(n[1].elements.empty() && n[1].kinds.empty(), "no traits field: none (a tree saved without them)");
+        Expect(n[2].elements.empty() && n[2].kinds.empty(), "traits not an array: none, no throw");
+        Expect(n[3].elements.empty() && n[3].kinds == std::vector<std::string>{ "kind.cloak" }, "a kind only");
+        Expect(tree->nodesWithTraits == 2, "2 nodes with element / kind traits");
+    }
+
+    // The file mode: how long TreeData::Load takes (best of kTimingRuns, the whole file read and parsed as the plugin does at
+    // kDataLoaded) and what the element / kind traits hold
+    void PrintLoadCost(const std::string& a_path, const TreeData::Tree& a_tree)
+    {
+        constexpr int kTimingRuns = 5;
+        double best = 0.0;
+        for (int run = 0; run < kTimingRuns; ++run) {
+            const auto started = std::chrono::steady_clock::now();
+            std::string error;
+            const auto again = TreeData::Load(a_path, &error);
+            const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
+            if (run == 0 || ms < best) best = ms;
+            if (!again) return;
+        }
+        std::size_t traits = 0, bytes = 0;
+        for (const auto& node : a_tree.nodes) {
+            for (const auto* list : { &node.elements, &node.kinds }) {
+                traits += list->size();
+                bytes += list->capacity() * sizeof(std::string);
+                for (const auto& text : *list) bytes += text.capacity() > 15 ? text.capacity() + 1 : 0;  // past MSVC's small-string buffer
+            }
+        }
+        std::printf("load: %.1f ms (best of %d); traits: %d of %zu nodes, %zu element / kind entries, about %zu bytes\n", best, kTimingRuns,
+            a_tree.nodesWithTraits, a_tree.nodes.size(), traits, bytes);
+    }
+
     void TestMalformed()
     {
         std::printf("failure: malformed input\n");
@@ -700,6 +755,7 @@ namespace
         TestWideWindow();
         TestOpacitySet();
         TestMalformed();
+        TestTraits();
         std::printf(g_failures == 0 ? "selftest: all PASS\n" : "selftest: %d FAIL\n", g_failures);
         return g_failures == 0 ? kExitOk : kExitFail;
     }
@@ -720,6 +776,7 @@ int main(int a_argc, char** a_argv)
     }
     std::printf("file: %s\n", path.c_str());
     PrintCounts(*tree);
+    PrintLoadCost(path, *tree);
     const bool spaced = PrintWindowStats(*tree);
     return spaced ? kExitOk : kExitFail;
 }

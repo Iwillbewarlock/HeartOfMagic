@@ -41,6 +41,11 @@ namespace TreeData
         std::vector<std::uint32_t> hard;  // all of these mastered (FormIDs)
         std::vector<std::uint32_t> soft;  // softNeeded of these mastered (FormIDs)
         int softNeeded{};
+        // 2026-11-03: the node's "traits" (HoM bakes the scan's traits into the saved tree, schoolBridges.js; element.* already
+        // the librarian's catalog elements, LibrarianTraits.cpp): only the element.* and kind.* ones, as the tree builder's
+        // TypeGrouping reads them - the progress card's next-spell order. Empty for a tree saved without traits
+        std::vector<std::string> elements;
+        std::vector<std::string> kinds;
     };
 
     struct Edge
@@ -74,6 +79,7 @@ namespace TreeData
         int structuralEdges{};
         int lockEdges{};
         int unparsedIds{};
+        int nodesWithTraits{};  // nodes with at least one element.* or kind.* trait
     };
 
     /// Parses the file's text (UTF-8, an optional BOM is skipped). nullopt + a reason on failure.

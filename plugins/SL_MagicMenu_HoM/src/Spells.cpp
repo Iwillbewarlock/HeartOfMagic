@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <atomic>
 #include <charconv>
+#include <chrono>
 #include <format>
 #include <functional>
 #include <mutex>
@@ -278,7 +279,9 @@ namespace Spells
     {
         // spell_tree.json is read here directly
         std::string error;
+        const auto started = std::chrono::steady_clock::now();
         auto tree = TreeData::Load(kTreePath, &error);
+        const double parseMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
         if (!tree) {
             logger::warn("Spells: no spell tree at {} ({}) - the tree window stays empty", kTreePath, error);
             return false;
@@ -297,9 +300,9 @@ namespace Spells
         }
         const auto& t = data.tree;
         logger::info("Spells: tree {} - schools {}, nodes {}, without x/y {}, structural edges {}, lock edges {}, unparsed ids {}, "
-                     "FormIDs: {} by persistent id, {} by saved formId, {} unresolved",
+                     "FormIDs: {} by persistent id, {} by saved formId, {} unresolved; {} nodes with element / kind traits; read in {:.1f} ms",
             kTreePath, t.schools.size(), t.nodes.size(), t.nodesWithoutXY, t.structuralEdges, t.lockEdges, t.unparsedIds, byPersistent,
-            bySaved, unresolved);
+            bySaved, unresolved, t.nodesWithTraits, parseMs);
         g_data = std::move(data);
         return true;
     }

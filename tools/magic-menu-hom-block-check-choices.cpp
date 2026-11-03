@@ -84,6 +84,54 @@ namespace HomBlockCheck
             return ChoiceRules::PlanRows({ a_candidates, a_max, 47.0, kRowH, 47.0 + a_lines * kRowH });
         }
 
+        // Ordering rule (2): akin to the last target (ChoiceRules::Akin / AkinOf) - the tree builder's content signal
+        TreeData::Node Traits(std::vector<std::string> a_elements, std::vector<std::string> a_kinds)
+        {
+            TreeData::Node node;
+            node.elements = std::move(a_elements);
+            node.kinds = std::move(a_kinds);
+            return node;
+        }
+
+        void AkinRule()
+        {
+            std::printf("choices: rule (2) - akin to the last target (a shared element; a narrow kind, not of different elements)\n");
+            using ChoiceRules::Akin;
+            const std::map<std::string, double, std::less<>> shares{ { "kind.rune", 0.1 }, { "kind.damage", 0.33 }, { "kind.cloak", 0.2 } };
+            const auto fireRune = Traits({ "element.fire" }, { "kind.rune" });
+            Expect(Akin(fireRune, Traits({ "element.fire" }, { "kind.damage" }), shares), "a shared element (fire): akin");
+            Expect(Akin(fireRune, Traits({}, { "kind.rune" }), shares), "a narrow kind (rune, 10% of the school), the other has no element: akin");
+            Expect(!Akin(fireRune, Traits({ "element.frost" }, { "kind.rune" }), shares), "a frost rune is not like a fire rune (both elements, none shared)");
+            Expect(!Akin(Traits({}, { "kind.damage" }), Traits({}, { "kind.damage" }), shares), "a broad kind (damage, 33% > 20%): not akin");
+            Expect(Akin(Traits({}, { "kind.cloak" }), Traits({}, { "kind.cloak" }), shares), "a kind on exactly 20%: akin (at most a fifth)");
+            Expect(!Akin(Traits({}, {}), Traits({}, {}), shares) && !Akin(fireRune, Traits({}, {}), shares),
+                "no traits (a tree saved without them): not akin");
+            Expect(!Akin(Traits({}, { "kind.ward" }), Traits({}, { "kind.ward" }), shares), "a kind missing from the school's shares: not akin");
+
+            // the school: 0 the last target (fire rune), candidates 1 fire bolt, 2 frost rune, 3 no-element rune, 4 shock bolt (damage)
+            TreeData::Tree tree;
+            tree.nodes = { Traits({ "element.fire" }, { "kind.rune" }), Traits({ "element.fire" }, { "kind.damage" }),
+                Traits({ "element.frost" }, { "kind.rune" }), Traits({}, { "kind.rune" }), Traits({ "element.shock" }, { "kind.damage" }) };
+            // ten more school nodes without kinds, so rune is 3 / 15 = 20% and damage 2 / 15
+            for (int i = 0; i < 10; ++i) tree.nodes.push_back(Traits({}, {}));
+            std::vector<int> school(tree.nodes.size());
+            for (std::size_t i = 0; i < school.size(); ++i) school[i] = static_cast<int>(i);
+            const auto schoolShares = ChoiceRules::KindShares(tree, school);
+            Expect(Near(schoolShares.at("kind.rune"), 0.2, 1e-9) && Near(schoolShares.at("kind.damage"), 2.0 / 15.0, 1e-9),
+                "KindShares: rune 3 / 15, damage 2 / 15");
+            const std::vector<int> candidates{ 4, 2, 3, 1 };  // tier / name order
+            const auto akin = ChoiceRules::AkinOf(tree, 0, candidates, school);
+            Expect(akin == std::set<int>{ 1, 3 }, "AkinOf the fire rune: the fire bolt and the no-element rune; not the frost rune, not the shock bolt");
+            const std::set<int> children{ 2 };
+            Expect(ChoiceRules::Order(candidates, children, akin) == std::vector<int>{ 2, 3, 1, 4 },
+                Text("order: child 2, then akin 3, 1 (their tier order), then 4 - got %s", Show(ChoiceRules::Order(candidates, children, akin)).c_str()));
+            Expect(ChoiceRules::AkinOf(tree, -1, candidates, school).empty() && ChoiceRules::AkinOf(tree, 99, candidates, school).empty() &&
+                       ChoiceRules::Order(candidates, {}, {}) == candidates,
+                "no last target (or one out of range): rule (2) skipped - the tier / name order");
+            const auto bare = ChoiceRules::AkinOf(tree, 5, candidates, school);
+            Expect(bare.empty(), "a last target without traits: nobody akin (rule (2) skipped, never an error)");
+        }
+
         void RowPlans()
         {
             std::printf("choices: the rows that fit (iMaxChoices, the \"more\" line, one row at least)\n");
@@ -208,6 +256,7 @@ namespace HomBlockCheck
     {
         ChoiceStrings();
         Order();
+        AkinRule();
         RowPlans();
         Rooms();
         Heights();

@@ -6,8 +6,11 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <functional>
+#include <map>
 #include <optional>
 #include <set>
+#include <string>
 #include <vector>
 
 // =============================================================================
@@ -17,9 +20,12 @@
 // rows; a row click sets that spell as the learning target the way the node card's
 // button and the G key do. No game types: tools/magic-menu-hom-block-check runs
 // these on made-up trees and rooms.
-// Order: the direct children (structural tree links) of the school's last target
-// seen this game session - most likely the spell just mastered - first, then the
-// rest; inside each group Spells::Learnable's order (tier, name, FormID).
+// Order: (1) the direct children (structural tree links) of the school's last
+// target seen this game session - most likely the spell just mastered -, (2) the
+// spells akin to it (Akin: a shared element, or a narrow kind when they are not
+// made of different elements - the tree builder's content signal, feature/
+// tree-links TreeBuilderClassicScore.cpp), (3)(4) the rest; inside each group
+// Spells::Learnable's order (tier, name, FormID).
 // Rows: at most maxChoices spell rows; more candidates than rows add one "N more"
 // line under them. The rows fit the card's full (registered) height and the
 // column's visible room under the card (Context::columnRoom), and at least one row
@@ -47,12 +53,66 @@ namespace ChoiceRules
         return children;
     }
 
-    /// The rows' order: a_candidates (in Spells::Learnable's tier, name, FormID order) with a_children first, each group keeping
-    /// that order. No last target (a_children empty): a_candidates as they are
-    inline std::vector<int> Order(const std::vector<int>& a_candidates, const std::set<int>& a_children)
+    /// A kind carried by more than this share of the school says nothing about which spells belong together (kind.summon in
+    /// Conjuration, kind.damage in Destruction) - the tree builder's kSignalKindMaxShare
+    inline constexpr double kKindMaxShare = 0.2;
+
+    /// Per kind.* trait, the share of a_school's nodes (a_nodes: its non-dup nodes, the tree builder's school) that carry it
+    inline std::map<std::string, double, std::less<>> KindShares(const TreeData::Tree& a_tree, const std::vector<int>& a_nodes)
+    {
+        std::map<std::string, double, std::less<>> shares;
+        if (a_nodes.empty()) return shares;
+        for (const int index : a_nodes) {
+            if (index < 0 || static_cast<std::size_t>(index) >= a_tree.nodes.size()) continue;
+            for (const auto& kind : a_tree.nodes[static_cast<std::size_t>(index)].kinds) shares[kind] += 1.0;
+        }
+        for (auto& [kind, share] : shares) share /= static_cast<double>(a_nodes.size());
+        return shares;
+    }
+
+    inline bool SharesAny(const std::vector<std::string>& a_lhs, const std::vector<std::string>& a_rhs)
+    {
+        return std::ranges::any_of(a_lhs, [&](const std::string& a_x) { return std::ranges::find(a_rhs, a_x) != a_rhs.end(); });
+    }
+
+    /// a_spell is akin to a_last (ordering rule (2)): they share an element.* trait; or they share a kind.* trait carried by at
+    /// most kKindMaxShare of the school (a_shares) and are not made of different elements (both carry elements, none shared: a
+    /// frost rune is not like a fire rune). No traits on either (a tree saved without them): not akin
+    inline bool Akin(const TreeData::Node& a_last, const TreeData::Node& a_spell, const std::map<std::string, double, std::less<>>& a_shares)
+    {
+        if (SharesAny(a_last.elements, a_spell.elements)) return true;
+        if (!a_last.elements.empty() && !a_spell.elements.empty()) return false;  // different elements: the kind does not count
+        return std::ranges::any_of(a_last.kinds, [&](const std::string& a_kind) {
+            if (std::ranges::find(a_spell.kinds, a_kind) == a_spell.kinds.end()) return false;
+            const auto share = a_shares.find(a_kind);
+            return share != a_shares.end() && share->second <= kKindMaxShare;
+        });
+    }
+
+    /// The candidates akin to the last target's node a_last (-1: none known - none akin)
+    inline std::set<int> AkinOf(const TreeData::Tree& a_tree, int a_last, const std::vector<int>& a_candidates, const std::vector<int>& a_schoolNodes)
+    {
+        std::set<int> akin;
+        if (a_last < 0 || static_cast<std::size_t>(a_last) >= a_tree.nodes.size()) return akin;
+        const auto& last = a_tree.nodes[static_cast<std::size_t>(a_last)];
+        if (last.elements.empty() && last.kinds.empty()) return akin;
+        const auto shares = KindShares(a_tree, a_schoolNodes);
+        for (const int node : a_candidates) {
+            if (node >= 0 && static_cast<std::size_t>(node) < a_tree.nodes.size() && node != a_last &&
+                Akin(last, a_tree.nodes[static_cast<std::size_t>(node)], shares)) {
+                akin.insert(node);
+            }
+        }
+        return akin;
+    }
+
+    /// The rows' order: a_candidates (in Spells::Learnable's tier, name, FormID order) with a_children first, then a_akin, then the
+    /// rest, each group keeping that order. No last target (both empty): a_candidates as they are
+    inline std::vector<int> Order(const std::vector<int>& a_candidates, const std::set<int>& a_children, const std::set<int>& a_akin = {})
     {
         std::vector<int> ordered = a_candidates;
-        std::ranges::stable_partition(ordered, [&](int a_node) { return a_children.contains(a_node); });
+        const auto rest = std::ranges::stable_partition(ordered, [&](int a_node) { return a_children.contains(a_node); });
+        std::ranges::stable_partition(rest, [&](int a_node) { return a_akin.contains(a_node); });
         return ordered;
     }
 

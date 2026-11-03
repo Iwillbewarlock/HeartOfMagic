@@ -102,8 +102,8 @@ namespace HomAddon
             return s_handlers;
         }
 
-        // The rows' order: the school's last target's tree children first (ChoiceRules::Order)
-        std::vector<int> OrderedChoices(const SchoolInfo& a_info, int& a_children)
+        // The rows' order: the school's last target's tree children, then the spells akin to it (ChoiceRules::Order, AkinOf)
+        std::vector<int> OrderedChoices(const SchoolInfo& a_info, int& a_children, int& a_akin)
         {
             const auto& session = TheSession();
             std::vector<int> parents;
@@ -114,7 +114,18 @@ namespace HomAddon
             }
             const auto children = ChoiceRules::ChildrenOf(Data().tree, parents);
             a_children = static_cast<int>(std::ranges::count_if(a_info.candidates, [&](int a_node) { return children.contains(a_node); }));
-            return ChoiceRules::Order(a_info.candidates, children);
+            std::set<int> akin;
+            if (!parents.empty()) {
+                const auto* school = Spells::SchoolNamed(a_info.school);
+                std::vector<int> schoolNodes;
+                if (school) std::ranges::copy_if(school->nodes, std::back_inserter(schoolNodes), [](int a_node) { return !Spells::IsDup(Data().tree.nodes[a_node]); });
+                // the last target's own node (not a "_dup_" twin) carries its traits; its children are already group (1)
+                const auto own = std::ranges::find_if(parents, [](int a_node) { return !Spells::IsDup(Data().tree.nodes[a_node]); });
+                akin = ChoiceRules::AkinOf(Data().tree, own != parents.end() ? *own : parents.front(), a_info.candidates, schoolNodes);
+                std::erase_if(akin, [&](int a_node) { return children.contains(a_node); });
+            }
+            a_akin = static_cast<int>(akin.size());
+            return ChoiceRules::Order(a_info.candidates, children, akin);
         }
 
         // One row: a clip at a_y holding the band, the hit fill and the text "<name> · <level>" (the name alone, cut, when the level
@@ -174,8 +185,8 @@ namespace HomAddon
         const auto heading = TextFit::FitLine(metrics, log, a_movie, a_card, "heading", 0, y, a_area.w, size, Text(Str::kProgressPickHeading), kLabelColor);
         Q2State(Str::kProgressPickHeading, Text(Str::kProgressPickHeading), &heading);
         const double rowsTop = y + rowH;
-        int children = 0;
-        const auto ordered = OrderedChoices(a_info, children);
+        int children = 0, akin = 0;
+        const auto ordered = OrderedChoices(a_info, children, akin);
         const int maxChoices = HomSettings::Get().maxChoices;
         const auto plan = ChoiceRules::PlanRows({ static_cast<int>(ordered.size()), maxChoices, rowsTop, rowH, bottom });
         for (int i = 0; i < plan.rows; ++i) {
@@ -190,13 +201,13 @@ namespace HomAddon
         menu.choicesShown = true;
         menu.choicesDrawnRoom = menu.progressRoom;
         menu.choiceHover = -1;  // new row clips: none is under the mouse until it moves
-        const auto line = std::format("{}|{}|{}|{}", a_info.school, plan.rows, plan.more, children);
+        const auto line = std::format("{}|{}|{}|{}|{}", a_info.school, plan.rows, plan.more, children, akin);
         if (menu.choicesLogged.insert(line).second) {
             const auto last = TheSession().lastTarget.find(a_info.school);
             logger::info("HoM block: {} has no learning target - {} row(s) of {} candidate(s), {} more; last target {} ({} of its children "
-                         "listed first); room {:.1f} under the card ({})",
+                         "listed first, then {} akin to it); room {:.1f} under the card ({})",
                 a_info.school, plan.rows, ordered.size(), plan.more,
-                last != TheSession().lastTarget.end() ? std::format("{:08X}", last->second) : std::string("unknown this session"), children,
+                last != TheSession().lastTarget.end() ? std::format("{:08X}", last->second) : std::string("unknown this session"), children, akin,
                 bottom, menu.progressRoom ? std::format("column room {:.1f}", *menu.progressRoom) : std::string("the card's own height"));
             const bool inside = plan.end <= bottom + ChoiceRules::kRoomTolerance;
             SelfTest(std::format("C1 choices {} - {} row(s) + {} line(s) end at {:.1f}, the room ends at {:.1f}{}", inside ? "PASS" : "WARN", plan.rows,
