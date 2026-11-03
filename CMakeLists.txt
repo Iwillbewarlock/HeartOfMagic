@@ -61,16 +61,31 @@ set(DIST_DIR "${CMAKE_SOURCE_DIR}/dist")
 # The release's folder and zip: HeartOfMagic-Librarian_<version> (the DLLs keep their names)
 set(DIST_NAME "HeartOfMagic-Librarian")
 set(DIST_VERSION_DIR "${DIST_DIR}/${DIST_NAME}_${PROJECT_VERSION}")
+# The magic menu (plugins/SL_MagicMenu and its add-on blocks, shipped as Magic Menu Rewrite:
+# MagicMenuRewrite*.dll) ships apart, with its own version: the three plugins' DLL version,
+# fomod_magicmenu's info.xml and dist/MagicMenuRewrite_<version>
+set(MAGIC_MENU_VERSION "1.1.0")
+set(MAGIC_MENU_DIST_VERSION_DIR "${DIST_DIR}/MagicMenuRewrite_${MAGIC_MENU_VERSION}")
 
 add_subdirectory(plugins/spelllearning)
 add_subdirectory(plugins/DummyDEST)
 add_subdirectory(plugins/BookXP)
+add_subdirectory(plugins/SL_MagicMenu)
+add_subdirectory(plugins/SL_MagicMenu_SpellResearch)
+add_subdirectory(plugins/SL_MagicMenu_HoM)
+add_subdirectory(examples/MagicMenuBlockExample)  # Block API example for mod authors (docs/magicmenu/BLOCK_API_GUIDE.md); not shipped
 add_subdirectory(tools)
 
 # Generate fomod/info.xml from template with current version
 configure_file(
     "${CMAKE_SOURCE_DIR}/fomod/info.xml.in"
     "${CMAKE_SOURCE_DIR}/fomod/info.xml"
+    @ONLY
+)
+# and the magic menu's fomod_magicmenu/fomod/info.xml with its own version
+configure_file(
+    "${CMAKE_SOURCE_DIR}/fomod_magicmenu/fomod/info.xml.in"
+    "${CMAKE_SOURCE_DIR}/fomod_magicmenu/fomod/info.xml"
     @ONLY
 )
 

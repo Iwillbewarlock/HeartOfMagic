@@ -1,0 +1,282 @@
+#pragma once
+
+#include "BlockApi.h"
+#include "HomLayoutMath.h"
+#include "Spells.h"
+#include "Strings.h"
+#include "Selection.h"
+#include "Settings.h"
+#include "TextFit.h"
+#include "TreeRules.h"
+
+#include <array>
+#include <atomic>
+#include <cstddef>
+#include <cstdint>
+#include <map>
+#include <optional>
+#include <set>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
+// =============================================================================
+// ADDON STATE - what the Heart of Magic block's parts share (HoM add-on plan
+// Task 6): its three blocks, the session's centre and school (kept across menu
+// opens, as the core's g_session at f83dc6f3), the per-menu state (the HoM part
+// of the core's g_menu), the school's numbers, the self-test log, and the
+// requests to MagicMenuRewrite (Main.cpp sends them). Every callback runs on the UI
+// thread from the host's frame handler, one at a time; the menu sink only bumps
+// the open generation (EnsureMenu resets the state at the next callback).
+// =============================================================================
+
+namespace HomAddon
+{
+    enum class BlockKind : std::size_t
+    {
+        kTree,
+        kProgress,
+        kNodeCard,
+    };
+    inline constexpr std::size_t kBlockCount = 3;
+
+    inline constexpr std::size_t Index(BlockKind a_kind) { return static_cast<std::size_t>(a_kind); }
+
+    // The blocks' final ids (in MagicMenuRewrite_Layout.json under their retired built-in ids: legacyId) - registration order
+    inline constexpr std::array<const char*, kBlockCount> kBlockIds{ "MagicMenuRewrite_HoM.tree", "MagicMenuRewrite_HoM.progress",
+        "MagicMenuRewrite_HoM.nodecard" };
+    inline constexpr std::array<const char*, kBlockCount> kLegacyIds{ "tree", "progress", "nodecard" };
+    inline constexpr const char* kLogPrefix = "MagicMenuRewrite_HoM";  // TextFit's Q4 lines
+
+    // Panels and cards (the core's W:173-218 at f83dc6f3): the colours, the panel padding, the cards' top and bottom room
+    inline constexpr double kEdgeWidth = 1.0, kPad = Settings::kPanelPad;  // the panels' padding (the cards' and the tree's drawing)
+    inline constexpr std::uint32_t kPanelFill = 0x000000, kPanelEdge = 0x8A7A5A, kTitleColor = 0xC8C0B0;
+    inline constexpr std::uint32_t kWhite = 0xF0F0F0, kLabelColor = 0xD8D8D8, kDimText = 0x8A8A8A;
+    inline constexpr double kCardTop = 4.0, kCardBottom = 2.0;
+    // the cards' content clip inset (Registration::pad): the cards draw into a child clip at (kPad - kCardPad, -kCardPad), so each
+    // field sits where the core drew it in the card's box (x from kPad, y from the box's top)
+    inline constexpr double kCardPad = kCardTop;
+    inline constexpr double kLineFactor = 1.25;  // a text line's height per size unit until the host's Context gives the font's
+    inline constexpr int kPollFrames = 15;       // HoM state is asked for again this often
+    inline constexpr int kNoDataFrames = 600;    // frames without HoM's state for the school before the card stops saying "loading"
+
+    // The active school's state counts over its non-dup nodes (Q2); available = Spells::Learnable, candidates = those of them
+    // with a place in the tree
+    struct Tally
+    {
+        int candidates{}, available{}, target{}, ready{}, learning{}, mastered{}, locked{}, unknown{}, nodes{};
+    };
+
+    struct SchoolInfo
+    {
+        std::string school;
+        std::uint64_t epoch{};
+        std::vector<int> candidates;  // what the next-learnable key walks, in Spells::Learnable's order
+        Tally tally;
+        bool valid = false;
+    };
+
+    // Kept across menu opens (spec: "keep the previous centre")
+    struct Session
+    {
+        int centre = -1;
+        std::string school;  // the list's active school
+        // The centre was a fallback (DefaultCentre) picked from a snapshot that did not cover this school yet: the school's root
+        // stood in for its learning target. Picked again once a snapshot covers the school; a centre the user chose (list
+        // selection, tree click, the next-learnable key) is never provisional.
+        std::string provisionalSchool;
+        // 2026-11-03 (the progress card's next-spell rows): per school, the last learning target a snapshot showed this game session
+        // (cleared at a game load) - with no target now, most likely the spell just mastered; its tree children are listed first
+        std::map<std::string, RE::FormID> lastTarget;
+        // the column's visible room under the progress card (Context::columnRoom) last measured: the next menu's first draw uses it
+        std::optional<double> progressRoom;
+    };
+
+    // Reset on every menu open (EnsureMenu)
+    struct MenuState
+    {
+        std::uint64_t generation = 0;  // the open it belongs to
+        bool firstFrame = true;        // no frame call seen yet this menu
+        int frame = 0;
+        std::uint32_t sharedFrameSeq = 0;  // fix round 1 I1: the host frame whose shared work ran (Selection::TakesSharedWork)
+        bool refresh = true;           // ask Spells for HoM's state at the end of this frame
+        bool dirty = true;             // the cards are drawn again ('SLMD')
+        std::uint64_t epoch = 0;       // the snapshot drawn last
+        // the host's view, from the last frame's Context (BlockApi.h "Context")
+        RE::FormID shown = 0;
+        std::uint32_t selectionSeq = 0;
+        std::optional<std::uint32_t> seqSeen;    // the seq WatchSelection acted on last
+        std::optional<RE::FormID> settledShown;  // the card's form the selection state was last settled for (SettleShown)
+        std::optional<std::uint32_t> tabBits;    // the tab WatchTab acted on last
+        std::string tabSchool;                   // the school tab's school (empty on other tabs)
+        bool layoutMode = false;                 // the last Context's (own handlers ignore events while it is on)
+        // what the node card shows: the clicked node or the U key's pick (selectedByKey; bug G1: it counts as chosen)
+        int selected = -1;
+        bool selectedByKey = false;
+        bool notInTree = false;                  // the list's spell has no tree node (the tree keeps its centre)
+        std::uint32_t lastRequest = 0;           // the requestId of the add-on's last 'SLMS' (Task 7's tree click; 0 = none)
+        SchoolInfo schoolInfo;
+        std::set<std::string> availabilityLogged;
+        std::string uncoveredSchool;             // the school no snapshot has had since frame uncoveredFrom
+        int uncoveredFrom = 0;
+        bool noData = false;                     // kNoDataFrames passed without HoM's state for uncoveredSchool
+        TextFit::Log textLog{ {}, {}, kLogPrefix };  // the Q4 cut / room lines and the Q2 states logged this menu
+        TextFit::Metrics metrics{ 0.0, kLineFactor, kLineFactor };  // the host's (Context), the fallback until the first frame
+        std::array<std::optional<TextFit::Metrics>, kBlockCount> drawnWith;  // the metrics each block was last drawn with
+        std::array<LayoutMath::HeightSender, kBlockCount> heights;          // 'SLMH' sent this menu
+        std::optional<bool> progressShown;       // the 'SLMV' last sent (every menu opens with it shown)
+        // the node card's button as last drawn (L2 node button bottom, once per menu)
+        bool buttonDrawn = false;
+        double buttonBottom = 0.0;     // the button rect's bottom in its card clip
+        double nodeContentH = 0.0;     // the content clip's height it was drawn in
+        std::uint32_t nodeContentGeneration = 0;  // Context::contentGeneration seen at the node card's frame
+        int nodeStableFrames = 0;
+        bool buttonChecked = false;
+        int nodeHeightWait = 0;        // frames the node card's box has not matched its asked height (L2, a held shrink)
+        // the U and G keys recorded by the tree's key callback, acted on in its frame after the list change (Task 6 review 1, 2)
+        Selection::PendingKeys keys;
+        RE::FormID pickShown = 0;      // the card's form when U picked (Selection::StaleKeyPick)
+        // the tree window (Task 7): the hovered node and its tooltip, the nodes of the last draw, a node click to act on
+        int hovered = -1;                         // the node clip under the mouse (onRollOver / onRollOut record it; spec v10 T6)
+        int tooltipFor = -1;                      // the node the tooltip shows (-1: none)
+        bool tooltipDue = false;                  // the tree was drawn again: the tooltip is drawn again too
+        std::uint32_t tooltipGeneration = 0;      // Context::overlayGeneration of the overlay the tooltip was drawn into
+        int tooltipFails = 0;                     // fix round 1 M3: frames the tooltip's making failed (one warning at kTooltipFailWarnFrames)
+        std::vector<TreeData::PlacedNode> drawn;      // every node of the last tree draw
+        std::vector<TreeData::PlacedNode> clickable;  // the clickable ones
+        // the progress card's next-spell rows (2026-11-03, ProgressChoices.cpp): the column's room this menu (Context::columnRoom;
+        // the session's last one until the first frame), the room the rows were last drawn with, a row released since the frame
+        // (its node and _root's mouse at the release), the row under the mouse, the C1 self-test line logged
+        std::optional<double> progressRoom;
+        std::optional<double> choicesDrawnRoom;
+        bool choicesShown = false;
+        struct ChoiceClick
+        {
+            int node = -1;
+            std::optional<std::pair<double, double>> rootAt;
+        };
+        std::optional<ChoiceClick> choiceClick;
+        int choiceHover = -1;
+        std::set<std::string> choicesLogged;
+        std::pair<double, double> treeOrigin{};   // the drawing's 0,0 in the tree box (TreeContent's centre)
+        std::pair<double, double> treeBox{};      // the tree box's size at the last draw (the content clip + pad and title strip)
+        TreeRules::Inset treeInset;               // the tree's content clip in its box, read at its draw (fix round 1 M1)
+        struct NodeClick
+        {
+            int index = -1;
+            std::optional<std::pair<double, double>> rootAt;  // _root._xmouse / _ymouse at the release (nullopt: not read)
+        };
+        std::optional<NodeClick> click;           // the last node click since the frame (onRelease records it)
+        bool spacingLogged = false;               // T2 spacing PASS logged this menu
+    };
+
+    Session& TheSession();
+    MenuState& Menu();
+
+    /// The menu sink (any thread): a new open - EnsureMenu resets the per-menu state at the next callback; HoM's style is read again
+    void OnMenuOpen();
+
+    /// SKSE's game load / new game (main thread): the session's last targets are cleared at the next callback (another save's)
+    void OnGameLoad();
+
+    /// The menu sink at the close: SelfTest L2 mask clicks (TreeInput.cpp)
+    void OnMenuClose();
+
+    /// Resets the per-menu state when a new menu opened since the last callback. Every callback calls it first
+    void EnsureMenu();
+
+    /// The pending button press of the node card (its own AS2 handler; acted on in the frame)
+    void PressButton();
+    bool TakeButton();
+
+    // ---- the tree's data and the school's numbers (the core's W:1004-1056) ----
+
+    const Spells::Data& Data();  // callers check Spells::Get() first
+    std::string CentreSchool();
+    bool Centrable(int a_index);
+    int DefaultCentre(const std::string& a_school, const Spells::Snapshot& a_snapshot);
+    const SchoolInfo& SchoolInfoOf(const Spells::Snapshot& a_snapshot);
+    void SetCentre(int a_index);
+    void SetDefaultCentre(const std::string& a_school, const Spells::Snapshot& a_snapshot);
+    void SettleProvisionalCentre(const Spells::Snapshot& a_snapshot);
+    void SetSchool(const std::string& a_school);
+
+    /// Final review I1: the selection-dependent state for the card's form a_shown - a stale key pick dropped
+    /// (Selection::PickForShown), the centre (Selection::CentreNodeFor, a school tab's default centre when the spell has no place in
+    /// the tree), the school (Selection::SchoolFor) and notInTree. One rule for the tree's frame (WatchSelection, after its own drop of
+    /// the pick by Context's seq and source) and the draws (SettleShownForDraw), so the frame finds what the draws were made with.
+    /// Returns the spell's tree node (-1 = none; it may have no x/y, then the centre stays or is the school's default)
+    /// a_fromDraw: called from a draw (SettleShownForDraw), which leaves the view to a held clicked node (Selection::DrawSettlesView)
+    int SettleShown(RE::FormID a_shown, const Spells::Snapshot& a_snapshot, bool a_fromDraw = false);
+
+    /// I1: every drawSelection callback first: a_shown not settled yet (Selection::SettleDue) is settled before the block is drawn -
+    /// only a stale key pick dropped while a clicked node is held (Selection::DrawSettlesView, re-review B). Marks nothing dirty:
+    /// the host draws all three blocks for the new form in this same pass (one tabs mask for all three)
+    void SettleShownForDraw(RE::FormID a_shown);
+
+    /// The key pick (bug G1): the node the U key picked, -1 when none
+    int KeyPick();
+
+    /// The key pick for a draw of a_shown: -1 when stale (Selection::StaleKeyPick: the card shows another form than the one the
+    /// pick was made under - the frame drops it next)
+    int KeyPickFor(RE::FormID a_shown);
+
+    /// The picked node (clicked or key-picked) for a draw of a_shown: -1 for none or a stale key pick
+    int SelectedFor(RE::FormID a_shown);
+
+    /// The add-on has something to show for a_shown (Selection::Chosen with the key pick, KeyPickFor)
+    bool Chosen(RE::FormID a_shown);
+
+    /// The progress card waits for a school (the core's Visibility at f83dc6f3, W:3952): hidden by 'SLMV', its place kept, shown
+    /// again once there is one. Called from the frame and from the card's own draw (Task 6 review 4: with no school at the
+    /// menu's open the empty box showed for a frame before the frame's 'SLMV'); sends only a change
+    void SyncProgressShown();
+
+    // ---- text ----
+
+    TextFit::Metrics Metrics();
+    double Size(double a_base);
+    double FieldH(double a_size, int a_lines = 1);
+    double LineH(double a_size);
+
+    /// The tree's level word ("Novice" .. "Master") as the game's own level names; the saved word when it is another one
+    std::string LevelName(const std::string& a_level);
+
+    /// A self-test line ("SelfTest: ...") with the host ini's bSelfTest only; PASS / FAIL / WARN lines are written through
+    void SelfTest(const std::string& a_line);
+
+    /// "SelfTest: Q2 state <name>" the first time a state is shown in this menu (TextFit::Q2State)
+    void Q2State(std::string_view a_name, const std::string& a_intended, const RE::GFxValue* a_field = nullptr);
+    void Q2State(HomStrings::Str a_id, const std::string& a_intended, const RE::GFxValue* a_field = nullptr);
+
+    // ---- AS2 helpers ----
+
+    /// _root's mouse position (stage units), nullopt when it cannot be read
+    std::optional<std::pair<double, double>> RootMouse(RE::GFxMovie* a_movie);
+
+    std::optional<double> Number(const RE::GFxValue& a_object, const char* a_member);
+    RE::GFxValue Child(RE::GFxValue& a_parent, const char* a_name);
+    void SetHandler(RE::GFxMovieView* a_movie, RE::GFxValue& a_clip, const char* a_event, RE::GFxFunctionHandler* a_handler);
+    /// A point of a_from's space in a_to's (localToGlobal, globalToLocal); nullopt when either call fails
+    std::optional<std::pair<double, double>> MapPoint(RE::GFxMovieView* a_movie, RE::GFxValue& a_from, RE::GFxValue& a_to, double a_x, double a_y);
+
+    /// A card's own clip in the lent content clip: at (kPad - kCardPad, -kCardPad), so it draws in the card box's coordinates
+    /// from x kPad (the core's "content" child of the card's panel)
+    RE::GFxValue CardClip(RE::GFxValue& a_content);
+
+    // ---- the host (Main.cpp) ----
+
+    double RegisteredHeight(BlockKind a_kind);
+    void RequestRedraw(BlockKind a_kind);
+    void RequestHeight(BlockKind a_kind, double a_height);  // the block's height ('SLMH'), at most its registered one
+    void RequestVisible(BlockKind a_kind, bool a_shown);    // 'SLMV'
+    /// 'SLMS' from the tree block: show a_form as a click on it would (a_nameShown false: the card hides the name)
+    void RequestShowSpell(RE::FormID a_form, std::uint32_t a_requestId, bool a_nameShown);
+
+    /// A card's needed height (from its box's top) sent as 'SLMH' (LayoutMath::CardHeight, once per change)
+    void FitCard(BlockKind a_kind, double a_needed);
+
+    /// The menu changed what the cards show: both drawn again on the next UI frame (the tree too, from Task 7)
+    void MarkDirty();
+}

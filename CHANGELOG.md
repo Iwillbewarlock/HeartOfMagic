@@ -304,6 +304,25 @@
   no plugin ever attached it, so it never ran; Book Reading XP is the `SL_BookXP.dll` it always was. Its two
   messages ("Initialized", "no learning targets") left the translations too.
 
+## Magic Menu Rewrite 1.1.0
+
+### New
+
+- **Pick your next spell on the progress card.** When a school has no learning target (Heart of Magic clears it once
+  the target is mastered), the Heart of Magic block's progress card lists the spells you can learn next - the ones
+  after the spell you just mastered first, then ones made of the same element or of the same narrow kind (runes,
+  cloaks, bound weapons - not "damage" or "summon", which most of a school has) - up to 4 rows (`[Progress] iMaxChoices` in MagicMenuRewrite.ini, 1-8) and
+  "N more" under them. Click a row to make that spell your learning target, as the node card's button and G do. The
+  card grows to fit the rows but never past the bottom of its column.
+
+### Changed
+
+- **Blocks no longer jump when the menu opens.** A block that fits its content (the Heart of Magic progress and
+  node cards) opens at the height it had the last time this game session, instead of opening at its full
+  height and shrinking a moment later. The edit mode still shows every block at its full height.
+- **For modders:** the Block API's `Context` has `columnRoom`, the room down to the bottom of the block's column on
+  screen (see BLOCK_API_GUIDE.md); a block that asks for its height in its first draw opens the next menu at it.
+
 ## Heart of Magic Librarian 1.6.0
 
 ### New

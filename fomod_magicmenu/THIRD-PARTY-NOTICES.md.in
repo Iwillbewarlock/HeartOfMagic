@@ -1,0 +1,78 @@
+# Third-party notices - Magic Menu Rewrite @MAGIC_MENU_VERSION@
+
+## Licenses
+
+- **The plugin DLLs are a GPL-3.0-or-later combined work.** `00 Core/SKSE/Plugins/MagicMenuRewrite.dll` and
+  `10 Heart of Magic Block/SKSE/Plugins/MagicMenuRewrite_HoM.dll` statically link **CommonLibSSE-NG 10.0.0**, which is
+  licensed GPL-3.0-or-later with the **Modding Exception** and the **GPL-3.0 Linking Exception**. The DLLs are
+  distributed under those terms: `licenses/CommonLibSSE-NG/COPYING.txt` (GNU GPL version 3) and
+  `licenses/CommonLibSSE-NG/EXCEPTIONS.md` (the two exceptions).
+- **The magic menu's own source files are MIT** (`LICENSE` next to this file): the C++ in the repository's
+  `plugins/SL_MagicMenu/` and `plugins/SL_MagicMenu_HoM/` (and `Common.h`, `PCH.h`, `WideFileSink.h` and `SpellLearningAPI.h` from `plugins/`) and the ini
+  files. MIT is compatible with the GPL; files you take from this project on their own stay MIT.
+
+## Credits
+
+- LayMovi - Inventory Reforged (GPL-3.0): the 3D preview's placement follows the method of Inventory Reforged's item
+  view (its code was read for the method; no code was taken), with the author's permission. Thank you.
+- SKSE/Plugins/InventoryReforged/MagicMenuRewrite.ini turns Inventory Reforged's own magic-menu panel off; it holds no
+  Inventory Reforged code.
+
+## Corresponding Source
+
+The complete Corresponding Source for the DLLs is public at
+<https://github.com/Iwillbewarlock/HeartOfMagic>, tag `magic-menu-v@MAGIC_MENU_VERSION@` (the tag of this release).
+CommonLibSSE-NG is its git submodule `plugins/external/commonlibsse-ng` at tag `v10.0.0`
+(<https://github.com/alandtse/CommonLibVR>, branch `ng`); `git submodule update --init --recursive`
+fetches it. The third-party libraries below come from the vcpkg manifest `vcpkg.json`. Building:
+`BuildRelease.ps1` (see the repository's README and CLAUDE.md).
+
+## Libraries in the DLLs
+
+Linked statically or compiled in from headers (vcpkg triplet `x64-windows-static`). Their license
+texts are in `licenses/`.
+
+| Library | Version | License | License text |
+|---|---|---|---|
+| CommonLibSSE-NG | 10.0.0 | GPL-3.0-or-later + Modding Exception + GPL-3.0 Linking Exception | `licenses/CommonLibSSE-NG/COPYING.txt`, `licenses/CommonLibSSE-NG/EXCEPTIONS.md` |
+| CommonLibSSE (the original code by Ryan-rsm-McKenzie that CommonLibSSE-NG grew from) | - | MIT (kept for attribution) | `licenses/CommonLibSSE-NG/LICENSE-MIT.txt` |
+| {fmt} | 12.1.0 | MIT | `licenses/fmt.txt` |
+| spdlog | 1.17.0 | MIT | `licenses/spdlog.txt` |
+| JSON for Modern C++ (nlohmann-json) | 3.12.0 | MIT | `licenses/nlohmann-json.txt` |
+| Xbyak | 7.28 | BSD-3-Clause | `licenses/xbyak.txt` |
+| DirectXMath | 2025-04-03 | MIT | `licenses/directxmath.txt` |
+| DirectX Tool Kit (DirectXTK) | 2025-10-27 | MIT | `licenses/directxtk.txt` |
+| SKSE Menu Framework 2 API header (`plugins/SL_MagicMenu/src/SKSEMenuFramework.h`, from <https://github.com/Thiago099/SKSE-Menu-Framework-2-Example>, commit `cd1f277`; one header compiled into `MagicMenuRewrite.dll`, no library linked) | cd1f277 | MIT | its notice below |
+
+The Microsoft C/C++ runtime (CRT) is linked statically under the Visual Studio redistribution terms.
+
+## SKSE Menu Framework header
+
+`MagicMenuRewrite.dll` compiles in the API header of SKSE Menu Framework 2 (Thiago099/SKSE-Menu-Framework-2-Example @ `cd1f277`,
+changed to look the framework's DLL up when a function is first used). It resolves every call from `SKSEMenuFramework.dll` at run
+time; SKSE Menu Framework itself is not included and stays optional (without it there is no settings tab; the ini keys work as
+before). The header's license:
+
+```
+MIT License
+
+Copyright (c) 2024 <Ege Yilmaz>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```

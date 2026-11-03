@@ -135,7 +135,7 @@ When launching sub-agents via the Task tool, choose the correct `subagent_type` 
 
 **ALWAYS use `BuildRelease.ps1`**—never run cmake directly. The script handles VS dev shell setup, configuration, and output paths.
 
-The build also assembles the release: `dist/HeartOfMagic-Librarian_<VERSION>/` and its `.zip` (FOMOD, DLLs, Papyrus, runtime data, the PrismaUI views, `LICENSE`), and the DLLs' debug symbols apart in `dist/HeartOfMagic-Librarian_<VERSION>_DebugSymbols.zip` (`SKSE/Plugins/*.pdb`, an optional file on Nexus for crash logs, and `SKSE/Plugins/SpellLearning/debug.json` from `debug/`: with it the panel's full scan also writes `spell_scan_output.json`; `DeployDev.ps1` puts the same file in the dev install). The panel's development files stay out of it - the dev harness, `run-tests.js`, `test-runner.html`, `test-data/` and `modules/*Test.js` (`plugins/cmake/Distribution.cmake`; a new test module is picked up at the next configure). Each design add-on becomes its own `dist/HeartOfMagic-Design-<Name>_<VERSION>.zip` (Classic, ModernDark, Arcane, Chalkboard, NightGrimoire: `addons/designs/<Name>/` at the archive's root, with a README, the licence and, for the add-ons that ship fonts or icons (all but Classic), its third-party notices; Distribution.cmake section 8).
+The build also assembles the release: `dist/HeartOfMagic-Librarian_<VERSION>/` and its `.zip` (FOMOD, DLLs, Papyrus, runtime data, the PrismaUI views, `LICENSE`), and the DLLs' debug symbols apart in `dist/HeartOfMagic-Librarian_<VERSION>_DebugSymbols.zip` (`SKSE/Plugins/*.pdb`, an optional file on Nexus for crash logs, and `SKSE/Plugins/SpellLearning/debug.json` from `debug/`: with it the panel's full scan also writes `spell_scan_output.json`; `DeployDev.ps1` puts the same file in the dev install). The panel's development files stay out of it - the dev harness, `run-tests.js`, `test-runner.html`, `test-data/` and `modules/*Test.js` (`plugins/cmake/Distribution.cmake`; a new test module is picked up at the next configure). Each design add-on becomes its own `dist/HeartOfMagic-Design-<Name>_<VERSION>.zip` (Classic, ModernDark, Arcane, Chalkboard, NightGrimoire: `addons/designs/<Name>/` at the archive's root, with a README, the licence and, for the add-ons that ship fonts or icons (all but Classic), its third-party notices; Distribution.cmake section 8). The magic menu ships apart with its own version (`MAGIC_MENU_VERSION` in the top-level CMakeLists.txt): `dist/MagicMenuRewrite_<VERSION>/` and its `.zip`, the FOMOD of `fomod_magicmenu/` (`00 Core` with `MagicMenuRewrite.dll` and its ini files, the `10 Heart of Magic Block` option with `MagicMenuRewrite_HoM.dll`, `LICENSE`, `THIRD-PARTY-NOTICES.md`, `licenses/`), and its debug symbols in `dist/MagicMenuRewrite_<VERSION>_DebugSymbols.zip` (target `assemble_magicmenu_dist`; the Spell Research block is not in it yet). Its public name is Magic Menu Rewrite (2026-10-31; before that the working name `SL_MagicMenu`, from HoM's internal name SpellLearning): the shipped files and the SKSE plugin names are `MagicMenuRewrite*` (`MagicMenuRewrite.dll` / `.ini` / `_User.ini` / `_Layout.json` / `.log`, `SKSE/Plugins/MagicMenuRewrite/lang/`, the same with `_HoM` and `_SpellResearch` for the blocks; the HoM block ids are `MagicMenuRewrite_HoM.tree` / `.progress` / `.nodecard`), while the repo folders `plugins/SL_MagicMenu*` and the CMake project and target names keep the working name (`OUTPUT_NAME` and the plugin `NAME` set the product names).
 
 License files in the release: the project's own code is MIT (`LICENSE` at the zip root), but the DLLs statically
 link CommonLibSSE-NG (GPL-3.0-or-later with the Modding and Linking Exceptions), so they ship as a GPL combined
@@ -143,7 +143,9 @@ work. `THIRD-PARTY-NOTICES.md` at the zip root (from `THIRD-PARTY-NOTICES.md.in`
 says so, lists every statically linked library with its license and points to the Corresponding Source (the
 GitHub tag of the release). `licenses/CommonLibSSE-NG/` holds CommonLib's `COPYING.txt`, `EXCEPTIONS.md` and the
 original CommonLibSSE `LICENSE-MIT.txt`; `licenses/<port>.txt` is each vcpkg library's copyright file. A new
-statically linked library needs its port in `_vcpkg_license_ports` (Distribution.cmake) and a row in the notices.
+statically linked library needs its port in `_vcpkg_license_ports` (Distribution.cmake) and a row in the notices;
+for the magic-menu DLLs (MagicMenuRewrite, MagicMenuRewrite_HoM) also in `_mm_vcpkg_license_ports` (Distribution.cmake) and a
+row in `fomod_magicmenu/THIRD-PARTY-NOTICES.md.in`.
 
 ### Deploying to the development mod folder
 
@@ -388,7 +390,41 @@ taken up to two past the cap, the spell's own tier first, the room term parting 
   exit 1 on a failure) and `progression-notify-check` (no arguments: `include/ProgressionNotifyQueue.h`, the rule by
   which `ProgressionNotify` holds the progression side's panel notices while a `Batch` is open and sends them in posting
   order when the outermost closes - nested, early return, a receiver posting or opening a Batch while they go out;
-  exit 1 on a failure; design: docs/superpowers/specs/2026-10-26-h1d-notify-design.md)
+  exit 1 on a failure; design: docs/superpowers/specs/2026-10-26-h1d-notify-design.md); the magic menu prototype's (plugins/SL_MagicMenu, docs/superpowers/specs/2026-10-26-magic-menu-blocks-design.md):
+  `magic-menu-layout-check` (the block layout, the add-on registry, and the core alone: the default layout with no add-on,
+  the retired ids skipped), `magic-menu-preview-check` (the preview math) and
+  `magic-menu-block-api-check` (Block API v3: registration parsing of v1, v2 and v3 bytes - cut short, version 4 refused,
+  v3's flags, pad and legacy ids -, the tabs mask per SkyUI tab, the press / release cancel rules of `BlockRules.h`, the
+  'SLMD' ids, the 'SLMH' height requests - reading, judging against the registered height, the layout mode's height, the
+  per-id queue -, the 'SLMS' / 'SLMV' messages and their queues, the key queue, the 'SLMK' key hints - reading, labels cut at
+  a UTF-8 boundary, the per-block list, the strip's buttons per tab / layout mode / gamepad, the panel's growth -, the v3 content box, visible part and
+  overlay clears, the opening height of 2026-11-03 - a block that asks again after its first draw opens the next menu at its last asked
+  height, never above the registered one, put back when it stops asking, the layout mode at the registered height - and
+  `Context::columnRoom` at 16:9 / 16:10 / 21:9 / 4:3 and any scroll; `--selftest` the same); the Heart of Magic add-on block's (plugins/SL_MagicMenu_HoM,
+  docs/superpowers/specs/2026-10-30-magic-menu-hom-addon-design.md), which build from plugins/SL_MagicMenu_HoM:
+  `magic-menu-tree-check` (`--selftest`, or a spell_tree.json - it also prints how long `TreeData::Load` takes and the
+  nodes' element / kind traits), `magic-menu-homstyle-check` (`--selftest`, or HoM's
+  config) and `magic-menu-hom-block-check` (the block's keys read from MagicMenuRewrite.ini - the shipped one and made-up
+  ones -, the registered heights, the pick rules, the strings, the cards' height requests and the tree window / progress
+  card / node card arithmetic, and the progress card's next-spell rows of 2026-11-03, `ChoiceRules.h` - their order (the
+  last target's children, then the spells akin to it: a shared element, a kind on at most a fifth of the school when not of
+  different elements), the rows
+  that fit with the "N more" line, the rooms at four screen shapes, the registered height, `[Progress] iMaxChoices`;
+  `--selftest` the same); `magic-menu-lang-check` (both DLLs' language files: the core's
+  `WidgetStrings.h` and the HoM block's `Strings.h` tables against their `dist/lang/en.json` and `ko.json` - every key, no
+  extra key, the files parse, `{placeholders}` and the `" · "` separators equal in en, ko and the built-in English, the
+  built-in text equal to en.json - and the shared `plugins/SL_MagicMenu/src/LangFiles.h`: `[Display] sLanguage` of
+  MagicMenuRewrite.ini + the game's sLanguage -> the code (auto + KOREAN -> ko, else Hangul in a localized game string - the
+  magic skills' names - -> ko, else en; `HasHangul` on valid, CP949 and broken UTF-8), the chain `<code>.json`,
+  en.json, built-in on the shipped and on made-up folders, the one load per session, the log lines, and the shipped ini's
+  `sLanguage=auto`; `--selftest` the same); and the Spell Research add-on block's
+  (plugins/SL_MagicMenu_SpellResearch, docs/superpowers/specs/2026-10-27-spell-research-addon-design.md)
+  `magic-menu-sr-block-check` (`SrBlockRules.h`: archetype grouping and order, what the block shows per state, the list and
+  line layouts and their wrapping, the unknown archetype's frame-only icon, the icon data's bounds, the link click rule,
+  reply code -> notification, the open request's requestId matching and 5 s drop, line overlap; `SrBlockText.h`: the
+  `[MagicMenuBlock] sLayout` and `[Display] sLanguage` ini reading (BOM too), the game language mapping, archetype short /
+  name fallback, and `dist/lang/en.json` against the block's keys; `--selftest` the same, `--lang <file>` another language file) -
+  PASS/FAIL lines, exit 1 on a failure
 
 ## Code Style
 

@@ -1,0 +1,14 @@
+Hello LayMovi,
+
+I am Iwillbewarlock, the author of Magic Menu Rewrite, an SKSE plugin that redraws SkyUI's magic menu around the spell list while keeping SkyUI's spell list itself.
+
+I am writing to check with you regarding two things related to Inventory Reforged:
+1. For placing the 3D preview box in the magic menu, I read Inventory Reforged's code to understand the placement method used in your item view. I only read it for the method—no code was copied or taken.
+2. Our archive includes a small `MCM/Settings/InventoryReforged.ini` (one setting) that turns Inventory Reforged's own magic-menu panel off so the two menus do not clash.
+
+Please let me know if this is fine with you, and how you would like to be credited on the mod page. If there is anything you would prefer me to change or remove, I will gladly do so.
+
+Thank you for your time and your work on Inventory Reforged.
+
+Best regards,
+Iwillbewarlock

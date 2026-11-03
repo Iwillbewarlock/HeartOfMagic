@@ -367,3 +367,141 @@ message(STATUS "  Output:   ${DIST_VERSION_DIR}")
 message(STATUS "  Archive:  ${DIST_DIR}/${_dist_folder_name}.zip (+ ${_pdb_folder_name}.zip)")
 list(JOIN _design_zips ", " _design_zip_list)
 message(STATUS "  Designs:  ${_design_zip_list}")
+
+# ============================================================================
+# 9. The magic menu's own release (Magic Menu Rewrite, MAGIC_MENU_VERSION from the
+#    top-level CMakeLists.txt), apart from Heart of Magic's: assemble_magicmenu_dist
+#    makes dist/MagicMenuRewrite_<version>/ and its zip, the FOMOD of fomod_magicmenu/:
+#      fomod/ModuleConfig.xml, fomod/info.xml
+#      00 Core/SKSE/Plugins/MagicMenuRewrite.dll, MagicMenuRewrite.ini
+#      00 Core/SKSE/Plugins/MagicMenuRewrite/lang/en.json, ko.json
+#      00 Core/SKSE/Plugins/InventoryReforged/MagicMenuRewrite.ini (Inventory Reforged
+#        loads every ini in that folder; it turns IR's magic-menu panel off)
+#      10 Heart of Magic Block/SKSE/Plugins/MagicMenuRewrite_HoM.dll
+#      10 Heart of Magic Block/SKSE/Plugins/MagicMenuRewrite_HoM/lang/en.json, ko.json
+#      LICENSE, THIRD-PARTY-NOTICES.md, licenses/ (as 3b, with the ports these
+#      two DLLs link)
+#    and the two DLLs' .pdb in MagicMenuRewrite_<version>_DebugSymbols.zip. The Spell
+#    Research block is not in this release (a later FOMOD option). Nothing above
+#    changes: HoM's assemble_dist stays as it was. The targets keep the repo's
+#    working names (SL_MagicMenu, SL_MagicMenu_HoM); $<TARGET_FILE> gives the
+#    shipped MagicMenuRewrite*.dll (their OUTPUT_NAME).
+# ============================================================================
+
+if(NOT DEFINED MAGIC_MENU_DIST_VERSION_DIR)
+    message(STATUS "MAGIC_MENU_DIST_VERSION_DIR not defined - magic menu release assembly disabled")
+    return()
+endif()
+
+set(_mm_dist "${MAGIC_MENU_DIST_VERSION_DIR}")
+set(_mm_pdb_dir "${MAGIC_MENU_DIST_VERSION_DIR}_DebugSymbols")
+set(_mm_core "${_mm_dist}/00 Core")
+set(_mm_hom "${_mm_dist}/10 Heart of Magic Block")
+set(_mm_core_src "${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu/dist")
+set(_mm_hom_src "${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu_HoM/dist")
+set(_mm_fomod_src "${CMAKE_SOURCE_DIR}/fomod_magicmenu")
+set(_mm_licenses_dist "${_mm_dist}/licenses")
+# CommonLibSSE-NG's ports these DLLs carry (fmt and spdlog for the log, DirectXTK and
+# DirectXMath, Xbyak with SKSE_SUPPORT_XBYAK) and the plugins' nlohmann-json. Not
+# rapidcsv (CommonLib uses it for VR only, off here) nor SpellLearning's rapidfuzz-cpp,
+# highway and zlib.
+set(_mm_vcpkg_license_ports fmt spdlog nlohmann-json xbyak directxmath directxtk)
+
+add_custom_target(assemble_magicmenu_dist ALL
+    COMMENT "Assembling the magic menu's release distribution...")
+
+add_dependencies(assemble_magicmenu_dist SL_MagicMenu SL_MagicMenu_HoM)
+
+configure_file(
+    "${_mm_fomod_src}/THIRD-PARTY-NOTICES.md.in"
+    "${CMAKE_BINARY_DIR}/magicmenu/THIRD-PARTY-NOTICES.md"
+    @ONLY
+)
+
+set(_mm_vcpkg_license_commands)
+foreach(_port IN LISTS _mm_vcpkg_license_ports)
+    if(NOT EXISTS "${_vcpkg_share}/${_port}/copyright")
+        message(FATAL_ERROR "Distribution (magic menu): no license file for vcpkg port ${_port} at ${_vcpkg_share}/${_port}/copyright")
+    endif()
+    list(APPEND _mm_vcpkg_license_commands
+        COMMAND "${CMAKE_COMMAND}" -E copy
+        "${_vcpkg_share}/${_port}/copyright"
+        "${_mm_licenses_dist}/${_port}.txt")
+endforeach()
+
+# Clean, then the FOMOD, the core folder and the HoM block's folder; the .pdb apart
+add_custom_command(TARGET assemble_magicmenu_dist POST_BUILD
+    COMMAND "${CMAKE_COMMAND}" -E rm -rf "${_mm_dist}" "${_mm_pdb_dir}"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${_mm_dist}/fomod"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${_mm_core}/SKSE/Plugins/MagicMenuRewrite/lang"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${_mm_core}/SKSE/Plugins/InventoryReforged"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${_mm_hom}/SKSE/Plugins/MagicMenuRewrite_HoM/lang"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${_mm_pdb_dir}/SKSE/Plugins"
+    COMMAND "${CMAKE_COMMAND}" -E copy
+    "${_mm_fomod_src}/fomod/ModuleConfig.xml"
+    "${_mm_fomod_src}/fomod/info.xml"
+    "${_mm_dist}/fomod/"
+    COMMAND "${CMAKE_COMMAND}" -E copy
+    "$<TARGET_FILE:SL_MagicMenu>"
+    "${_mm_core_src}/MagicMenuRewrite.ini"
+    "${_mm_core}/SKSE/Plugins/"
+    COMMAND "${CMAKE_COMMAND}" -E copy
+    "${_mm_core_src}/InventoryReforged/MagicMenuRewrite.ini"
+    "${_mm_core}/SKSE/Plugins/InventoryReforged/"
+    COMMAND "${CMAKE_COMMAND}" -E copy_directory
+    "${_mm_core_src}/lang"
+    "${_mm_core}/SKSE/Plugins/MagicMenuRewrite/lang"
+    COMMAND "${CMAKE_COMMAND}" -E copy
+    "$<TARGET_FILE:SL_MagicMenu_HoM>"
+    "${_mm_hom}/SKSE/Plugins/"
+    COMMAND "${CMAKE_COMMAND}" -E copy_directory
+    "${_mm_hom_src}/lang"
+    "${_mm_hom}/SKSE/Plugins/MagicMenuRewrite_HoM/lang"
+    COMMAND "${CMAKE_COMMAND}" -E $<IF:$<BOOL:$<TARGET_PDB_FILE:SL_MagicMenu>>,copy,true>
+    "$<$<BOOL:$<TARGET_PDB_FILE:SL_MagicMenu>>:$<TARGET_PDB_FILE:SL_MagicMenu>>"
+    "${_mm_pdb_dir}/SKSE/Plugins/"
+    COMMAND "${CMAKE_COMMAND}" -E $<IF:$<BOOL:$<TARGET_PDB_FILE:SL_MagicMenu_HoM>>,copy,true>
+    "$<$<BOOL:$<TARGET_PDB_FILE:SL_MagicMenu_HoM>>:$<TARGET_PDB_FILE:SL_MagicMenu_HoM>>"
+    "${_mm_pdb_dir}/SKSE/Plugins/"
+    COMMAND "${CMAKE_COMMAND}" -E echo "Copying the magic menu's FOMOD, DLLs, ini and language files..."
+    VERBATIM
+)
+
+# The licences, as 3b
+add_custom_command(TARGET assemble_magicmenu_dist POST_BUILD
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${_mm_licenses_dist}/CommonLibSSE-NG"
+    COMMAND "${CMAKE_COMMAND}" -E copy
+    "${_mm_fomod_src}/LICENSE"
+    "${CMAKE_BINARY_DIR}/magicmenu/THIRD-PARTY-NOTICES.md"
+    "${_mm_dist}/"
+    COMMAND "${CMAKE_COMMAND}" -E copy
+    "${_commonlib_dir}/COPYING.txt"
+    "${_commonlib_dir}/EXCEPTIONS.md"
+    "${_commonlib_dir}/licenses/LICENSE-MIT.txt"
+    "${_mm_licenses_dist}/CommonLibSSE-NG/"
+    ${_mm_vcpkg_license_commands}
+    COMMAND "${CMAKE_COMMAND}" -E echo "Copying the magic menu's licenses..."
+    VERBATIM
+)
+
+# The zips, as 7
+get_filename_component(_mm_dist_folder_name "${_mm_dist}" NAME)
+get_filename_component(_mm_pdb_folder_name "${_mm_pdb_dir}" NAME)
+
+add_custom_command(TARGET assemble_magicmenu_dist POST_BUILD
+    COMMAND "${CMAKE_COMMAND}" -E tar cf
+    "${DIST_DIR}/${_mm_dist_folder_name}.zip"
+    --format=zip
+    -- "${_mm_dist_folder_name}"
+    COMMAND "${CMAKE_COMMAND}" -E tar cf
+    "${DIST_DIR}/${_mm_pdb_folder_name}.zip"
+    --format=zip
+    -- "${_mm_pdb_folder_name}"
+    WORKING_DIRECTORY "${DIST_DIR}"
+    COMMAND "${CMAKE_COMMAND}" -E echo "Creating ${_mm_dist_folder_name}.zip and ${_mm_pdb_folder_name}.zip..."
+    VERBATIM
+)
+
+message(STATUS "Magic menu release assembly configured:")
+message(STATUS "  Output:   ${_mm_dist}")
+message(STATUS "  Archive:  ${DIST_DIR}/${_mm_dist_folder_name}.zip (+ ${_mm_pdb_folder_name}.zip)")
