@@ -151,7 +151,9 @@ var SpellCardMasteryTest = {
         var L = this._layout();
         var toggle = L.el('input', { id: 'masteryRanksToggle' });
         var doc = L.doc([toggle]);
-        var box = L._sandbox(['masterySetting.js'], { settings: {}, state: { masteryInfo: { enabled: true, ranks: 3 } }, document: doc });
+        var redrawn = 0;
+        var box = L._sandbox(['masterySetting.js'], { settings: {}, state: { masteryInfo: { enabled: true, ranks: 3 } }, document: doc,
+            SpellCardMastery: { redrawShown: function(id) { if (id === undefined) redrawn++; } } });
         var S = box.MasterySetting;
         S.loadFrom({});
         this.check(S.enabled() === true && toggle.checked === true, 'Setting: on by default');
@@ -164,7 +166,7 @@ var SpellCardMasteryTest = {
         S.saveTo(config);
         this.check(config.mastery.enabled === false && config.mastery.ranks === 5 && config.mastery.tierXP.novice === 50,
             'Setting: saved as mastery.enabled only, the hand-written numbers stay');
-        this.check(box.state.masteryInfo.enabled === false, 'Setting: the card follows the switch at once');
+        this.check(box.state.masteryInfo.enabled === false && redrawn > 0, 'Setting: the card follows the switch at once (the card on screen redrawn)');
         var fresh = {};
         S.saveTo(fresh);
         this.check(fresh.mastery && fresh.mastery.enabled === false, 'Setting: a config without a mastery section gets one');

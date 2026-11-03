@@ -10,7 +10,7 @@
  * Saved as config.mastery.enabled only: the C++ save merges objects key by key, so the hand-written
  * numbers stay. Not in settings presets.
  *
- * Depends on: settings, state (masteryInfo, optional), autoSaveSettings (optional)
+ * Depends on: settings, state (masteryInfo, optional), SpellCardMastery (optional), autoSaveSettings (optional)
  */
 
 var MasterySetting = {
@@ -40,6 +40,8 @@ var MasterySetting = {
         settings.mastery.enabled = on !== false;
         if (typeof state !== 'undefined' && state && state.masteryInfo) state.masteryInfo.enabled = settings.mastery.enabled;
         this.sync();
+        // The card on screen shows or hides its rank row at once
+        if (typeof SpellCardMastery !== 'undefined') SpellCardMastery.redrawShown();
     },
 
     sync: function() {
