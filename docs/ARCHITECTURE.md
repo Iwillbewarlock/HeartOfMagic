@@ -916,7 +916,7 @@ read their records (a record whose reader threw is skipped; `GetNextRecordInfo` 
 |---|---|---|---|
 | `SLTR` | ProgressionManager | 2 (1 has the same layout) | count, then per target: school length, school, formId |
 | `SLPR` | ProgressionManager | 2, as 1.5.0 (reads 1-3) | count, then per spell: formId, progress (0..1), unlocked u8; v2 + the modded sources' XP (count, then name length, name, xp); v3 (read only, a 2026-10-17 development build wrote it) + `xpFromAny`, `xpFromSchool`, `xpFromDirect`, `xpFromSelf` |
-| `SLPX` | ProgressionManager | 1 | count, then per spell with anything counted: formId, `xpFromAny`, `xpFromSchool`, `xpFromDirect`, `xpFromSelf` (f32) |
+| `SLPX` | ProgressionManager | 2 (reads 1-2) | count, then per spell with anything counted (built-in or modded): formId, `xpFromAny`, `xpFromSchool`, `xpFromDirect`, `xpFromSelf` (f32); v2 (2026-11-04) + `requiredXP` (f32), the required XP all the spell's counts (these and SLPR's modded ones) were made against. A v1 record reads with it unknown (the counts kept as saved); an older version skips a v2 record (its counts 0 there) |
 | `SLEL` | SpellEffectivenessHook | 2 (reads 1-2) | count, then the early-learned spells' formIds; v2 + count, then the ones ISL holds (`IsHeldForISL`; not tied to the early set) |
 | `SLTX` | SpellTomeHook | 1 | count, then the spells a tome already gave XP (`HasGrantedTomeXP`) |
 | `SLMX` | ProgressionManager (mastery ranks) | 1 | count, then per spell with mastery XP: formId u32, raw mastery XP f32 (`MasteryMath.h`; the rank is worked out from it). Written by its own `CoSave` step (`SaveMasteryRecord`), apart from `SLPR`; read in `ReadRecord` (values not positive, finite and reachable - `MasteryMath::IsValidSavedXP` - and unresolved ids dropped, two ids on one spell keep the larger); cleared on revert and at the start of a load (`ClearAllProgress`); `EndLoad` drops ids that are no spell and moves every entry under its tree spell (`RekeyMasteryToTree`, also after each tree's prerequisites are applied: two ids on one spell keep the larger XP). Not tied to an `SLPR` entry: a spell learned outside the tree keeps it. A save without it (before 2026-11-03) starts every spell at 0; an older version saving again drops it |
@@ -1636,9 +1636,18 @@ The same holds for a cast (`OnSpellCast`): the per-source count takes what the c
 `ProgressionMath::CastSource` order - the spell cast itself, a direct link, the same school, any - (`ClassifyCast`,
 `OrderBySource`), not in the targets map's order. Known limit: switching the mode to single keeps the targets
 the other schools hold (SetXPSettings logs a warning with their count); the next target set in single mode clears
-them. The counts never stay above the XP a
-spell holds: SetSpellXP, SetRequiredXP, the settings' overrides and a save load scale them down to it
-(`ProgressionMath::FitTrackersToXP`).
+them.
+
+**The per-source counts against the required XP** (review 2026-11-04). The counts are shares of the required XP,
+as the progress is, and follow it both ways: a required XP change from R to R' (`SetRequiredXP`: the tree's
+number, this character's from the panel, `SetRequiredXPOverrides`) scales every count, built-in and modded, by
+R'/R (`ProgressionMath::RescaleTrackers`), so a number lowered then raised gives them back, and the progress's XP
+moves by the same factor (their sum stays within it). The save keeps the R they were made against (`SLPX` v2);
+`EndLoad` scales them from it to the R it works out. That R can be passing - this character's numbers are cleared
+at revert and come back from the panel, the tree's may arrive after the load (`SkipStartupTree`) - and the next
+`SetRequiredXP` scales them again, so a load never reopens a cap (before, `EndLoad` shrank them against the passing
+R and nothing grew them back). Only a lowered progress (`SetSpellXP`: cheat mode, the API, Papyrus) shrinks them to
+the XP held (`FitTrackersToXP`, fix A). A v1 save's counts stay as saved.
 
 **For C++ plugins:** Use `SpellLearningAPI.h` — either SKSE messaging (fire-and-forget) or request the `ISpellLearningAPI` interface pointer.
 
@@ -2549,7 +2558,7 @@ HeartOfMagic/
 │   │   │   ├── ElapsedMs.h                  ✅ MsSince: the one elapsed-milliseconds helper of the timing lines
 │   │   │   ├── MainMenuWatch.h              ✅ the one MainMenu opening sink: the panel's task, then the scan's
 │   │   │   ├── CoSave.h                     ✅ SKSE serialization callbacks (save, load, revert)
-│   │   │   ├── ProgressionCoSave.h          ✅ SLPR (writes v2, reads v1-v3), SLPX, SLTX, SLSM and SLMX record layouts, templated on the stream (no game types)
+│   │   │   ├── ProgressionCoSave.h          ✅ SLPR (writes v2, reads v1-v3), SLPX (writes v2, reads v1-v2), SLTX, SLSM and SLMX record layouts, templated on the stream (no game types)
 │   │   │   ├── MasteryMath.h / MasteryConfig.h  ✅ mastery ranks: costs, ranks, skill factor, gain; config.json "mastery" reader
 │   │   │   ├── ProgressionManager.h         ✅ XP tracking header
 │   │   │   ├── ProgressionMath.h            ✅ XP cap, study, SetSpellXP clamp and mastery arithmetic (no game types)

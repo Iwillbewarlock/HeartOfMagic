@@ -230,6 +230,26 @@ namespace ProgressionMath
         return currentXP / trackedTotal;
     }
 
+    // The per-source counts are shares of the required XP, as the progress is: when a spell's required
+    // XP changes from `oldRequired` to `newRequired` (an override set or removed, the reverse unlock share,
+    // the tree's number arriving after a load), every count is scaled by new / old - both ways, so a
+    // required XP lowered then raised gives the counts back, and a cap closed at 15% stays closed at 15%.
+    // Nothing when either is not positive or they are equal. True when it changed. Shrinking the counts
+    // to the XP held (FitTrackersToXP) is only for a lowered progress (SetSpellXP): a required XP change
+    // moves the progress's XP by the same factor, so the counts' sum stays within it.
+    template <class Progress>
+    bool RescaleTrackers(Progress& progress, float oldRequired, float newRequired)
+    {
+        if (!(oldRequired > 0.0f) || !(newRequired > 0.0f) || oldRequired == newRequired) return false;
+        const float scale = newRequired / oldRequired;
+        progress.xpFromAny *= scale;
+        progress.xpFromSchool *= scale;
+        progress.xpFromDirect *= scale;
+        progress.xpFromSelf *= scale;
+        for (auto& source : progress.xpFromModded) source.second *= scale;
+        return true;
+    }
+
     // TrackerScale applied to a progress entry (any struct with xpFromAny, xpFromSchool,
     // xpFromDirect, xpFromSelf and a name -> XP map xpFromModded). True when it changed.
     template <class Progress>

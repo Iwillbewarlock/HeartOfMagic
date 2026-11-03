@@ -453,7 +453,7 @@ private:
     // A spell's required XP without its progress entry (RequiredXP::Table::For with its
     // tier and reverse unlock share). EndLoad sizes every entry from it.
     float BaseRequiredXP(RE::FormID formId) const;
-    bool ReadCapTrackers(SKSE::SerializationInterface* a_intfc, uint32_t length);
+    bool ReadCapTrackers(SKSE::SerializationInterface* a_intfc, uint32_t version, uint32_t length);
     void WriteCapTrackers(SKSE::SerializationInterface* a_intfc) const;
 
     // Current save name for file naming

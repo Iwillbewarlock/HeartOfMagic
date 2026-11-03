@@ -79,12 +79,14 @@ void ProgressionManager::OnGameSaved(SKSE::SerializationInterface* a_intfc)
 
 void ProgressionManager::WriteCapTrackers(SKSE::SerializationInterface* a_intfc) const
 {
-    // Only spells with something counted: a zero entry reads the same as none
+    // Only spells with something counted, built-in or modded (a zero entry reads the same as none), each
+    // with the required XP its counts were made against (v2: the load scales them to its own)
     std::vector<ProgressionCoSave::CapEntry> entries;
     for (const auto& [formId, progress] : m_spellProgress) {
         const ProgressionCoSave::CapEntry e{ formId, progress.xpFromAny, progress.xpFromSchool, progress.xpFromDirect,
-                                             progress.xpFromSelf };
-        if (!e.IsEmpty()) entries.push_back(e);
+                                             progress.xpFromSelf, progress.requiredXP };
+        const bool modded = std::ranges::any_of(progress.xpFromModded, [](const auto& s) { return s.second != 0.0f; });
+        if (!e.IsEmpty() || modded) entries.push_back(e);
     }
     if (!a_intfc->OpenRecord(kCapTrackersRecord, ProgressionCoSave::kCapTrackersVersion) ||
         !ProgressionCoSave::WriteCapEntries(*a_intfc, entries)) {
@@ -94,10 +96,10 @@ void ProgressionManager::WriteCapTrackers(SKSE::SerializationInterface* a_intfc)
     logger::info("ProgressionManager: Saved cap trackers for {} spells", entries.size());
 }
 
-bool ProgressionManager::ReadCapTrackers(SKSE::SerializationInterface* a_intfc, uint32_t length)
+bool ProgressionManager::ReadCapTrackers(SKSE::SerializationInterface* a_intfc, uint32_t version, uint32_t length)
 {
     std::vector<ProgressionCoSave::CapEntry> saved;
-    const auto result = ProgressionCoSave::ReadCapEntries(*a_intfc, length, saved);
+    const auto result = ProgressionCoSave::ReadCapEntries(*a_intfc, version, length, saved);
     if (result != ProgressionCoSave::ReadResult::Ok) {
         // Whole entries read before the failure are good
         logger::error("ProgressionManager: cap tracker record unreadable ({}), {} entries read before it kept",
@@ -125,6 +127,11 @@ void ProgressionManager::EndLoad()
     // SLPX onto the entries SLPR made; a save without SLPX (1.5.0 and before)
     // keeps the counters at 0, a spell without an entry gets none made
     const auto applied = ProgressionCoSave::ApplyCapEntries(m_pendingCapTrackers, m_spellProgress);
+    // The required XP each spell's counts were made against (SLPX v2; none from a v1 save)
+    std::unordered_map<RE::FormID, float> savedRequired;
+    for (const auto& e : m_pendingCapTrackers) {
+        if (e.requiredXP > 0.0f) savedRequired.insert_or_assign(e.formId, e.requiredXP);
+    }
     if (!m_pendingCapTrackers.empty()) {
         logger::info("ProgressionManager: Applied cap trackers to {} of {} spells ({} without a progress entry)",
                      applied, m_pendingCapTrackers.size(), m_pendingCapTrackers.size() - applied);
@@ -133,17 +140,24 @@ void ProgressionManager::EndLoad()
     EndLoadMastery();
 
     // Every entry's required XP now that the whole save is in (ReadRecord's was
-    // worked out before the records after SLPR)
-    // The per-source counts at most the XP the entry holds: a save made while a lowered progress
-    // kept them at their caps (before 2026-11-03) gets them back in step
-    std::size_t fitted = 0;
+    // worked out before the records after SLPR). The per-source counts keep their share of it: scaled
+    // from the required XP they were saved against (SLPX v2) to this one, both ways. Never shrunk to the
+    // XP held here: this number may be passing (this character's numbers come back from the panel, the
+    // tree's may arrive after the load) and SetRequiredXP scales them again when the real one arrives, so
+    // a load never reopens a cap. A v1 save's counts stay as saved (the number they were made against is
+    // not known).
+    std::size_t rescaled = 0;
     for (auto& [formId, progress] : m_spellProgress) {
         progress.requiredXP = BaseRequiredXP(formId);
-        if (ProgressionMath::FitTrackersToXP(progress, progress.GetCurrentXP())) ++fitted;
+        const auto saved = savedRequired.find(formId);
+        if (saved != savedRequired.end() &&
+            ProgressionMath::RescaleTrackers(progress, saved->second, progress.requiredXP)) {
+            ++rescaled;
+        }
     }
     logger::info("ProgressionManager: Co-save load complete ({} entries, {} tree required XP values, {} with "
-                 "per-source XP counts cut to the XP they hold)",
-                 m_spellProgress.size(), m_requiredXP.TreeCount(), fitted);
+                 "per-source XP counts scaled to their required XP)",
+                 m_spellProgress.size(), m_requiredXP.TreeCount(), rescaled);
 }
 
 bool ProgressionManager::ReadRecord(SKSE::SerializationInterface* a_intfc,
@@ -155,7 +169,7 @@ bool ProgressionManager::ReadRecord(SKSE::SerializationInterface* a_intfc,
     if (type != kTargetsRecord && type != kProgressRecord && type != kCapTrackersRecord) return false;
 
     // Every version written so far is read: SLTR 1-2 (one layout), SLPR 1-3 (v3
-    // from a 2026-10-17 development build only), SLPX 1
+    // from a 2026-10-17 development build only), SLPX 1-2
     bool readable = false;
     switch (type) {
         case kTargetsRecord: readable = version >= 1 && version <= kTargetsVersion; break;
@@ -168,7 +182,7 @@ bool ProgressionManager::ReadRecord(SKSE::SerializationInterface* a_intfc,
         return true;
     }
 
-    if (type == kCapTrackersRecord) return ReadCapTrackers(a_intfc, length);
+    if (type == kCapTrackersRecord) return ReadCapTrackers(a_intfc, version, length);
 
     switch (type) {
         case kTargetsRecord: {

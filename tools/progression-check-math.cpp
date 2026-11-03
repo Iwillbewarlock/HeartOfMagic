@@ -3,12 +3,14 @@
 
 #include "progression-check.h"
 
+#include "ProgressionCoSave.h"
 #include "ProgressionMath.h"
 #include "RequiredXPTable.h"
 #include "uimanager/ConfigRenames.h"
 
 #include <algorithm>
 #include <cstdint>
+#include <cstring>
 #include <limits>
 #include <string>
 #include <unordered_map>
@@ -21,6 +23,104 @@ namespace ProgressionCheck
     namespace
     {
         namespace PM = ProgressionMath;
+        namespace CS = ProgressionCoSave;
+
+        // SKSE's record stream shapes over a byte buffer (as progression-check.cpp's)
+        struct Bytes
+        {
+            std::vector<std::uint8_t> data;
+            std::size_t at = 0;
+            bool WriteRecordData(const void* p, std::uint32_t n)
+            {
+                const auto* b = static_cast<const std::uint8_t*>(p);
+                data.insert(data.end(), b, b + n);
+                return true;
+            }
+            std::uint32_t ReadRecordData(void* out, std::uint32_t n)
+            {
+                const auto got = static_cast<std::uint32_t>((std::min)(static_cast<std::size_t>(n), data.size() - at));
+                if (got > 0) std::memcpy(out, data.data() + at, got);
+                at += got;
+                return got;
+            }
+        };
+
+        struct Counts
+        {
+            float xpFromAny = 0.0f;
+            float xpFromSchool = 0.0f;
+            float xpFromDirect = 0.0f;
+            float xpFromSelf = 0.0f;
+            std::unordered_map<std::string, float> xpFromModded;
+        };
+
+        // B2: the per-source counts against the required XP, through a save and a load whose first
+        // required XP is passing (this character's number back from the panel later, the tree's late)
+        void TrackerShareCases()
+        {
+            constexpr float kSaved = 500.0f;     // the required XP when the game was saved
+            constexpr float kPassing = 100.0f;   // what the load works out first (tier only)
+            constexpr float kCapAny = 5.0f;      // percent
+            Counts c;
+            c.xpFromAny = 25.0f;                 // the any cap (5% of 500) closed
+            c.xpFromSchool = 30.0f;
+            c.xpFromSelf = 100.0f;
+            c.xpFromModded["book_reading"] = 20.0f;
+
+            // Save (SLPX v2 with the required XP), load
+            Bytes record;
+            const std::vector<CS::CapEntry> saved{ { 0x0001'2FCD, c.xpFromAny, c.xpFromSchool, c.xpFromDirect, c.xpFromSelf, kSaved } };
+            std::vector<CS::CapEntry> back;
+            const bool io = CS::WriteCapEntries(record, saved) &&
+                            CS::ReadCapEntries(record, CS::kCapTrackersVersion, static_cast<std::uint32_t>(record.data.size()),
+                                               back) == CS::ReadResult::Ok;
+            Check(io && back.size() == 1 && Near(back[0].requiredXP, kSaved) && Near(back[0].xpFromAny, 25.0f),
+                  "tracker share: SLPX v2 carries the required XP the counts were made against");
+
+            // EndLoad: the passing required XP - the counts keep their share, the any cap stays closed
+            Counts loaded = c;
+            Check(PM::RescaleTrackers(loaded, back[0].requiredXP, kPassing) && Near(loaded.xpFromAny, 5.0f) &&
+                      Near(loaded.xpFromModded["book_reading"], 4.0f) &&
+                      Near(PM::GrantWithinCap(3.0f, kPassing * kCapAny / 100.0f, loaded.xpFromAny), 0.0f),
+                  "tracker share: load at a passing 100 -> any 5 of a 5 cap, still closed");
+            // The real number arrives (SetRequiredXP): back to the saved counts, still closed
+            Check(PM::RescaleTrackers(loaded, kPassing, kSaved) && Near(loaded.xpFromAny, 25.0f) &&
+                      Near(loaded.xpFromSchool, 30.0f) && Near(loaded.xpFromSelf, 100.0f) &&
+                      Near(loaded.xpFromModded["book_reading"], 20.0f) &&
+                      Near(PM::GrantWithinCap(3.0f, kSaved * kCapAny / 100.0f, loaded.xpFromAny), 0.0f),
+                  "tracker share: then 500 again -> the saved counts back, the any cap never reopened");
+
+            // A required XP lowered then raised (override toggled, the share slider)
+            Counts toggled = c;
+            PM::RescaleTrackers(toggled, 500.0f, 250.0f);
+            PM::RescaleTrackers(toggled, 250.0f, 500.0f);
+            Check(Near(toggled.xpFromAny, 25.0f) && Near(toggled.xpFromSchool, 30.0f) &&
+                      Near(toggled.xpFromModded["book_reading"], 20.0f),
+                  "tracker share: 500 -> 250 -> 500 gives every count back");
+
+            // A v1 save (no required XP), equal numbers, bad numbers: nothing scaled
+            Bytes v1;
+            v1.data.resize(sizeof(std::uint32_t) + CS::kCapEntrySizeV1);
+            const std::uint32_t one = 1;
+            const float v1Fields[] = { 7.0f, 0.0f, 0.0f, 0.0f };
+            const std::uint32_t id = 0x0001'2FCD;
+            std::memcpy(v1.data.data(), &one, 4);
+            std::memcpy(v1.data.data() + 4, &id, 4);
+            std::memcpy(v1.data.data() + 8, v1Fields, sizeof(v1Fields));
+            std::vector<CS::CapEntry> v1Back;
+            const bool v1Ok = CS::ReadCapEntries(v1, 1, static_cast<std::uint32_t>(v1.data.size()), v1Back) == CS::ReadResult::Ok;
+            Counts v1Counts;
+            v1Counts.xpFromAny = 7.0f;
+            Check(v1Ok && v1Back.size() == 1 && Near(v1Back[0].xpFromAny, 7.0f) && Near(v1Back[0].requiredXP, 0.0f) &&
+                      !PM::RescaleTrackers(v1Counts, v1Back[0].requiredXP, kPassing) && Near(v1Counts.xpFromAny, 7.0f),
+                  "tracker share: a v1 save reads with no required XP, its counts kept as saved");
+            const float nan = std::numeric_limits<float>::quiet_NaN();
+            Counts same = c;
+            Check(!PM::RescaleTrackers(same, 500.0f, 500.0f) && !PM::RescaleTrackers(same, 0.0f, 500.0f) &&
+                      !PM::RescaleTrackers(same, 500.0f, nan) && !PM::RescaleTrackers(same, -3.0f, 500.0f) &&
+                      Near(same.xpFromAny, 25.0f),
+                  "tracker share: an equal, 0, negative or NaN required XP scales nothing");
+        }
     }
 
     void MathCases()
@@ -233,6 +333,8 @@ namespace ProgressionCheck
     // The XP fixes of 2026-11-03 (the four losses before 100%)
     void XPFixCases()
     {
+        TrackerShareCases();
+
         // A: the per-source counts never stay over the XP the spell holds
         struct FakeProgress
         {

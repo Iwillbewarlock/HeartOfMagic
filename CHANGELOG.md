@@ -33,8 +33,10 @@
 - **XP that stopped coming after a spell's progress was lowered.** Each kind of casting XP (any spell, same
   school, a direct link) has a cap per spell; the XP counted against those caps stayed where it was when cheat
   mode, a mod or a smaller required XP lowered the spell's progress, so a source at its cap gave nothing again.
-  The counts now follow the progress down (scaled to the XP the spell still holds, all cleared at 0 XP), also
-  for saves made before, when they load.
+  The counts now follow a lowered progress down (scaled to the XP the spell still holds, all cleared at 0 XP), and
+  keep their share when the required XP changes, both ways: a required XP lowered and raised again, or a game load
+  that works out a passing number before the real one arrives, no longer reopens or closes a cap. The save keeps
+  the required XP they were made against; an older version skips that record and starts those counts at 0.
 - **Casting a copy of a linked spell.** When two plugins carry the same spell, the tree keeps one; a copy you
   learned before (or elsewhere) now counts as that spell for the direct-link XP of the spells next to it in the
   tree, as it already did for their requirements. It counted as a same-school cast only.

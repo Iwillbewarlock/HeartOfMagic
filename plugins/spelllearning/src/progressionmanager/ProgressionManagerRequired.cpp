@@ -97,9 +97,10 @@ void ProgressionManager::SetRequiredXP(RE::FormID formId, float required, Requir
     m_requiredXP.Set(kind, formId, required);
     // A tree number counts only where this character and the overrides have none
     auto& progress = EnsureProgress(formId);
+    const float before = progress.requiredXP;
     progress.requiredXP = kind == RequiredXP::Kind::kCharacter ? required : BaseRequiredXP(formId);
-    // A smaller required XP holds less XP: the per-source counts follow it down
-    ProgressionMath::FitTrackersToXP(progress, progress.GetCurrentXP());
+    // The per-source counts keep their share of the required XP, both ways (ProgressionMath::RescaleTrackers)
+    ProgressionMath::RescaleTrackers(progress, before, progress.requiredXP);
 }
 
 void ProgressionManager::SetRequiredXPOverrides(RequiredXP::Table::Map overrides)
@@ -108,8 +109,9 @@ void ProgressionManager::SetRequiredXPOverrides(RequiredXP::Table::Map overrides
     std::size_t updated = 0;
     for (auto& [formId, progress] : m_spellProgress) {
         if (m_requiredXP.HasCharacterValue(formId)) continue;
+        const float before = progress.requiredXP;
         progress.requiredXP = BaseRequiredXP(formId);
-        ProgressionMath::FitTrackersToXP(progress, progress.GetCurrentXP());
+        ProgressionMath::RescaleTrackers(progress, before, progress.requiredXP);
         ++updated;
     }
     logger::info("ProgressionManager: {} per-spell XP overrides from the settings ({} entries sized again)",

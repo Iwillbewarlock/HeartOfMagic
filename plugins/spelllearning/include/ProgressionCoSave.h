@@ -27,6 +27,10 @@
 //
 // SLPX v1: count u32, then per spell formId u32 and xpFromAny, xpFromSchool,
 // xpFromDirect, xpFromSelf (f32) - what the built-in sources' caps count against.
+// SLPX v2 (2026-11-04): + requiredXP f32 per spell, the required XP all the spell's counts (these four and
+// SLPR's modded ones) were made against, so a load scales them to the required XP it works out
+// (ProgressionMath::RescaleTrackers) instead of reading absolute XP against another number. Written for
+// every spell with any count, built-in or modded. v1 is still read (requiredXP 0: the counts as saved).
 // A record of its own, not an SLPR v3: a build that does not know SLPX skips it
 // and still reads SLPR, so going back to 1.5.0 loses these counters, not the progress.
 //
@@ -46,7 +50,7 @@ namespace ProgressionCoSave
 {
     inline constexpr std::uint32_t kProgressVersion = 2;         // SLPR as written
     inline constexpr std::uint32_t kMaxProgressReadVersion = 3;  // SLPR as read
-    inline constexpr std::uint32_t kCapTrackersVersion = 1;
+    inline constexpr std::uint32_t kCapTrackersVersion = 2;   // SLPX as written; 1 and 2 read
     inline constexpr std::uint32_t kTomeXPVersion = 1;
     inline constexpr std::uint32_t kMaxNameLength = 4096;
     inline constexpr std::uint32_t kMaxModdedSources = 4096;
@@ -72,13 +76,15 @@ namespace ProgressionCoSave
         float xpFromSchool = 0.0f;
         float xpFromDirect = 0.0f;
         float xpFromSelf = 0.0f;
+        float requiredXP = 0.0f;   // v2: what the counts were made against; 0 = not known (v1)
 
         [[nodiscard]] bool IsEmpty() const noexcept
         {
             return xpFromAny == 0.0f && xpFromSchool == 0.0f && xpFromDirect == 0.0f && xpFromSelf == 0.0f;
         }
     };
-    inline constexpr std::uint32_t kCapEntrySize = sizeof(std::uint32_t) + 4 * sizeof(float);
+    inline constexpr std::uint32_t kCapEntrySizeV1 = sizeof(std::uint32_t) + 4 * sizeof(float);
+    inline constexpr std::uint32_t kCapEntrySize = kCapEntrySizeV1 + sizeof(float);   // v2, as written
 
     // One SLSM entry (Spell Research practice and memory): the 15% boundaries the spell has already paid
     // into SR's memory, one bit each (SpellResearchMemoryMath::PaidMask)
@@ -222,7 +228,7 @@ namespace ProgressionCoSave
         return ReadResult::Ok;
     }
 
-    // SLPX: count, then the entries. False when a write failed.
+    // SLPX: count, then the entries, in the v2 layout. False when a write failed.
     template <class Stream>
     [[nodiscard]] bool WriteCapEntries(Stream& out, const std::vector<CapEntry>& entries)
     {
@@ -231,25 +237,30 @@ namespace ProgressionCoSave
         for (const auto& e : entries) {
             ok = ok && Detail::Write(out, e.formId) && Detail::Write(out, e.xpFromAny) &&
                  Detail::Write(out, e.xpFromSchool) && Detail::Write(out, e.xpFromDirect) &&
-                 Detail::Write(out, e.xpFromSelf);
+                 Detail::Write(out, e.xpFromSelf) && Detail::Write(out, e.requiredXP);
         }
         return ok;
     }
 
-    // SLPX: a count the record cannot hold is refused before anything is
+    // SLPX v1 or v2: a count the record cannot hold is refused before anything is
     // allocated. On a short read the whole entries read so far are kept.
     template <class Stream>
-    [[nodiscard]] ReadResult ReadCapEntries(Stream& in, std::uint32_t recordLength, std::vector<CapEntry>& entries)
+    [[nodiscard]] ReadResult ReadCapEntries(Stream& in, std::uint32_t version, std::uint32_t recordLength,
+                                            std::vector<CapEntry>& entries)
     {
         entries.clear();
+        const bool withRequired = version >= 2;
         std::uint32_t count = 0;
         if (!Detail::Read(in, count)) return ReadResult::ShortRead;
-        if (!Detail::CountFits(count, kCapEntrySize, sizeof(count), recordLength)) return ReadResult::CountTooLarge;
+        if (!Detail::CountFits(count, withRequired ? kCapEntrySize : kCapEntrySizeV1, sizeof(count), recordLength)) {
+            return ReadResult::CountTooLarge;
+        }
         entries.reserve(count);
         for (std::uint32_t i = 0; i < count; ++i) {
             CapEntry e;
             if (!Detail::Read(in, e.formId) || !Detail::Read(in, e.xpFromAny) || !Detail::Read(in, e.xpFromSchool) ||
-                !Detail::Read(in, e.xpFromDirect) || !Detail::Read(in, e.xpFromSelf)) {
+                !Detail::Read(in, e.xpFromDirect) || !Detail::Read(in, e.xpFromSelf) ||
+                (withRequired && !Detail::Read(in, e.requiredXP))) {
                 return ReadResult::ShortRead;
             }
             entries.push_back(e);
