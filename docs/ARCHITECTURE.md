@@ -1649,7 +1649,14 @@ moves by the same factor (their sum stays within it). The save keeps the R they 
 at revert and come back from the panel, the tree's may arrive after the load (`SkipStartupTree`) - and the next
 `SetRequiredXP` scales them again, so a load never reopens a cap (before, `EndLoad` shrank them against the passing
 R and nothing grew them back). Only a lowered progress (`SetSpellXP`: cheat mode, the API, Papyrus) shrinks them to
-the XP held (`FitTrackersToXP`, fix A). A v1 save's counts stay as saved.
+the XP held (`FitTrackersToXP`, fix A). A v1 save's counts (1.7: absolute XP, no basis, maybe still stuck above
+the XP held by a cheat-mode lowering from before fix A) are marked at `EndLoad` (`MarkFitPending`, `SpellProgress::fitPending`)
+and fitted once to the XP held (`SettlePendingFit`) when the required XP is no longer the load's passing number:
+after the tree's numbers are in (`SettlePendingTrackerFits` at the end of `SyncRequiredXPFromTree`, both the game
+start tree and the panel's tree load), or, with no tree applied that session, at the spell's first XP (the cast
+loop, `AddSourcedXP` - mods, BookXP, passive learning). Never against `EndLoad`'s number. Until then a required XP
+change does not scale them (`RescaleUnlessPending`) and a save writes basis 0 for them (`BasisToSave`: the next
+load marks them again); `SetSpellXP` and a relock clear the mark.
 
 **For C++ plugins:** Use `SpellLearningAPI.h` — either SKSE messaging (fire-and-forget) or request the `ISpellLearningAPI` interface pointer.
 

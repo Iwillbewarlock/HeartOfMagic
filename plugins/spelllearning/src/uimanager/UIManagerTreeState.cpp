@@ -153,6 +153,8 @@ void SyncRequiredXPFromTree(const json& treeData)
     if (xpSyncCount > 0) {
         logger::info("UIManager: Synced requiredXP for {} spells from tree to ProgressionManager", xpSyncCount);
     }
+    // The tree's numbers are in: counts loaded from an older save (no basis) are fitted now, once
+    pm->SettlePendingTrackerFits();
 }
 
 // =============================================================================

@@ -84,7 +84,7 @@ void ProgressionManager::WriteCapTrackers(SKSE::SerializationInterface* a_intfc)
     std::vector<ProgressionCoSave::CapEntry> entries;
     for (const auto& [formId, progress] : m_spellProgress) {
         const ProgressionCoSave::CapEntry e{ formId, progress.xpFromAny, progress.xpFromSchool, progress.xpFromDirect,
-                                             progress.xpFromSelf, progress.requiredXP };
+                                             progress.xpFromSelf, ProgressionMath::BasisToSave(progress) };
         const bool modded = std::ranges::any_of(progress.xpFromModded, [](const auto& s) { return s.second != 0.0f; });
         if (!e.IsEmpty() || modded) entries.push_back(e);
     }
@@ -146,18 +146,23 @@ void ProgressionManager::EndLoad()
     // tree's may arrive after the load) and SetRequiredXP scales them again when the real one arrives, so
     // a load never reopens a cap. A v1 save's counts stay as saved (the number they were made against is
     // not known).
+    // Counts with no saved basis (v1) are marked: fitted once to the XP held when the required XP is
+    // no longer this passing number (SettlePendingTrackerFits, or the spell's first XP)
     std::size_t rescaled = 0;
+    std::size_t pending = 0;
     for (auto& [formId, progress] : m_spellProgress) {
         progress.requiredXP = BaseRequiredXP(formId);
         const auto saved = savedRequired.find(formId);
-        if (saved != savedRequired.end() &&
-            ProgressionMath::RescaleTrackers(progress, saved->second, progress.requiredXP)) {
-            ++rescaled;
+        if (saved != savedRequired.end()) {
+            progress.fitPending = false;
+            if (ProgressionMath::RescaleTrackers(progress, saved->second, progress.requiredXP)) ++rescaled;
+        } else if (ProgressionMath::MarkFitPending(progress)) {
+            ++pending;
         }
     }
     logger::info("ProgressionManager: Co-save load complete ({} entries, {} tree required XP values, {} with "
-                 "per-source XP counts scaled to their required XP)",
-                 m_spellProgress.size(), m_requiredXP.TreeCount(), rescaled);
+                 "per-source XP counts scaled to their required XP, {} with counts from an older save to fit)",
+                 m_spellProgress.size(), m_requiredXP.TreeCount(), rescaled, pending);
 }
 
 bool ProgressionManager::ReadRecord(SKSE::SerializationInterface* a_intfc,

@@ -68,6 +68,7 @@ void ProgressionManager::SetSpellXP(RE::FormID formId, float xp)
     progress.progressPercent = ProgressionMath::ProgressForXP(xp, progress.requiredXP);
     // The per-source counts follow a lowered XP down (a source at its cap gives again)
     ProgressionMath::FitTrackersToXP(progress, progress.GetCurrentXP());
+    progress.fitPending = false;   // fitted just now
     // A spell no longer mastered (not unlocked, below 100%, no copy mastered) loses its mastery XP; one
     // that stays unlocked keeps its full power and its ranks
     if (!IsMasteredForRanks(MasteryKeyOf(formId))) ClearMastery(formId);
@@ -153,6 +154,7 @@ void ProgressionManager::OnSpellCast(const std::string& school, RE::FormID castS
         float multiplier = 0.0f;
         float capPercent = ProgressionMath::kNoCapPercent;
         auto& progRef = EnsureProgress(targetId);
+        ProgressionMath::SettlePendingFit(progRef);   // counts from an older save, no tree applied yet
         float* tracked = &progRef.xpFromSelf;
         switch (source) {
             case CastSource::kSelf:

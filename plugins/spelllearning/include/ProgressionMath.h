@@ -267,4 +267,51 @@ namespace ProgressionMath
         for (auto& source : progress.xpFromModded) source.second *= scale;
         return true;
     }
+
+    // =========================================================================
+    // Counts from a save that does not say what required XP they were made against (SLPX v1, a
+    // 1.7 save): absolute XP, maybe still stuck above the XP held by an old cheat-mode lowering (fix A
+    // came after). They are fitted to the XP held once, when the spell's required XP is no longer the
+    // load's passing number - after the tree's numbers are in (SyncRequiredXPFromTree), or at the
+    // spell's first XP if no tree is applied - never against the number EndLoad works out. Until then
+    // a required XP change does not scale them (their basis is not known) and a save writes no basis
+    // for them (the next load marks them again). Any struct with the counts, progressPercent,
+    // requiredXP and a bool fitPending.
+    // =========================================================================
+
+    // At load end, for an entry with no saved basis: pending when it has any count. True when marked.
+    template <class Progress>
+    bool MarkFitPending(Progress& progress)
+    {
+        bool any = progress.xpFromAny != 0.0f || progress.xpFromSchool != 0.0f || progress.xpFromDirect != 0.0f ||
+                   progress.xpFromSelf != 0.0f;
+        for (const auto& source : progress.xpFromModded) any = any || source.second != 0.0f;
+        progress.fitPending = any;
+        return any;
+    }
+
+    // The one-time fit: FitTrackersToXP against the XP held now, the mark cleared (the counts are then
+    // shares of the current required XP, as every other entry's). True when it was pending.
+    template <class Progress>
+    bool SettlePendingFit(Progress& progress)
+    {
+        if (!progress.fitPending) return false;
+        progress.fitPending = false;
+        FitTrackersToXP(progress, progress.progressPercent * progress.requiredXP);
+        return true;
+    }
+
+    // A required XP change: RescaleTrackers, except for counts whose basis is not known yet
+    template <class Progress>
+    bool RescaleUnlessPending(Progress& progress, float oldRequired, float newRequired)
+    {
+        return !progress.fitPending && RescaleTrackers(progress, oldRequired, newRequired);
+    }
+
+    // The basis SLPX v2 saves: the required XP, or 0 (not known) while the fit is pending
+    template <class Progress>
+    [[nodiscard]] float BasisToSave(const Progress& progress)
+    {
+        return progress.fitPending ? 0.0f : progress.requiredXP;
+    }
 }

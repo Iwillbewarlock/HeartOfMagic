@@ -54,6 +54,67 @@ namespace ProgressionCheck
             std::unordered_map<std::string, float> xpFromModded;
         };
 
+        // A load's entry as the plugin holds it (SpellProgress without the game types)
+        struct Entry : Counts
+        {
+            float progressPercent = 0.0f;
+            float requiredXP = 0.0f;
+            bool fitPending = false;
+        };
+
+        // An entry from a 1.7 save (SLPX v1, no basis) stuck before fix A: 10% of 100 XP held, but the
+        // any and school counts at their caps (5 and 15) from before a cheat-mode lowering
+        Entry StuckV1()
+        {
+            Entry e;
+            e.progressPercent = 0.1f;
+            e.requiredXP = 100.0f;
+            e.xpFromAny = 5.0f;
+            e.xpFromSchool = 15.0f;
+            return e;
+        }
+
+        // The one-time fit of a v1 save's counts: at the tree's numbers, or the first XP without a tree
+        void PendingFitCases()
+        {
+            constexpr float kCapAny = 5.0f;   // percent
+            const float anyCapAt100 = 100.0f * kCapAny / 100.0f;
+
+            // v1 load -> marked; a required XP change before the fit does not scale the unknown basis;
+            // the tree's numbers in (SettlePendingTrackerFits) -> fitted to the 10 XP held, the any cap open
+            Entry tree = StuckV1();
+            const bool marked = PM::MarkFitPending(tree);
+            const bool held = !PM::RescaleUnlessPending(tree, 100.0f, 400.0f) && Near(tree.xpFromAny, 5.0f);
+            Check(marked && tree.fitPending && held && Near(PM::BasisToSave(tree), 0.0f),
+                  "pending fit: a v1 entry is marked, not scaled by a required XP change, saved with no basis");
+            const bool settled = PM::SettlePendingFit(tree);
+            Check(settled && !tree.fitPending && Near(tree.xpFromAny + tree.xpFromSchool, 10.0f) &&
+                      PM::GrantWithinCap(1.0f, anyCapAt100, tree.xpFromAny) > 0.0f && Near(PM::BasisToSave(tree), 100.0f),
+                  "pending fit: tree applied -> the stuck counts fitted to the 10 XP held, the any cap open again");
+            Check(!PM::SettlePendingFit(tree) && Near(tree.xpFromAny, 2.5f), "pending fit: once only");
+
+            // v1 load, no tree this session: the spell's first XP fits it (the cast loop, AddSourcedXP)
+            Entry cast = StuckV1();
+            PM::MarkFitPending(cast);
+            const bool firstXP = PM::SettlePendingFit(cast);
+            Check(firstXP && Near(cast.xpFromAny, 2.5f) && Near(cast.xpFromSchool, 7.5f) &&
+                      Near(PM::GrantWithinCap(1.0f, anyCapAt100, cast.xpFromAny), 1.0f),
+                  "pending fit: no tree, first cast -> fitted, the any cap gives again");
+
+            // v2 load: has a basis, never marked; scaled as B2 says, never fitted
+            Entry v2 = StuckV1();
+            v2.fitPending = false;
+            const bool scaled = PM::RescaleUnlessPending(v2, 100.0f, 200.0f);
+            Check(scaled && !PM::SettlePendingFit(v2) && Near(v2.xpFromAny, 10.0f) && Near(v2.xpFromSchool, 30.0f),
+                  "pending fit: a v2 entry is not marked or fitted, its counts only scaled with the required XP");
+
+            // An entry with no counts is not marked
+            Entry none;
+            none.progressPercent = 0.3f;
+            none.requiredXP = 100.0f;
+            Check(!PM::MarkFitPending(none) && !none.fitPending, "pending fit: an entry with no counts is not marked");
+        }
+
         // B2: the per-source counts against the required XP, through a save and a load whose first
         // required XP is passing (this character's number back from the panel later, the tree's late)
         void TrackerShareCases()
@@ -334,6 +395,7 @@ namespace ProgressionCheck
     void XPFixCases()
     {
         TrackerShareCases();
+        PendingFitCases();
 
         // A: the per-source counts never stay over the XP the spell holds
         struct FakeProgress

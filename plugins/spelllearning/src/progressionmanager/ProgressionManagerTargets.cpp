@@ -509,6 +509,7 @@ void ProgressionManager::RelockSpell(RE::FormID formId)
     progress.xpFromDirect = 0.0f;
     progress.xpFromSelf = 0.0f;
     progress.xpFromModded.clear();
+    progress.fitPending = false;
     m_dirty = true;
 
     logger::info("ProgressionManager: Relocked {:08X} - progress cleared", formId);

@@ -36,7 +36,8 @@
   The counts now follow a lowered progress down (scaled to the XP the spell still holds, all cleared at 0 XP), and
   keep their share when the required XP changes, both ways: a required XP lowered and raised again, or a game load
   that works out a passing number before the real one arrives, no longer reopens or closes a cap. The save keeps
-  the required XP they were made against; an older version skips that record and starts those counts at 0.
+  the required XP they were made against; an older version skips that record and starts those counts at 0. A save
+  from 1.7 with a cap stuck this way is put right once the spell tree is loaded (or at the spell's next XP).
 - **Casting a copy of a linked spell.** When two plugins carry the same spell, the tree keeps one; a copy you
   learned before (or elsewhere) now counts as that spell for the direct-link XP of the spells next to it in the
   tree, as it already did for their requirements. It counted as a same-school cast only.

@@ -109,6 +109,7 @@ float ProgressionManager::AddSourcedXPImpl(RE::FormID targetId, float amount, co
     if (!builtIn && !internalCaller && !AcceptExternalSourceName(sourceName)) return 0.0f;
 
     auto& progress = EnsureProgress(targetId);
+    ProgressionMath::SettlePendingFit(progress);   // counts from an older save, no tree applied yet
 
     // Already mastered
     if (progress.unlocked && progress.progressPercent >= 1.0f) return 0.0f;

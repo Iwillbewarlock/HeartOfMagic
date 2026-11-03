@@ -100,7 +100,7 @@ void ProgressionManager::SetRequiredXP(RE::FormID formId, float required, Requir
     const float before = progress.requiredXP;
     progress.requiredXP = kind == RequiredXP::Kind::kCharacter ? required : BaseRequiredXP(formId);
     // The per-source counts keep their share of the required XP, both ways (ProgressionMath::RescaleTrackers)
-    ProgressionMath::RescaleTrackers(progress, before, progress.requiredXP);
+    ProgressionMath::RescaleUnlessPending(progress, before, progress.requiredXP);
 }
 
 void ProgressionManager::SetRequiredXPOverrides(RequiredXP::Table::Map overrides)
@@ -111,9 +111,22 @@ void ProgressionManager::SetRequiredXPOverrides(RequiredXP::Table::Map overrides
         if (m_requiredXP.HasCharacterValue(formId)) continue;
         const float before = progress.requiredXP;
         progress.requiredXP = BaseRequiredXP(formId);
-        ProgressionMath::RescaleTrackers(progress, before, progress.requiredXP);
+        ProgressionMath::RescaleUnlessPending(progress, before, progress.requiredXP);
         ++updated;
     }
     logger::info("ProgressionManager: {} per-spell XP overrides from the settings ({} entries sized again)",
                  m_requiredXP.OverrideCount(), updated);
+}
+
+void ProgressionManager::SettlePendingTrackerFits()
+{
+    std::size_t fitted = 0;
+    for (auto& [formId, progress] : m_spellProgress) {
+        if (ProgressionMath::SettlePendingFit(progress)) ++fitted;
+    }
+    if (fitted > 0) {
+        m_dirty = true;
+        logger::info("ProgressionManager: per-source XP counts of {} spells from an older save fitted to the XP they hold",
+                     fitted);
+    }
 }

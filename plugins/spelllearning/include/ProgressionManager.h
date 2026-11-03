@@ -43,6 +43,9 @@ public:
 
         // XP from modded sources (for per-source cap tracking)
         std::unordered_map<std::string, float> xpFromModded;  // source name -> tracked XP
+        // The counts came from a save with no basis required XP (SLPX v1) and are not fitted yet
+        // (ProgressionMath::SettlePendingFit; SettlePendingTrackerFits, the spell's first XP)
+        bool fitPending = false;
 
         // Computed property
         float GetCurrentXP() const { return progressPercent * requiredXP; }
@@ -350,6 +353,10 @@ public:
     // Back to no mastery XP: RelockSpell, and SetSpellXP leaving the spell no longer mastered
     // (IsMasteredForRanks false)
     void ClearMastery(RE::FormID spellId);
+    // The one-time fit of counts loaded with no basis (SLPX v1), for every pending entry: the tree's required
+    // XP numbers are in (end of SyncRequiredXPFromTree). Game thread
+    void SettlePendingTrackerFits();
+
     // Every mastery entry under MasteryKeyOf (two on one key keep the larger XP): at load end and after
     // a tree's prerequisites are applied (the tree decides which copy is its record)
     void RekeyMasteryToTree();
