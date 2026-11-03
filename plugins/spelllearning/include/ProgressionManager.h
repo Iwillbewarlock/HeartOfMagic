@@ -2,6 +2,7 @@
 
 #include "Common.h"
 #include "ProgressionCoSave.h"
+#include "ProgressionMath.h"
 #include "RequiredXPTable.h"
 #include <unordered_map>
 #include <unordered_set>
@@ -335,6 +336,11 @@ private:
     // grant rule (SpellEffectivenessHook::ShouldGrantEarly) allows it; fires
     // SpellLearning_SpellEarlyGranted. True when it granted. Early learning must be on.
     bool TryEarlyGrant(RE::FormID spellId, float oldProgress, float newProgress, float thresholdFraction);
+
+    // Which kind of cast this is for a target: self, direct link (either way, copies too),
+    // same school or any (OnSpellCast's source, single mode's order)
+    ProgressionMath::CastSource ClassifyCast(const std::string& targetSchool, RE::FormID targetId,
+                                             const std::string& castSchool, RE::FormID castSpellId) const;
 
     // AddXP, then the XP it really added (ProgressionMath::ActualRise): less than asked at the
     // top, 0 on a spell already at 100%. What a cast and AddSourcedXP count and report.

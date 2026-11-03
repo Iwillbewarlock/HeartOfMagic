@@ -1567,7 +1567,11 @@ amount → × source multiplier (0-200%) → × global multiplier
 ```
 The same holds for a cast (`OnSpellCast`): the per-source count takes what the cast really added
 (`AddXPMeasured`, `ProgressionMath::ActualRise`), and in single mode a cast that changed nothing (a target at
-100% waiting for Unlock) does not use up the one target it may credit. The counts never stay above the XP a
+100% waiting for Unlock) does not use up the one target it may credit. Single mode tries the targets in
+`ProgressionMath::CastSource` order - the spell cast itself, a direct link, the same school, any - (`ClassifyCast`,
+`OrderBySource`), not in the targets map's order. Known limit: switching the mode to single keeps the targets
+the other schools hold (SetXPSettings logs a warning with their count); the next target set in single mode clears
+them. The counts never stay above the XP a
 spell holds: SetSpellXP, SetRequiredXP, the settings' overrides and a save load scale them down to it
 (`ProgressionMath::FitTrackersToXP`).
 

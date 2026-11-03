@@ -293,5 +293,24 @@ namespace ProgressionCheck
         Check(Near(PM::ActualRise(0.5f, 0.3f, 100.0f), 0.0f) && Near(PM::ActualRise(0.2f, 0.4f, 0.0f), 0.0f) &&
                   Near(PM::ActualRise(nan, 0.4f, 100.0f), 0.0f),
               "real XP: a lowered progress, no required XP or NaN is 0, never negative");
+
+        // D: single mode credits the closest link first, whatever order the targets map holds
+        using PM::CastSource;
+        std::vector<std::string> keys{ "Illusion", "Alteration", "Destruction", "Conjuration", "Restoration" };
+        PM::OrderBySource(keys, { CastSource::kAny, CastSource::kSchool, CastSource::kSelf, CastSource::kAny,
+                                  CastSource::kDirect });
+        Check(keys == std::vector<std::string>{ "Destruction", "Restoration", "Alteration", "Illusion", "Conjuration" },
+              "single mode: self, then direct, school, any (two any targets keep their order)");
+        std::vector<std::string> one{ "Destruction" };
+        PM::OrderBySource(one, { CastSource::kAny });
+        std::vector<std::string> empty;
+        PM::OrderBySource(empty, {});
+        Check(one.size() == 1 && empty.empty(), "single mode: one target or none is left as it is");
+        std::vector<std::string> mismatch{ "a", "b" };
+        PM::OrderBySource(mismatch, { CastSource::kAny });
+        Check(mismatch == std::vector<std::string>{ "a", "b" }, "single mode: sources of another length change nothing");
+        Check(std::string(PM::CastSourceName(CastSource::kDirect)) == "direct" &&
+                  std::string(PM::CastSourceName(CastSource::kSelf)) == "self",
+              "single mode: the source names the XP log uses");
     }
 }

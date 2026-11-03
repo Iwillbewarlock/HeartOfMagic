@@ -30,6 +30,10 @@
   it gave nothing later. A grant now counts only what it really added (near the top, 99% plus 5 XP is 1 XP), mods'
   XP calls get that amount back, and the book stays unread for a spell that took nothing. In single learning
   mode a cast no longer spends its one target on such a spell.
+- **Single learning mode with more than one target.** When a save holds targets in more than one school while
+  the mode is "single" (switched after setting them, or set by a mod), a cast credited whichever target came
+  first in memory. It now credits the closest one: the spell cast itself, then a direct link, then the same
+  school, then any other.
 
 - **Don't Eat Spell Tomes and the mods that use it.** With the real Don't Eat Spell Tomes installed (LoreRim, for
   Rite of Arcana), Heart of Magic no longer takes over its script functions: it did, so a mod that asked for spell

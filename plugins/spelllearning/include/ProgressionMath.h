@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <numeric>
+#include <vector>
 
 // =============================================================================
 // PROGRESSION MATH - the XP cap, study and mastery arithmetic
@@ -171,6 +173,43 @@ namespace ProgressionMath
             if (matches(copyId)) return true;
         }
         return false;
+    }
+
+    // What a cast is to a learning target, in single mode's order of preference: the target
+    // itself, a direct link (either way), the same school, any other spell
+    enum class CastSource : std::uint8_t
+    {
+        kSelf,
+        kDirect,
+        kSchool,
+        kAny,
+    };
+
+    [[nodiscard]] constexpr const char* CastSourceName(CastSource source) noexcept
+    {
+        switch (source) {
+            case CastSource::kSelf: return "self";
+            case CastSource::kDirect: return "direct";
+            case CastSource::kSchool: return "school";
+            case CastSource::kAny: return "any";
+        }
+        return "any";
+    }
+
+    // Single learning mode credits one learning target per cast: `items` reordered so the closest
+    // link comes first (CastSource order), items of one source keeping their order. `sources[i]`
+    // is items[i]'s source; a length mismatch leaves `items` as it is. O(n log n).
+    template <class T>
+    void OrderBySource(std::vector<T>& items, const std::vector<CastSource>& sources)
+    {
+        if (items.size() != sources.size()) return;
+        std::vector<std::size_t> order(items.size());
+        std::iota(order.begin(), order.end(), std::size_t{ 0 });
+        std::stable_sort(order.begin(), order.end(), [&](std::size_t a, std::size_t b) { return sources[a] < sources[b]; });
+        std::vector<T> sorted;
+        sorted.reserve(items.size());
+        for (const auto i : order) sorted.push_back(std::move(items[i]));
+        items = std::move(sorted);
     }
 
     // =========================================================================

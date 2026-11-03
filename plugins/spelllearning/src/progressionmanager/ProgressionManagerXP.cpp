@@ -19,7 +19,15 @@
 
 void ProgressionManager::SetXPSettings(const XPSettings& settings)
 {
+    const bool toSingle = settings.learningMode == "single" && m_xpSettings.learningMode != "single";
     m_xpSettings = settings;
+    // Known limit: the other schools' targets are kept, not dropped; each cast credits the closest one
+    // (OnSpellCast's single mode order). A tome or the panel's next target in single mode clears them.
+    const auto held = std::ranges::count_if(m_learningTargets, [](const auto& t) { return t.second != 0; });
+    if (toSingle && held > 1) {
+        logger::warn("ProgressionManager: learning mode is now single with {} learning targets held - kept; each "
+                     "cast credits the closest one (self, direct, school, any)", held);
+    }
     logger::info("ProgressionManager: XP settings updated - mode: {}, global: x{:.0f}, direct: {:.0f}%, school: {:.0f}%, any: {:.0f}%",
         m_xpSettings.learningMode,
         m_xpSettings.globalMultiplier,
@@ -84,14 +92,33 @@ void ProgressionManager::OnSpellCast(const std::string& school, RE::FormID castS
     // meanwhile is skipped, so a mastered spell gets no more XP from this cast.
     // A spell held under two school keys (a save from before DropTargetFromOtherSchools)
     // gets XP from one cast once
-    const std::vector<std::pair<std::string, RE::FormID>> targets(m_learningTargets.begin(), m_learningTargets.end());
+    using ProgressionMath::CastSource;
+    struct Candidate
+    {
+        std::string school;
+        RE::FormID id = 0;
+        CastSource source = CastSource::kAny;
+    };
+    std::vector<Candidate> targets;
+    std::vector<CastSource> sources;
+    targets.reserve(m_learningTargets.size());
+    sources.reserve(m_learningTargets.size());
+    for (const auto& [targetSchool, targetId] : m_learningTargets) {
+        targets.push_back({ targetSchool, targetId, ClassifyCast(targetSchool, targetId, school, castSpellId) });
+        sources.push_back(targets.back().source);
+    }
+    // Single mode credits one target: the closest link first (self, direct, school, any), not
+    // whichever school the map happened to hold first. Within a source the map order stays
+    const bool single = m_xpSettings.learningMode == "single";
+    if (single) ProgressionMath::OrderBySource(targets, sources);
+
     std::vector<RE::FormID> credited;
     credited.reserve(targets.size());
     float totalXP = 0.0f;
     int duplicateKeys = 0;   // the same spell met again under a second school key
     const auto* castSpell = RE::TESForm::LookupByID<RE::SpellItem>(castSpellId);
     const char* castName = castSpell ? castSpell->GetName() : "?";
-    for (const auto& [targetSchool, targetId] : targets) {
+    for (const auto& [targetSchool, targetId, source] : targets) {
         auto current = m_learningTargets.find(targetSchool);
         if (current == m_learningTargets.end() || current->second != targetId) continue;
         if (targetId == 0) continue;
@@ -108,130 +135,64 @@ void ProgressionManager::OnSpellCast(const std::string& school, RE::FormID castS
         const XPGainRates rates = GetGainRates(targetId);
         const float adjustedBaseXP = baseXP * rates.globalMultiplier;
 
-        // =========================================================================
-        // SELF-CAST REQUIREMENT CHECK
-        // =========================================================================
-        bool isCastingLearningTarget = (castSpellId == targetId);
-        float currentProgress = progress.progressPercent * 100.0f;  // Convert to percentage
-
-        if (earlySettings.enabled && currentProgress >= earlySettings.selfCastRequiredAt) {
-            // After selfCastRequiredAt threshold, ONLY self-casting grants XP
-            if (!isCastingLearningTarget) {
-                logger::trace("ProgressionManager: Progress {:.0f}% >= selfCastRequiredAt {:.0f}% - "
-                    "only self-casting grants XP (cast spell {:08X} != target {:08X})",
-                    currentProgress, earlySettings.selfCastRequiredAt, castSpellId, targetId);
-                continue;  // Skip this target, no XP from non-self casts
-            }
+        // After selfCastRequiredAt, only casting the target itself grants XP
+        const float currentProgress = progress.progressPercent * 100.0f;
+        if (earlySettings.enabled && currentProgress >= earlySettings.selfCastRequiredAt && source != CastSource::kSelf) {
+            logger::trace("ProgressionManager: Progress {:.0f}% >= selfCastRequiredAt {:.0f}% - "
+                "only self-casting grants XP (cast spell {:08X} != target {:08X})",
+                currentProgress, earlySettings.selfCastRequiredAt, castSpellId, targetId);
+            continue;
         }
 
-        // =========================================================================
-        // DETERMINE XP SOURCE AND CHECK CAPS
-        // =========================================================================
+        // The source's multiplier and cap; self: the direct multiplier (times the early-learned bonus), no cap
         float multiplier = 0.0f;
-        enum class XPSource { Any, School, Direct, Self };
-        XPSource source = XPSource::Any;
-
-        if (isCastingLearningTarget) {
-            // Casting the learning target itself - SELF source
-            source = XPSource::Self;
-            if (earlySettings.enabled) {
-                // After early unlock, casting the spell itself grants bonus XP
-                if (effectivenessHook->IsEarlyLearnedSpell(targetId)) {
-                    multiplier = rates.multiplierDirect * earlySettings.selfCastXPMultiplier;
-                    logger::trace("ProgressionManager: Self-casting early-learned spell - multiplier {:.0f}% x {:.1f} = {:.0f}%",
-                        rates.multiplierDirect * 100, earlySettings.selfCastXPMultiplier, multiplier * 100);
-                } else {
-                    // Spell not yet early-unlocked - use direct multiplier
-                    multiplier = rates.multiplierDirect;
+        float capPercent = ProgressionMath::kNoCapPercent;
+        auto& progRef = EnsureProgress(targetId);
+        float* tracked = &progRef.xpFromSelf;
+        switch (source) {
+            case CastSource::kSelf:
+                multiplier = rates.multiplierDirect;
+                if (earlySettings.enabled && effectivenessHook->IsEarlyLearnedSpell(targetId)) {
+                    multiplier *= earlySettings.selfCastXPMultiplier;
                 }
-            } else {
+                break;
+            case CastSource::kDirect:
                 multiplier = rates.multiplierDirect;
-            }
-        } else if (targetSchool == school) {
-            // Same school as cast spell - check if DIRECT prereq or just same SCHOOL.
-            // Direct runs both ways: a spell leading to the target, or - learning
-            // downward - the known spell above it that opened it
-            if (IsDirectPrerequisite(targetId, castSpellId) ||
-                (m_xpSettings.reverseUnlock && IsDirectChild(targetId, castSpellId))) {
-                // Cast spell is a direct link of the target
-                source = XPSource::Direct;
-                multiplier = rates.multiplierDirect;
-                logger::trace("ProgressionManager: Direct prereq cast {:08X} for target {:08X} - using direct multiplier {:.0f}%",
-                    castSpellId, targetId, multiplier * 100);
-            } else {
-                // Same school but not a direct prereq
-                source = XPSource::School;
+                capPercent = rates.capDirect;
+                tracked = &progRef.xpFromDirect;
+                break;
+            case CastSource::kSchool:
                 multiplier = rates.multiplierSchool;
-                logger::trace("ProgressionManager: Same school cast - using school multiplier {:.0f}%", multiplier * 100);
-            }
-        } else {
-            // Different school - ANY source
-            source = XPSource::Any;
-            multiplier = rates.multiplierAny;
-            logger::trace("ProgressionManager: Different school cast - using any multiplier {:.0f}%", multiplier * 100);
+                capPercent = rates.capSchool;
+                tracked = &progRef.xpFromSchool;
+                break;
+            case CastSource::kAny:
+                multiplier = rates.multiplierAny;
+                capPercent = rates.capAny;
+                tracked = &progRef.xpFromAny;
+                break;
         }
-
-        // Skip if multiplier is 0
+        const char* sourceName = ProgressionMath::CastSourceName(source);
         if (multiplier <= 0.0f) continue;
 
-        // Calculate XP gain
         float xpGain = adjustedBaseXP * multiplier;
-
-        // =========================================================================
-        // TOME INVENTORY BOOST - bonus XP if player has the spell tome in inventory
-        // =========================================================================
+        // Tome inventory boost: bonus XP while the player carries the spell's tome
         auto* tomeHook = SpellTomeHook::GetSingleton();
         if (tomeHook && tomeHook->GetSettings().tomeInventoryBoost) {
-            float tomeBoost = tomeHook->GetXPMultiplier(targetId);
-            if (tomeBoost > 1.0f) {
-                xpGain *= tomeBoost;
-                logger::trace("ProgressionManager: Tome inventory boost applied to {:08X}, xpGain = {:.1f}",
-                    targetId, xpGain);
-            }
+            const float tomeBoost = tomeHook->GetXPMultiplier(targetId);
+            if (tomeBoost > 1.0f) xpGain *= tomeBoost;
         }
         // Memory guides practice: Spell Research archetypes remembered at the spell's rank (1.0 when skipped)
         xpGain *= Librarian::SpellResearchMemory::PracticeMultiplier(targetId);
 
-        // =========================================================================
-        // CHECK XP CAPS - limit contribution from each source type
-        // =========================================================================
-        auto& progRef = EnsureProgress(targetId);
-        float maxXPFromSource = 0.0f;
-        float currentXPFromSource = 0.0f;
-
-        switch (source) {
-            case XPSource::Any:
-                maxXPFromSource = progRef.requiredXP * (rates.capAny / 100.0f);
-                currentXPFromSource = progRef.xpFromAny;
-                break;
-            case XPSource::School:
-                maxXPFromSource = progRef.requiredXP * (rates.capSchool / 100.0f);
-                currentXPFromSource = progRef.xpFromSchool;
-                break;
-            case XPSource::Direct:
-                maxXPFromSource = progRef.requiredXP * (rates.capDirect / 100.0f);
-                currentXPFromSource = progRef.xpFromDirect;
-                break;
-            case XPSource::Self:
-                // Self-casting has no cap - can go to 100%
-                maxXPFromSource = progRef.requiredXP;
-                currentXPFromSource = progRef.xpFromSelf;
-                break;
-        }
-
-        // Clamp XP gain to not exceed cap
-        float remainingCap = maxXPFromSource - currentXPFromSource;
+        // The source's cap: at most capPercent of the required XP from this kind of cast
+        const float remainingCap = progRef.requiredXP * (capPercent / 100.0f) - *tracked;
         if (remainingCap <= 0.0f) {
-            logger::trace("ProgressionManager: Source cap reached for {:08X} (source: {}, cap: {:.1f}%)",
-                targetId,
-                source == XPSource::Any ? "any" : source == XPSource::School ? "school" : source == XPSource::Direct ? "direct" : "self",
-                source == XPSource::Any ? rates.capAny : source == XPSource::School ? rates.capSchool : source == XPSource::Direct ? rates.capDirect : 100.0f);
-            continue;  // Skip this target, cap reached
+            logger::trace("ProgressionManager: Source cap reached for {:08X} (source: {}, cap: {:.1f}%)", targetId,
+                          sourceName, capPercent);
+            continue;
         }
-
         const float grant = (std::min)(xpGain, remainingCap);
-        const char* sourceName = source == XPSource::Any ? "any" : source == XPSource::School ? "school" :
-                                 source == XPSource::Direct ? "direct" : "self";
 
         // In "single" mode, only the first learning target gets XP
         // In "perSchool" mode, each school's target gets XP independently.
@@ -244,16 +205,10 @@ void ProgressionManager::OnSpellCast(const std::string& school, RE::FormID castS
         const float added = AddXPMeasured(targetId, grant);
         if (!(added > 0.0f) && wasUnlocked == progRef.unlocked) continue;
         credited.push_back(targetId);
-        switch (source) {
-            case XPSource::Any:    progRef.xpFromAny += added; break;
-            case XPSource::School: progRef.xpFromSchool += added; break;
-            case XPSource::Direct: progRef.xpFromDirect += added; break;
-            case XPSource::Self:   progRef.xpFromSelf += added; break;
-        }
+        *tracked += added;
         // Practice becomes memory: each 15% boundary (and 100%) crossed pays Spell Research archetype XP
         Librarian::SpellResearchMemory::OnPracticeProgress(targetId, progressBefore, progRef.progressPercent);
         totalXP += added;
-        const bool single = m_xpSettings.learningMode == "single";
         LogXPGrant(a_path, targetId, added,
                    single ? std::format("cast {} ({:08X}), {} rate, single mode", castName, castSpellId, sourceName)
                           : std::format("cast {} ({:08X}), {} rate, {} target", castName, castSpellId, sourceName,
@@ -269,6 +224,21 @@ void ProgressionManager::OnSpellCast(const std::string& school, RE::FormID castS
     } else {
         logger::debug("XP: cast {} ({:08X}) from {}: no target credited", castName, castSpellId, a_path);
     }
+}
+
+ProgressionMath::CastSource ProgressionManager::ClassifyCast(const std::string& targetSchool, RE::FormID targetId,
+                                                            const std::string& castSchool, RE::FormID castSpellId) const
+{
+    using ProgressionMath::CastSource;
+    if (castSpellId == targetId) return CastSource::kSelf;
+    if (targetSchool != castSchool) return CastSource::kAny;
+    // Direct runs both ways: a spell leading to the target, or - learning downward - the
+    // known spell above it that opened it (a copy of either counts, ProgressionManagerCopies.cpp)
+    if (IsDirectPrerequisite(targetId, castSpellId) ||
+        (m_xpSettings.reverseUnlock && IsDirectChild(targetId, castSpellId))) {
+        return CastSource::kDirect;
+    }
+    return CastSource::kSchool;
 }
 
 // =============================================================================
