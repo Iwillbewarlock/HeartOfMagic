@@ -32,8 +32,10 @@ namespace Hom
 
     /// Queues SetLearningTarget on the game thread (SKSE task) and logs whether the school's target
     /// is a_spell afterwards; logs the old target first. The task skips a spell that is already the target. False
-    /// (nothing queued) while a request for the same spell has not finished. a_school and a_name are for the log only.
-    bool RequestTarget(RE::FormID a_spell, const std::string& a_school, const std::string& a_name);
+    /// (nothing queued) while a request for the same spell has not finished. a_school is the school read on the game thread (and
+    /// logged), a_name is for the log only. a_onlyIfNoTarget (a progress card row's request): the task skips when the school
+    /// has a target by the time it runs (Selection::SetTargetDecision)
+    bool RequestTarget(RE::FormID a_spell, const std::string& a_school, const std::string& a_name, bool a_onlyIfNoTarget = false);
 
     /// True once after a queued SetLearningTarget ran (HoM's state changed under the menu).
     bool TakeStateChanged();

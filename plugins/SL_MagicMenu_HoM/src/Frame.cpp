@@ -149,7 +149,8 @@ namespace HomAddon
                 Data().gameIds[next]);
         }
 
-        void DoSetTarget(const Spells::Snapshot& a_snapshot)
+        // a_onlyIfNoTarget: a progress card row's request - the game-thread task checks again that the school has no target
+        void DoSetTarget(const Spells::Snapshot& a_snapshot, bool a_onlyIfNoTarget)
         {
             const auto& menu = Menu();
             if (!Spells::Get() || menu.selected < 0) {
@@ -162,12 +163,13 @@ namespace HomAddon
                 logger::info("HoM block: set target - {} is {}, not learnable", Spells::NodeName(menu.selected), Spells::StateText(look.state));
                 return;
             }
-            Hom::RequestTarget(Data().gameIds[menu.selected], node.school, Spells::NodeName(menu.selected));
+            Hom::RequestTarget(Data().gameIds[menu.selected], node.school, Spells::NodeName(menu.selected), a_onlyIfNoTarget);
         }
 
         // review I8: nothing chosen - nothing on the node card to act on (G1: a key pick is chosen). Task 6 review 1: the G key and
         // the node card's button in one frame are one request (f83dc6f3 W:8186-8189)
-        void SetTargetIfChosen(bool a_key, bool a_button, const Spells::Snapshot& a_snapshot, const char* a_buttonName = "the node card's button")
+        void SetTargetIfChosen(bool a_key, bool a_button, const Spells::Snapshot& a_snapshot, const char* a_buttonName = "the node card's button",
+            bool a_onlyIfNoTarget = false)
         {
             if (!a_key && !a_button) return;
             const auto& menu = Menu();
@@ -176,7 +178,7 @@ namespace HomAddon
                 logger::info("HoM block: set target ({}) - nothing chosen", source);
                 return;
             }
-            DoSetTarget(a_snapshot);
+            DoSetTarget(a_snapshot, a_onlyIfNoTarget);
         }
 
         // Once per menu open and school: how many nodes are available now (the tree-side availability rule)
@@ -361,7 +363,7 @@ namespace HomAddon
         }
         logger::info("HoM block: progress card row {} {:08X} clicked - picked and set as the learning target", Spells::NodeName(node), Data().gameIds[node]);
         PickByKey(node);
-        SetTargetIfChosen(false, true, *snapshot, "the progress card's row");
+        SetTargetIfChosen(false, true, *snapshot, "the progress card's row", true);  // review 2026-11-04: checked again on the game thread
         SendRedraws();
     }
 

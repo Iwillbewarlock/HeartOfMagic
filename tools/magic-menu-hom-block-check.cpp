@@ -228,6 +228,21 @@ namespace
 
     // Fix round 1 I1 (2026-10-31): the shared per-frame work runs once per host frame, in the first HoM frame call of that frame -
     // the tree's while it shows, a card's with the tree hidden ([Blocks] sHidden); an older host (no frameSeq) leaves it to the tree
+    // review 2026-11-04: G sets A, then a still-drawn progress row for B before the next snapshot - B's task must not replace A
+    void SetTargetRunRule()
+    {
+        std::printf("pick rules: the game-thread SetLearningTarget decision (Selection::SetTargetDecision)\n");
+        using Selection::SetTargetDecision;
+        using Selection::SetTargetRun;
+        constexpr std::uint32_t kA = 0x12FCD, kB = 0x12FCE;
+        Expect(SetTargetDecision(0, kB, true) == SetTargetRun::kRun, "a row's request, the school still without a target: runs");
+        Expect(SetTargetDecision(kA, kB, true) == SetTargetRun::kSkipHasTarget, "a row's request for B after G set A (task order): skipped, A stays");
+        Expect(SetTargetDecision(kA, kB, false) == SetTargetRun::kRun && SetTargetDecision(0, kB, false) == SetTargetRun::kRun,
+            "G / the node card's button: replaces a target as before");
+        Expect(SetTargetDecision(kB, kB, true) == SetTargetRun::kSkipAlready && SetTargetDecision(kB, kB, false) == SetTargetRun::kSkipAlready,
+            "the spell is the target already: skipped either way");
+    }
+
     void SharedFrameRule()
     {
         std::printf("frame: the shared work once per host frame (fix round 1 I1)\n");
@@ -718,6 +733,7 @@ int main(int a_argc, char** a_argv)
     SettingsDistIni();
     SettingsValues();
     SelectionRules();
+    SetTargetRunRule();
     SharedFrameRule();
     FrameOrder();
     ShownSettle();

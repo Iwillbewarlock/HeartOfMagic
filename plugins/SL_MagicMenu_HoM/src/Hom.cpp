@@ -7,6 +7,7 @@
 #include "Hom.h"
 
 #include "GameThread.h"
+#include "Selection.h"
 
 #include "SpellLearningAPI.h"
 
@@ -42,7 +43,7 @@ namespace Hom
         }
 
         // The task's body, on the game thread: the spell may have become the school's target since the request
-        void RunSetTarget(RE::FormID a_spell, const std::string& a_school, const std::string& a_name)
+        void RunSetTarget(RE::FormID a_spell, const std::string& a_school, const std::string& a_name, bool a_onlyIfNoTarget)
         {
             auto* api = Api();
             if (!api) {
@@ -54,9 +55,15 @@ namespace Hom
             const auto* oldForm = old ? RE::TESForm::LookupByID(old) : nullptr;
             logger::info("Hom: SetLearningTarget({:08X} {}) running; {} target before: {:08X} {}", a_spell, a_name, a_school, old,
                 oldForm ? oldForm->GetName() : "(none)");
-            if (old == a_spell) {
+            switch (Selection::SetTargetDecision(old, a_spell, a_onlyIfNoTarget)) {
+            case Selection::SetTargetRun::kSkipAlready:
                 logger::info("Hom: SetLearningTarget({:08X} {}) skipped - already the {} target", a_spell, a_name, a_school);
                 return;
+            case Selection::SetTargetRun::kSkipHasTarget:
+                logger::info("Hom: SetLearningTarget({:08X} {}) skipped - a progress card row's request, and {} has the target {:08X} now",
+                    a_spell, a_name, a_school, old);
+                return;
+            case Selection::SetTargetRun::kRun: break;
             }
             api->SetLearningTarget(a_spell);
             const auto now = api->GetLearningTarget(a_school);
@@ -100,7 +107,7 @@ namespace Hom
         return api && a_spell && api->IsSpellMastered(a_spell);
     }
 
-    bool RequestTarget(RE::FormID a_spell, const std::string& a_school, const std::string& a_name)
+    bool RequestTarget(RE::FormID a_spell, const std::string& a_school, const std::string& a_name, bool a_onlyIfNoTarget)
     {
         if (!a_spell) return false;
         auto* tasks = SKSE::GetTaskInterface();
@@ -115,9 +122,9 @@ namespace Hom
                 return false;
             }
         }
-        logger::info("Hom: SetLearningTarget({:08X} {}) queued", a_spell, a_name);
-        tasks->AddTask([a_spell, a_school, a_name] {
-            RunSetTarget(a_spell, a_school, a_name);
+        logger::info("Hom: SetLearningTarget({:08X} {}) queued{}", a_spell, a_name, a_onlyIfNoTarget ? " (only if the school has no target then)" : "");
+        tasks->AddTask([a_spell, a_school, a_name, a_onlyIfNoTarget] {
+            RunSetTarget(a_spell, a_school, a_name, a_onlyIfNoTarget);
             const std::scoped_lock lock(g_inFlightLock);
             g_inFlight.erase(a_spell);  // this spell's reservation only, after the call and its read-back
         });

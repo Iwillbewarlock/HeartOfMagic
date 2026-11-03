@@ -163,6 +163,24 @@ namespace Selection
         return a_context.structSize >= BlockApi::kContextFrameSeqNeeded ? a_context.frameSeq : 0;
     }
 
+    /// What the game-thread task of a SetLearningTarget request does (Hom.cpp RunSetTarget), from the school's target it reads
+    /// there (a_old, 0 = none): the spell is the target already - skipped; a request made from a progress card row
+    /// (a_onlyIfNoTarget: the row was drawn for a school with no target) and the school has a target by now - skipped, so a row
+    /// still on screen never replaces a target G or the node card's button set meanwhile (review 2026-11-04); else it runs
+    enum class SetTargetRun
+    {
+        kRun,
+        kSkipAlready,
+        kSkipHasTarget,
+    };
+
+    constexpr SetTargetRun SetTargetDecision(std::uint32_t a_old, std::uint32_t a_spell, bool a_onlyIfNoTarget)
+    {
+        if (a_old == a_spell) return SetTargetRun::kSkipAlready;
+        if (a_onlyIfNoTarget && a_old != 0) return SetTargetRun::kSkipHasTarget;
+        return SetTargetRun::kRun;
+    }
+
     /// The set-target requests of one frame: the G key and the node card's button in the same frame are one request (f83dc6f3
     /// W:8186-8189), none when nothing is chosen (a_acts: SetTargetActs)
     constexpr int SetTargetRequests(bool a_key, bool a_button, bool a_acts)
