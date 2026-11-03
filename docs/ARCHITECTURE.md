@@ -1115,7 +1115,10 @@ costs, so a lower skill later (Legendary) never takes a rank away.
   Alerts) and the ModEvent `SpellLearning_MasteryRankUp` (strArg the school as `SpellMastered` names it, numArg the
   rank, sender the spell). Every gain posts `ProgressionNotify::Progress` for the spell, so an open card follows.
 - **Back to nothing.** `RelockSpell` (before its early return for a spell with no progress entry) and `SetSpellXP`
-  leaving the progress below 100% (cheat mode, the API, Papyrus) clear the spell's mastery XP (`ClearMastery`).
+  (cheat mode, the API, Papyrus) leaving the spell no longer mastered clear the spell's mastery XP (`ClearMastery`).
+  "Mastered" is one definition, `MasteryMath::CountsAsMastered` (`IsMasteredForRanks`): unlocked, at 100%, or
+  `IsSpellMastered` (known from outside the tree, a copy). An unlocked spell set below 100% keeps its full power and
+  so its ranks (review 2026-11-04: it lost them).
 - **Save.** `SLMX` (table above), independent of `SLPR`.
 - **Settings** (`config.json` `"mastery"`, read by `MasteryMath::ReadSettings` at game start, at the panel's config
   load and at every save; each bad value - wrong type, not finite, not positive, out of range - is the default and a

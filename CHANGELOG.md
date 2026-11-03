@@ -9,7 +9,8 @@
   for a higher-level spell (Novice 100 XP ... Master 1500 XP by default), and a higher skill in the spell's school
   gives more XP per cast (up to twice as much at 100), so a skill lowered later (Legendary) never takes a rank away.
   Only casting the mastered spell itself counts; the cast that masters a spell earns none, and relocking a spell or
-  setting it below 100% clears it. The ranks have no effect on the spell yet: a later version builds on them. Settings
+  setting its XP so that it is no longer mastered (below 100% and not unlocked) clears it; an unlocked spell whose XP
+  cheat mode lowers keeps its ranks. The ranks have no effect on the spell yet: a later version builds on them. Settings
   > Learning > Mastery Ranks turns them off; the numbers are in `config.json`, `"mastery"`. Mods can read a spell's
   rank (Papyrus `SpellLearning.GetMasteryRank`, the C++ API version 3) and listen for `SpellLearning_MasteryRankUp`.
   Saved with the game in a record of its own: a save from before starts every spell at 0, and **saving again with an

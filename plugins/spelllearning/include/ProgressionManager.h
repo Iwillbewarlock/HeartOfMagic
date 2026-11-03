@@ -344,7 +344,8 @@ public:
     MasteryMath::Progress GetMasteryProgress(RE::FormID spellId) const;
     // Every spell with mastery XP, for a read-only look (the panel's progress reply)
     const std::unordered_map<RE::FormID, float>& GetAllMasteryXP() const { return m_masteryXP; }
-    // Back to no mastery XP: RelockSpell, and SetSpellXP leaving the progress below 100%
+    // Back to no mastery XP: RelockSpell, and SetSpellXP leaving the spell no longer mastered
+    // (IsMasteredForRanks false)
     void ClearMastery(RE::FormID spellId);
     // SLMX, an owner step of its own in CoSave.cpp (independent of SLPR's write)
     void SaveMasteryRecord(SKSE::SerializationInterface* a_intfc) const;
@@ -463,6 +464,8 @@ private:
     MasteryMath::Settings m_mastery;
     std::unordered_map<RE::FormID, float> m_masteryXP;
     RE::FormID MasteryKeyOf(RE::FormID spellId) const;   // the tree's record of its copy group, else itself
+    // MasteryMath::CountsAsMastered for a tree key: unlocked, at 100%, or IsSpellMastered (copies too)
+    bool IsMasteredForRanks(RE::FormID key) const;
     std::size_t MasteryTierOf(RE::FormID key) const;     // MasteryMath::TierIndex of DetermineSpellTier
     bool ReadMasteryRecord(SKSE::SerializationInterface* a_intfc, uint32_t version, uint32_t length);
     void EndLoadMastery();

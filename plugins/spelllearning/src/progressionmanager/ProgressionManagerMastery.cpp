@@ -61,6 +61,11 @@ RE::FormID ProgressionManager::MasteryKeyOf(RE::FormID spellId) const
     return tree ? tree->GetFormID() : spellId;
 }
 
+bool ProgressionManager::IsMasteredForRanks(RE::FormID key) const
+{
+    return MasteryMath::CountsAsMastered(IsUnlocked(key), GetProgressPercent(key), IsSpellMastered(key));
+}
+
 std::size_t ProgressionManager::MasteryTierOf(RE::FormID key) const
 {
     auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(key);
@@ -87,7 +92,7 @@ RE::FormID ProgressionManager::MasteryKeyForCast(RE::FormID castSpellId) const
     if (hook->IsEarlyLearnedSpell(key) || hook->IsEarlyLearnedSpell(castSpellId) || hook->IsHeldForISL(key)) return 0;
 
     // Mastered: unlocked here, at 100%, or known from outside the tree (IsSpellMastered, copies too)
-    return (IsUnlocked(key) || IsSpellMastered(key)) ? key : 0;
+    return IsMasteredForRanks(key) ? key : 0;
 }
 
 // =============================================================================
@@ -147,7 +152,7 @@ void ProgressionManager::ClearMastery(RE::FormID spellId)
     if (key != spellId) erased += m_masteryXP.erase(spellId);
     if (erased == 0) return;
     m_dirty = true;
-    logger::info("Mastery: {:08X} mastery XP cleared (progress below 100% or relocked)", key);
+    logger::info("Mastery: {:08X} mastery XP cleared (no longer mastered, or relocked)", key);
 }
 
 // =============================================================================

@@ -172,6 +172,15 @@ namespace MasteryMath
         return (std::min)(held + gain, total);
     }
 
+    // Whether a spell counts as mastered for the ranks: unlocked, at 100%, or mastered another way
+    // (known from outside the tree and not weakened, a copy of it mastered: IsSpellMastered). One
+    // definition for MasteryKeyForCast, the clear after SetSpellXP and the read API: a cheat-mode XP
+    // edit below 100% on a spell that stays unlocked keeps its full power and its ranks.
+    [[nodiscard]] constexpr bool CountsAsMastered(bool unlocked, float progress, bool masteredOtherwise) noexcept
+    {
+        return unlocked || progress >= 1.0f || masteredOtherwise;
+    }
+
     // A saved value worth keeping: positive, finite and one the settings can reach
     [[nodiscard]] inline bool IsValidSavedXP(float xp) noexcept
     {

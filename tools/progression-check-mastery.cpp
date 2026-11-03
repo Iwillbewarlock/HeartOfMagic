@@ -123,6 +123,12 @@ namespace ProgressionCheck
                       !MX::IsValidSavedXP(nan) && !MX::IsValidSavedXP(std::numeric_limits<float>::infinity()) &&
                       !MX::IsValidSavedXP(MX::kMaxSavedXP * 2.0f),
                   "mastery: a saved value is kept only when positive, finite and reachable");
+            // B1: who keeps the ranks after a cheat-mode XP edit
+            Check(MX::CountsAsMastered(true, 0.4f, false), "mastery kept: an unlocked spell set to 40% keeps its ranks");
+            Check(MX::CountsAsMastered(false, 1.0f, false) && MX::CountsAsMastered(false, 0.0f, true),
+                  "mastery kept: at 100%, or mastered another way (known from outside, a copy) at 0%");
+            Check(!MX::CountsAsMastered(false, 0.99f, false) && !MX::CountsAsMastered(false, nan, false),
+                  "mastery cleared: not unlocked, below 100% (or NaN), nothing else mastered");
             Check(MX::TierIndex("Master") == kMaster && MX::TierIndex("ADEPT") == kAdept && MX::TierIndex("") == kNovice &&
                       MX::TierIndex("Legendary") == kNovice,
                   "mastery: tier names in any case; an unknown tier is Novice");
