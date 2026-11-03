@@ -9,8 +9,10 @@ harnesses are built by `BuildRelease.ps1` into `build/tools/Release/` (targets i
 `node tools/release-zips-check.js [--dist <dir>] [--hom <ver>] [--mmr <ver>] [--sr <ver>]` (after a build; versions from
   `VERSION` and the top-level CMakeLists.txt): who ships the magic menu blocks (docs/magicmenu/BLOCKS_MOVE.md) - the MMR zip
   and its symbols without a block file, the HoM zip with `MagicMenuRewrite_HoM*` only under `optional/MagicMenuRewriteBlocks/`
-  and a FOMOD option for it (Recommended with `MagicMenuRewrite.dll`, never required or conditional), its symbols with
-  `MagicMenuRewrite_HoM.pdb`, the Spell Research block package complete; exit 1 on a failure or a missing zip
+  and a FOMOD option for it (a SelectAny group, Recommended with `MagicMenuRewrite.dll`, otherwise Optional, never another
+  type, never required or conditional), its symbols with `MagicMenuRewrite_HoM.pdb`, the Spell Research block package
+  complete; each DLL's SKSE plugin version (`SKSEPlugin_Version` read from the PE file) against `VERSION`,
+  `MAGIC_MENU_VERSION` and `SPELL_RESEARCH_BLOCK_VERSION`; exit 1 on a failure or a missing zip
 
 ## The harnesses
 
