@@ -100,7 +100,7 @@ void ProgressionManager::OnMasteredCast(RE::FormID masteryKey, RE::FormID castSp
     if (!spell || masteryKey == 0) return;
     const auto tier = MasteryTierOf(masteryKey);
     const float skill = SchoolSkill(spell);
-    const float gain = MasteryMath::GainFor(baseXP, skill, tier, m_mastery);
+    const float gain = MasteryMath::GainFor(baseXP, skill, m_mastery);
     const float total = MasteryMath::TotalXP(m_mastery, tier);
     const auto found = m_masteryXP.find(masteryKey);
     const float before = found != m_masteryXP.end() ? found->second : 0.0f;

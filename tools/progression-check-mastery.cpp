@@ -90,24 +90,24 @@ namespace ProgressionCheck
         void GainCases()
         {
             const MX::Settings s;   // atMin 1, at100 2, xpRate 1
-            Check(Near(MX::SkillFactor(0.0f, kNovice, s), 1.0f) && Near(MX::SkillFactor(50.0f, kNovice, s), 1.5f) &&
-                      Near(MX::SkillFactor(100.0f, kNovice, s), 2.0f),
-                  "mastery: Novice skill factor 1 at 0, 1.5 at 50, 2 at 100");
-            Check(Near(MX::SkillFactor(50.0f, kAdept, s), 1.0f) && Near(MX::SkillFactor(75.0f, kAdept, s), 1.5f) &&
-                      Near(MX::SkillFactor(30.0f, kAdept, s), 1.0f),
-                  "mastery: Adept starts at skill 50 (1 there and below, 1.5 at 75)");
-            Check(Near(MX::SkillFactor(150.0f, kNovice, s), 2.0f), "mastery: a skill past 100 counts as 100");
-            Check(Near(MX::SkillFactor(99.0f, kMaster, s), 1.0f) && Near(MX::SkillFactor(100.0f, kMaster, s), 2.0f) &&
-                      Near(MX::SkillFactor(120.0f, kMaster, s), 2.0f),
-                  "mastery: Master (starts at 100, no line): 1 below 100, 2 at 100 and above, no division by 0");
+            Check(Near(MX::SkillFactor(0.0f, s), 1.0f) && Near(MX::SkillFactor(50.0f, s), 1.5f) &&
+                      Near(MX::SkillFactor(75.0f, s), 1.75f) && Near(MX::SkillFactor(100.0f, s), 2.0f),
+                  "mastery: skill factor one line for every tier: 1 at 0, 1.5 at 50, 1.75 at 75, 2 at 100");
+            Check(Near(MX::SkillFactor(99.0f, s), 1.99f), "mastery: no step below 100 (99 gives 1.99, not 1)");
+            Check(Near(MX::SkillFactor(150.0f, s), 2.0f), "mastery: a skill past 100 counts as 100");
             const float nan = std::numeric_limits<float>::quiet_NaN();
-            Check(Near(MX::SkillFactor(nan, kAdept, s), 1.0f), "mastery: a NaN skill is the starting factor");
+            Check(Near(MX::SkillFactor(nan, s), 1.0f) && Near(MX::SkillFactor(-20.0f, s), 1.0f),
+                  "mastery: a NaN or negative skill is the factor at 0");
+            MX::Settings flat;
+            flat.skillAtMin = 2.0f;
+            flat.skillAt100 = 0.5f;
+            Check(Near(MX::SkillFactor(50.0f, flat), 1.25f), "mastery: a falling line (atMin above at100) is followed too");
 
             MX::Settings fast;
             fast.xpRate = 2.0f;
-            Check(Near(MX::GainFor(5.0f, 50.0f, kNovice, s), 7.5f) && Near(MX::GainFor(5.0f, 50.0f, kNovice, fast), 15.0f),
+            Check(Near(MX::GainFor(5.0f, 50.0f, s), 7.5f) && Near(MX::GainFor(5.0f, 50.0f, fast), 15.0f),
                   "mastery: a cast's gain is base x xpRate x skill factor (5 x 1 x 1.5, 5 x 2 x 1.5)");
-            Check(Near(MX::GainFor(0.0f, 50.0f, kNovice, s), 0.0f) && Near(MX::GainFor(nan, 50.0f, kNovice, s), 0.0f),
+            Check(Near(MX::GainFor(0.0f, 50.0f, s), 0.0f) && Near(MX::GainFor(nan, 50.0f, s), 0.0f),
                   "mastery: no base XP or NaN gives nothing");
 
             // The stop at the last rank, and a lowered bar never cutting saved XP

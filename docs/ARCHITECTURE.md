@@ -1103,9 +1103,10 @@ costs, so a lower skill later (Legendary) never takes a rank away.
 - **How much.** One cast: the cast's base XP (`SpellCastHandler`: Magicka cost / 10, at least 1) x `mastery.xpRate`
   x the skill factor (`MasteryMath::GainFor`). The skill factor reads the player's base value of the spell's
   school (`ActorValueOwner::GetBaseActorValue`: the levelled skill; a Fortify potion or enchantment does not count)
-  and goes in a straight line from `skillFactor.atMin` at the tier's starting skill (Novice 0, Apprentice 25, Adept
-  50, Expert 75, Master 100 - the tier, not the effect's `minimumSkill`, which modded Master spells often leave at 0)
-  to `skillFactor.at100` at skill 100, held at both ends; a Master spell has no line (1 below 100, `at100` from 100).
+  and goes in one straight line for every tier, from `skillFactor.atMin` at skill 0 to `skillFactor.at100` at
+  skill 100, held at both ends (review 2026-11-04: a line starting at each tier's own skill made a Master spell jump
+  from 1.0 to 2.0 at 100 and gave a Novice spell more per cast than an Expert one at the same skill). The tier counts
+  only in the XP a rank costs.
   No global XP multiplier, early-learning self bonus, tome inventory boost or Spell Research multiplier.
 - **Ranks.** Rank r costs `tierXP[tier] x rankMultipliers[r - 1]` (a shorter list repeats its last value); the rank is
   the number of whole ranks the raw XP covers (`RankFor`, reached exactly at its floor). The XP stops at the total of

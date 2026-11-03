@@ -92,7 +92,7 @@ namespace Environment::SelfTest
             const auto school = SpellScanner::GetSpellSchool(spell);
             auto* owner = player->AsActorValueOwner();
             const float skill = owner && SpellScanner::IsValidMagicSchool(school) ? owner->GetBaseActorValue(school) : 0.0f;
-            return MasteryMath::GainFor(base, skill, MasteryMath::TierIndex(SpellScanner::DetermineSpellTier(spell)), settings);
+            return MasteryMath::GainFor(base, skill, settings);
         }
 
         float ReplyXP(ProgressionManager* pm, RE::FormID id)

@@ -30,9 +30,7 @@ namespace MasteryMath
     inline constexpr std::size_t kTierCount = 5;
     inline constexpr std::array<std::string_view, kTierCount> kTierKeys{ "novice", "apprentice", "adept", "expert",
                                                                           "master" };
-    // The skill a tier's spells start at (the vanilla perk levels): a modded Master spell often
-    // has minimumSkill 0 on its effect, so the tier, not the effect, says where the skill factor starts
-    inline constexpr std::array<float, kTierCount> kTierMinSkill{ 0.0f, 25.0f, 50.0f, 75.0f, 100.0f };
+    // The skill factor's line ends at skill 100 (a skill past it counts as 100)
     inline constexpr float kFullSkill = 100.0f;
 
     // Settings (config.json "mastery": {...}); the defaults are starting values, not measured
@@ -145,26 +143,24 @@ namespace MasteryMath
         return p;
     }
 
-    // The XP factor for the school's skill level: skillAtMin at the tier's starting skill, skillAt100
-    // at 100, a straight line between, held at the ends (a skill past 100 counts as 100). A Master
-    // spell starts at 100, so there is no line: skillAtMin below 100, skillAt100 at 100 and above.
-    // NaN is the starting skill.
-    [[nodiscard]] inline float SkillFactor(float skill, std::size_t tier, const Settings& s) noexcept
+    // The XP factor for the school's skill level: one straight line for every tier, skillAtMin at
+    // skill 0 and skillAt100 at 100, held at both ends (a skill past 100 counts as 100; NaN or below
+    // 0 as 0). The tier weighs in only through the XP a rank costs (tierXP): a line starting at the
+    // tier's own skill gave a Master spell 1.0 up to skill 99 and 2.0 at 100, and at skill 75 a
+    // Novice spell 1.75 but an Expert one 1.0 (review 2026-11-04).
+    [[nodiscard]] inline float SkillFactor(float skill, const Settings& s) noexcept
     {
-        const float minSkill = kTierMinSkill[(std::min)(tier, kTierCount - 1)];
-        const float span = kFullSkill - minSkill;
-        if (!(span > 0.0f)) return skill >= kFullSkill ? s.skillAt100 : s.skillAtMin;   // NaN: atMin
-        if (!(skill > minSkill)) return s.skillAtMin;
-        const float t = (std::min)((skill - minSkill) / span, 1.0f);
+        if (!(skill > 0.0f)) return s.skillAtMin;
+        const float t = (std::min)(skill / kFullSkill, 1.0f);
         return s.skillAtMin + (s.skillAt100 - s.skillAtMin) * t;
     }
 
     // One cast's mastery XP: the cast's base XP (Magicka cost / 10, at least 1, SpellCastHandler)
     // x xpRate x the skill factor. No early-learning, tome or Spell Research multiplier.
-    [[nodiscard]] inline float GainFor(float baseXP, float skill, std::size_t tier, const Settings& s) noexcept
+    [[nodiscard]] inline float GainFor(float baseXP, float skill, const Settings& s) noexcept
     {
         if (!(baseXP > 0.0f)) return 0.0f;
-        return baseXP * s.xpRate * SkillFactor(skill, tier, s);
+        return baseXP * s.xpRate * SkillFactor(skill, s);
     }
 
     // The XP after a gain: at most the total of every rank; a value already at or past it (the settings
