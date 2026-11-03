@@ -88,6 +88,7 @@ add_commonlibsse_plugin(${PROJECT_NAME}
     src/environment/EnvironmentSelfTestTomes.cpp
     src/environment/EnvironmentSelfTestGraft.cpp
     src/environment/EnvironmentSelfTestMemory.cpp
+    src/environment/EnvironmentSelfTestMastery.cpp
     src/HudNotify.cpp
     src/librarian/LibrarianLoadOrderSource.cpp
     src/librarian/LibrarianSpellResearch.cpp

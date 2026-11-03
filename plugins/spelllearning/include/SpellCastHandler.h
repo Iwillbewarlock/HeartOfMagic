@@ -30,6 +30,14 @@ public:
     void SetWeakenedNotificationsEnabled(bool enabled) { m_weakenedNotificationsEnabled = enabled; }
     bool GetWeakenedNotificationsEnabled() const { return m_weakenedNotificationsEnabled; }
 
+    // Dev self-test only (EnvironmentSelfTestMastery.cpp): one report of a player cast handled at
+    // once on the calling game thread, through HandlePlayerCast as the event and the hook's queued
+    // tasks run it (the one-cast-one-credit pairing included); not through ProcessEvent's thread hop
+    void HandleCastForSelfTest(RE::FormID spellId, bool a_immediate, std::chrono::steady_clock::time_point a_castAt)
+    {
+        HandlePlayerCast(spellId, a_immediate, a_castAt);
+    }
+
 private:
     SpellCastHandler() = default;
     ~SpellCastHandler() = default;

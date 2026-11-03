@@ -312,7 +312,9 @@ This project does not have a C++ test framework. Validation is done through:
   (`tree-graft`, `src/environment/EnvironmentSelfTestGraft.cpp`; docs/ARCHITECTURE.md, "Tree Graft"), Spell Research
   practice and memory (`sr-memory`, `src/environment/EnvironmentSelfTestMemory.cpp`: one payment into a spell's archetype
   globals against `SpellResearchMemoryMath.h`, the rank names, restored by an RAII guard, then the practice multiplier;
-  `sr-memory-hook`: the hook's `OnPracticeProgress` paying two boundaries). Claude reads the
+  `sr-memory-hook`: the hook's `OnPracticeProgress` paying two boundaries), mastery ranks (`mastery-cast`,
+  `src/environment/EnvironmentSelfTestMastery.cpp`: one cast reported by the event and the hook paying one cast's
+  mastery XP through `SpellCastHandler`'s own handler; `mastery-gate`: a spell outside the tree earning none). Claude reads the
   log and judges it; docs/ENVIRONMENT.md, "Self-test"
 - `node tools/frostwalker-twin-check.js [--patterns <Data>/SKSE/Plugins/Frostwalker] [--mysticism <MysticismMagic.esp>]`:
   HeartOfMagic.esp's header (light flag, HEDR 1.70, masters), each twin's record (a new record, fields equal to the

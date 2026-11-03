@@ -89,7 +89,8 @@ namespace Environment::SelfTest
                 { "frostwalker", CheckFrostwalker }, { "adapters", CheckAdapters },
                 { "notify", CheckProgressionNotify }, { "sr-paired-tomes", CheckSpellTomes }, { "cleared-flag-tomes", CheckClearedFlagTomes },
                 { "game-thread", CheckGameThreadFlag }, { "owned-outside", CheckOwnedOutside },
-                { "tree-graft", CheckTreeGraft }, { "sr-memory", CheckSpellResearchMemory }
+                { "tree-graft", CheckTreeGraft }, { "sr-memory", CheckSpellResearchMemory },
+                { "mastery", CheckMasteryRanks }
             };
             for (const auto& [name, check] : checks) {
                 try {
