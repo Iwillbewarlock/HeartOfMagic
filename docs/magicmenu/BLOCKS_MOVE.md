@@ -10,7 +10,8 @@ and each block ships with the mod it belongs to.
 
 The sources stay in this repository (`plugins/SL_MagicMenu_HoM`, `plugins/SL_MagicMenu_SpellResearch`): one build,
 the host's shared headers and `GameThread.cpp`, the harnesses. Only who ships the DLL changes
-(`plugins/cmake/Distribution.cmake`: section 2b for the HoM block, 9 for MMR, 10 for the SR block package). File
+(`plugins/cmake/Distribution.cmake` section 2b for the HoM block; `plugins/cmake/MagicMenuDistribution.cmake`
+section 9 for MMR, 10 for the SR block package). File
 names, SKSE plugin names (log names), block ids, ini keys and lang paths are unchanged, so a player's
 `MagicMenuRewrite.ini`, `MagicMenuRewrite_User.ini`, `MagicMenuRewrite_Layout.json` and `[Blocks] sHidden` keep
 working. The HoM block still reads its keys from `MagicMenuRewrite.ini`, which MMR 1.2.0 still ships with them.

@@ -1,7 +1,7 @@
 # ==========================================================================
 # SL_MagicMenu_SpellResearch -- the Spell Research archetypes block for the magic menu
 #   (shipped as MagicMenuRewrite_SpellResearch.dll in "Spell Research - Prisma UI 2", which takes
-#   dist/SpellResearchBlock_<version>/ from plugins/cmake/Distribution.cmake's
+#   dist/SpellResearchBlock_<version>/ from plugins/cmake/MagicMenuDistribution.cmake's
 #   assemble_srblock_dist; its DLL carries that release's version, SPELL_RESEARCH_BLOCK_VERSION)
 # ==========================================================================
 # The first add-on block of MagicMenuRewrite (Block API v2): the archetypes Spell

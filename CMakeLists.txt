@@ -64,7 +64,7 @@ set(DIST_VERSION_DIR "${DIST_DIR}/${DIST_NAME}_${PROJECT_VERSION}")
 # The magic menu (plugins/SL_MagicMenu, shipped as Magic Menu Rewrite: MagicMenuRewrite.dll) ships
 # apart, with its own version: its DLL version, fomod_magicmenu's info.xml and
 # dist/MagicMenuRewrite_<version>. Since 1.2.0 (2026-11-04) it ships the core and the Block API
-# only; each block ships with its mod (plugins/cmake/Distribution.cmake):
+# only; each block ships with its mod (plugins/cmake/Distribution.cmake, MagicMenuDistribution.cmake):
 #   - the Heart of Magic block (plugins/SL_MagicMenu_HoM, MagicMenuRewrite_HoM.dll) in Heart of
 #     Magic Librarian's release, an option of its FOMOD, with HoM's version (PROJECT_VERSION)
 #   - the Spell Research block (plugins/SL_MagicMenu_SpellResearch, MagicMenuRewrite_SpellResearch.dll)
@@ -106,3 +106,5 @@ include(Papyrus)
 
 # Distribution folder assembly
 include(Distribution)
+# and the magic menu's: Magic Menu Rewrite's release and the Spell Research block's package
+include(MagicMenuDistribution)
