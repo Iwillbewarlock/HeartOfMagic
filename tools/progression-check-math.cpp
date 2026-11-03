@@ -80,13 +80,12 @@ namespace ProgressionCheck
             constexpr float kCapAny = 5.0f;   // percent
             const float anyCapAt100 = 100.0f * kCapAny / 100.0f;
 
-            // v1 load -> marked; a required XP change before the fit does not scale the unknown basis;
-            // the tree's numbers in (SettlePendingTrackerFits) -> fitted to the 10 XP held, the any cap open
+            // v1 load before any tree this session -> marked, saved with no basis; the tree's numbers in
+            // (SettlePendingTrackerFits) -> fitted to the 10 XP held, the any cap open
             Entry tree = StuckV1();
-            const bool marked = PM::MarkFitPending(tree);
-            const bool held = !PM::RescaleUnlessPending(tree, 100.0f, 400.0f) && Near(tree.xpFromAny, 5.0f);
-            Check(marked && tree.fitPending && held && Near(PM::BasisToSave(tree), 0.0f),
-                  "pending fit: a v1 entry is marked, not scaled by a required XP change, saved with no basis");
+            const bool marked = PM::LoadEndFit(tree, false);
+            Check(marked && tree.fitPending && Near(tree.xpFromAny, 5.0f) && Near(PM::BasisToSave(tree), 0.0f),
+                  "pending fit: a v1 entry loaded before any tree is marked, saved with no basis");
             const bool settled = PM::SettlePendingFit(tree);
             Check(settled && !tree.fitPending && Near(tree.xpFromAny + tree.xpFromSchool, 10.0f) &&
                       PM::GrantWithinCap(1.0f, anyCapAt100, tree.xpFromAny) > 0.0f && Near(PM::BasisToSave(tree), 100.0f),
@@ -95,7 +94,7 @@ namespace ProgressionCheck
 
             // v1 load, no tree this session: the spell's first XP fits it (the cast loop, AddSourcedXP)
             Entry cast = StuckV1();
-            PM::MarkFitPending(cast);
+            PM::LoadEndFit(cast, false);
             const bool firstXP = PM::SettlePendingFit(cast);
             Check(firstXP && Near(cast.xpFromAny, 2.5f) && Near(cast.xpFromSchool, 7.5f) &&
                       Near(PM::GrantWithinCap(1.0f, anyCapAt100, cast.xpFromAny), 1.0f),
@@ -104,9 +103,33 @@ namespace ProgressionCheck
             // v2 load: has a basis, never marked; scaled as B2 says, never fitted
             Entry v2 = StuckV1();
             v2.fitPending = false;
-            const bool scaled = PM::RescaleUnlessPending(v2, 100.0f, 200.0f);
+            const bool scaled = PM::RescaleSettlingFirst(v2, 100.0f, 200.0f);
             Check(scaled && !PM::SettlePendingFit(v2) && Near(v2.xpFromAny, 10.0f) && Near(v2.xpFromSchool, 30.0f),
                   "pending fit: a v2 entry is not marked or fitted, its counts only scaled with the required XP");
+
+            // Tree read first (main menu), then a v1 save loaded: settled at load end, no tree read follows
+            Entry treeFirst = StuckV1();
+            Check(PM::LoadEndFit(treeFirst, true) && !treeFirst.fitPending &&
+                      Near(treeFirst.xpFromAny + treeFirst.xpFromSchool, 10.0f) && Near(PM::BasisToSave(treeFirst), 100.0f),
+                  "pending fit: tree applied first, then a v1 load -> settled at load end");
+
+            // Pending, then a required XP change 100 -> 200: settled at 100 first, then scaled - 10/30, not 5/15
+            Entry changed;
+            changed.progressPercent = 0.2f;   // 20 of 100 held: 5 + 15 counted, not stuck
+            changed.requiredXP = 100.0f;
+            changed.xpFromAny = 5.0f;
+            changed.xpFromSchool = 15.0f;
+            PM::LoadEndFit(changed, false);
+            changed.requiredXP = 200.0f;
+            Check(PM::RescaleSettlingFirst(changed, 100.0f, 200.0f) && !changed.fitPending && Near(changed.xpFromAny, 10.0f) &&
+                      Near(changed.xpFromSchool, 30.0f) && Near(PM::GrantWithinCap(1.0f, 200.0f * kCapAny / 100.0f, changed.xpFromAny), 0.0f),
+                  "pending fit: v1 pending, required 100 -> 200 -> 10/30, the any cap still closed");
+            Entry stuckChanged = StuckV1();
+            PM::LoadEndFit(stuckChanged, false);
+            PM::RescaleSettlingFirst(stuckChanged, 100.0f, 200.0f);
+            Check(Near(stuckChanged.xpFromAny, 5.0f) && Near(stuckChanged.xpFromSchool, 15.0f) &&
+                      Near(stuckChanged.xpFromAny + stuckChanged.xpFromSchool, 0.1f * 200.0f),
+                  "pending fit: a stuck v1 entry and 100 -> 200 -> fitted to 10 at 100, then doubled (the share of 20 held)");
 
             // An entry with no counts is not marked
             Entry none;

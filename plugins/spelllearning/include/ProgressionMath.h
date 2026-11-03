@@ -272,11 +272,11 @@ namespace ProgressionMath
     // Counts from a save that does not say what required XP they were made against (SLPX v1, a
     // 1.7 save): absolute XP, maybe still stuck above the XP held by an old cheat-mode lowering (fix A
     // came after). They are fitted to the XP held once, when the spell's required XP is no longer the
-    // load's passing number - after the tree's numbers are in (SyncRequiredXPFromTree), or at the
-    // spell's first XP if no tree is applied - never against the number EndLoad works out. Until then
-    // a required XP change does not scale them (their basis is not known) and a save writes no basis
-    // for them (the next load marks them again). Any struct with the counts, progressPercent,
-    // requiredXP and a bool fitPending.
+    // load's passing number: at load end when the tree's numbers were already applied this session (a
+    // tree read at the main menu), else after the tree's numbers are in (SyncRequiredXPFromTree), at the
+    // first required XP change (fitted at the number before it, then scaled - never left unscaled), or
+    // at the spell's first XP. Until then a save writes no basis for them (the next load marks them
+    // again). Any struct with the counts, progressPercent, requiredXP and a bool fitPending.
     // =========================================================================
 
     // At load end, for an entry with no saved basis: pending when it has any count. True when marked.
@@ -301,11 +301,30 @@ namespace ProgressionMath
         return true;
     }
 
-    // A required XP change: RescaleTrackers, except for counts whose basis is not known yet
+    // At load end, for an entry with no saved basis: marked (MarkFitPending), and settled at once when the
+    // tree's required XP numbers were already applied this session - the number now is final, and no tree
+    // read follows to settle it (review 2026-11-04: a tree read at the main menu, then a v1 save loaded).
+    // True when it has counts to fit.
     template <class Progress>
-    bool RescaleUnlessPending(Progress& progress, float oldRequired, float newRequired)
+    bool LoadEndFit(Progress& progress, bool treeRequiredApplied)
     {
-        return !progress.fitPending && RescaleTrackers(progress, oldRequired, newRequired);
+        if (!MarkFitPending(progress)) return false;
+        if (treeRequiredApplied) SettlePendingFit(progress);
+        return true;
+    }
+
+    // A required XP change from `oldRequired`: a pending fit is settled first, at `oldRequired` (the number in
+    // force until now), then every count is scaled as RescaleTrackers says. Never a change left unscaled: that
+    // reopened a cap (100 -> 200 kept 5/15 where 10/30 is the share). True when anything changed.
+    template <class Progress>
+    bool RescaleSettlingFirst(Progress& progress, float oldRequired, float newRequired)
+    {
+        bool changed = false;
+        if (progress.fitPending) {
+            progress.fitPending = false;
+            changed = FitTrackersToXP(progress, progress.progressPercent * oldRequired);
+        }
+        return RescaleTrackers(progress, oldRequired, newRequired) || changed;
     }
 
     // The basis SLPX v2 saves: the required XP, or 0 (not known) while the fit is pending

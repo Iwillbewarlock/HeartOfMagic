@@ -147,7 +147,8 @@ void ProgressionManager::EndLoad()
     // a load never reopens a cap. A v1 save's counts stay as saved (the number they were made against is
     // not known).
     // Counts with no saved basis (v1) are marked: fitted once to the XP held when the required XP is
-    // no longer this passing number (SettlePendingTrackerFits, or the spell's first XP)
+    // no longer this passing number - here when the tree's numbers were applied this session already
+    // (LoadEndFit), else SettlePendingTrackerFits, a required XP change or the spell's first XP
     std::size_t rescaled = 0;
     std::size_t pending = 0;
     for (auto& [formId, progress] : m_spellProgress) {
@@ -156,13 +157,14 @@ void ProgressionManager::EndLoad()
         if (saved != savedRequired.end()) {
             progress.fitPending = false;
             if (ProgressionMath::RescaleTrackers(progress, saved->second, progress.requiredXP)) ++rescaled;
-        } else if (ProgressionMath::MarkFitPending(progress)) {
+        } else if (ProgressionMath::LoadEndFit(progress, m_treeRequiredApplied)) {
             ++pending;
         }
     }
     logger::info("ProgressionManager: Co-save load complete ({} entries, {} tree required XP values, {} with "
-                 "per-source XP counts scaled to their required XP, {} with counts from an older save to fit)",
-                 m_spellProgress.size(), m_requiredXP.TreeCount(), rescaled, pending);
+                 "per-source XP counts scaled to their required XP, {} with counts from an older save {})",
+                 m_spellProgress.size(), m_requiredXP.TreeCount(), rescaled, pending,
+                 m_treeRequiredApplied ? "fitted now (the tree's numbers are in)" : "to fit");
 }
 
 bool ProgressionManager::ReadRecord(SKSE::SerializationInterface* a_intfc,

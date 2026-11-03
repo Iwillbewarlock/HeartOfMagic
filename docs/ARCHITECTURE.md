@@ -1651,12 +1651,14 @@ at revert and come back from the panel, the tree's may arrive after the load (`S
 R and nothing grew them back). Only a lowered progress (`SetSpellXP`: cheat mode, the API, Papyrus) shrinks them to
 the XP held (`FitTrackersToXP`, fix A). A v1 save's counts (1.7: absolute XP, no basis, maybe still stuck above
 the XP held by a cheat-mode lowering from before fix A) are marked at `EndLoad` (`MarkFitPending`, `SpellProgress::fitPending`)
-and fitted once to the XP held (`SettlePendingFit`) when the required XP is no longer the load's passing number:
-after the tree's numbers are in (`SettlePendingTrackerFits` at the end of `SyncRequiredXPFromTree`, both the game
-start tree and the panel's tree load), or, with no tree applied that session, at the spell's first XP (the cast
-loop, `AddSourcedXP` - mods, BookXP, passive learning). Never against `EndLoad`'s number. Until then a required XP
-change does not scale them (`RescaleUnlessPending`) and a save writes basis 0 for them (`BasisToSave`: the next
-load marks them again); `SetSpellXP` and a relock clear the mark.
+and fitted once to the XP held (`SettlePendingFit`) as soon as the required XP is final in that session: at
+`EndLoad` itself when the tree's numbers were already applied this session (`LoadEndFit`, `m_treeRequiredApplied`:
+a tree read at the main menu, then the save loaded - no tree read follows); else after the tree's numbers are in
+(`SettlePendingTrackerFits` at the end of `SyncRequiredXPFromTree`, both the game start tree and the panel's tree
+load); at the first required XP change (`RescaleSettlingFirst`: fitted at the number before the change, then scaled
+- a change is never left unscaled, which reopened a cap: 100 -> 200 kept 5/15 where 10/30 is the share); or at the
+spell's first XP (the cast loop, `AddSourcedXP` - mods, BookXP, passive learning). Until then a save writes basis 0
+for them (`BasisToSave`: the next load marks them again); `SetSpellXP` and a relock clear the mark.
 
 **For C++ plugins:** Use `SpellLearningAPI.h` — either SKSE messaging (fire-and-forget) or request the `ISpellLearningAPI` interface pointer.
 

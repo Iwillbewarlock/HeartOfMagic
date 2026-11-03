@@ -354,7 +354,8 @@ public:
     // (IsMasteredForRanks false)
     void ClearMastery(RE::FormID spellId);
     // The one-time fit of counts loaded with no basis (SLPX v1), for every pending entry: the tree's required
-    // XP numbers are in (end of SyncRequiredXPFromTree). Game thread
+    // XP numbers are in (end of SyncRequiredXPFromTree). Marks the session so later loads settle at EndLoad.
+    // Game thread
     void SettlePendingTrackerFits();
 
     // Every mastery entry under MasteryKeyOf (two on one key keep the larger XP): at load end and after
@@ -471,6 +472,10 @@ private:
     
     // XP Settings
     XPSettings m_xpSettings;
+
+    // The tree's required XP numbers were applied this session (SettlePendingTrackerFits ran): a load's
+    // pending fits settle at EndLoad. The tree's numbers survive a revert (RequiredXPTable), so this does too
+    bool m_treeRequiredApplied = false;
 
     // Mastery ranks: the settings (config.json "mastery") and each tree spell's raw mastery XP.
     // Cleared by ClearAllProgress (load, revert), apart from m_spellProgress (SLMX is its own record)

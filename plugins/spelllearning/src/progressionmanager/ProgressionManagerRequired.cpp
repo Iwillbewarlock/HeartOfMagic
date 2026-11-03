@@ -100,7 +100,7 @@ void ProgressionManager::SetRequiredXP(RE::FormID formId, float required, Requir
     const float before = progress.requiredXP;
     progress.requiredXP = kind == RequiredXP::Kind::kCharacter ? required : BaseRequiredXP(formId);
     // The per-source counts keep their share of the required XP, both ways (ProgressionMath::RescaleTrackers)
-    ProgressionMath::RescaleUnlessPending(progress, before, progress.requiredXP);
+    ProgressionMath::RescaleSettlingFirst(progress, before, progress.requiredXP);
 }
 
 void ProgressionManager::SetRequiredXPOverrides(RequiredXP::Table::Map overrides)
@@ -111,7 +111,7 @@ void ProgressionManager::SetRequiredXPOverrides(RequiredXP::Table::Map overrides
         if (m_requiredXP.HasCharacterValue(formId)) continue;
         const float before = progress.requiredXP;
         progress.requiredXP = BaseRequiredXP(formId);
-        ProgressionMath::RescaleUnlessPending(progress, before, progress.requiredXP);
+        ProgressionMath::RescaleSettlingFirst(progress, before, progress.requiredXP);
         ++updated;
     }
     logger::info("ProgressionManager: {} per-spell XP overrides from the settings ({} entries sized again)",
@@ -120,6 +120,8 @@ void ProgressionManager::SetRequiredXPOverrides(RequiredXP::Table::Map overrides
 
 void ProgressionManager::SettlePendingTrackerFits()
 {
+    // From now on this session's loads settle at their end (EndLoad): no tree read follows them
+    m_treeRequiredApplied = true;
     std::size_t fitted = 0;
     for (auto& [formId, progress] : m_spellProgress) {
         if (ProgressionMath::SettlePendingFit(progress)) ++fitted;
