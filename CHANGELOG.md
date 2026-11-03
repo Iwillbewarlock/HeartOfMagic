@@ -6,7 +6,8 @@
 
 - **Pick your next spell on the progress card.** When a school has no learning target (Heart of Magic clears it once
   the target is mastered), the Heart of Magic block's progress card lists the spells you can learn next - the ones
-  after the spell you just mastered first - up to 4 rows (`[Progress] iMaxChoices` in MagicMenuRewrite.ini, 1-8) and
+  after the spell you just mastered first, then ones made of the same element or of the same narrow kind (runes,
+  cloaks, bound weapons - not "damage" or "summon", which most of a school has) - up to 4 rows (`[Progress] iMaxChoices` in MagicMenuRewrite.ini, 1-8) and
   "N more" under them. Click a row to make that spell your learning target, as the node card's button and G do. The
   card grows to fit the rows but never past the bottom of its column.
 

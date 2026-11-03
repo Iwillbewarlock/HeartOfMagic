@@ -171,7 +171,7 @@ Contract changes made during the implementation (each in BlockApi.h's header com
   progress card shows a heading ("No learning target · Click a spell to learn next"), up to `[Progress] iMaxChoices`
   (1..8, default 4) rows of the candidates the U key walks (`SchoolInfo::candidates`) - the direct structural children
   of the school's last target seen this game session first (`Session::lastTarget`, cleared at a game load), then the
-  next-learnable order (tier, name, FormID) - and, when more are left, one "N more · [U] to step through" line. A row
+  spells akin to it (rule (2), below), then the next-learnable order (tier, name, FormID) - and, when more are left, one "N more · [U] to step through" line. A row
   shows "<name> · <level>", or the name alone (cut) when both do not fit.
 - A row's release (the block now has `kFlagOwnMouse`; press and release on the same row) is acted on in the progress
   block's frame: the U key's pick (`PickByKey`: the tree centres on it, the node card shows it) and the node card
@@ -186,8 +186,21 @@ Contract changes made during the implementation (each in BlockApi.h's header com
   epoch) so the last save's targets are neither drawn nor remembered as `lastTarget`; a row release is ignored when the
   school has a target meanwhile or the spell is no longer a candidate; the column room is not taken in the layout mode;
   the card with a target and the messages keep the ini rect's height as their room (only the rows use the raised one).
-- Not done from the plan: rule (2), "the same element or technique as the last target", has no data in the add-on (the
-  tree file has no tags; HoM's API v2 has no tag query; spell_catalog.json would be a new file dependency).
+- Rule (2), akin to the last target (2026-11-03, `ChoiceRules::Akin / AkinOf / KindShares`): the two share an `element.*`
+  trait; or they share a `kind.*` trait carried by at most a fifth of the school's non-dup nodes (`kKindMaxShare` 0.2: not
+  `kind.summon` in Conjuration or `kind.damage` in Destruction) and are not made of different elements (both carry
+  elements, none shared). The tree builder's content signal (feature/tree-links, `ContentSignals::Linked` /
+  `TypeGrouping` in TreeBuilderClassicScore.cpp and TreeBuilderTypeGrouping.cpp), less its same-mod, effect-record and
+  theme parts. Source: the saved `spell_tree.json`'s node `traits`, which HoM bakes in at save (schoolBridges.js) with
+  `element.*` already the librarian's catalog elements (LIBRARIAN.md section 1, LibrarianTraits.cpp) - the same traits the
+  tree builder reads. `spell_catalog.json` (`SKSE/Plugins/SpellLearning/spell_catalog.json`, keyed by persistentId) was
+  checked and not used: it has `elements` (with the target-side creature / human / armor / health the tree leaves out)
+  and `techniques`, but no `kind.*`. `TreeData` keeps only each node's `element.*` / `kind.*` strings (at most 32 per
+  node, 64 characters each), parsed with the tree at kDataLoaded - nothing on the frame path. The real tree of
+  2026-10-31 (1,365 nodes): `magic-menu-tree-check <file>` loads it in 23.4 ms (best of 5, the whole tree), 1,242 nodes
+  with traits, 2,256 entries, about 76 KB. A tree saved without traits, or a last target unknown this session: rule (2)
+  is skipped, the order is (1)(3)(4), nothing is shown to the player. Like the rest of the tree, the traits are read
+  again only at the next game start (the add-on does not reload spell_tree.json after a rebuild).
 
 ## Open questions
 
