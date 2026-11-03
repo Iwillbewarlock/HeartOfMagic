@@ -50,6 +50,7 @@ add_commonlibsse_plugin(${PROJECT_NAME}
         src/Hom.cpp
         src/Spells.cpp
         src/TreeData.cpp
+        src/TreeDataLinks.cpp
         src/HomStyle.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../SL_MagicMenu/src/GameThread.cpp
 )

@@ -232,6 +232,7 @@ target_link_libraries(tree-prereq-check PRIVATE
 add_executable(magic-menu-tree-check
     magic-menu-tree-check.cpp
     ${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu_HoM/src/TreeData.cpp
+    ${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu_HoM/src/TreeDataLinks.cpp
     ${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu_HoM/src/HomStyle.cpp
 )
 
