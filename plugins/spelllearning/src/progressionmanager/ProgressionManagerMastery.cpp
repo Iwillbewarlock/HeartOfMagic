@@ -74,25 +74,27 @@ std::size_t ProgressionManager::MasteryTierOf(RE::FormID key) const
 
 RE::FormID ProgressionManager::MasteryKeyForCast(RE::FormID castSpellId) const
 {
-    if (!m_mastery.enabled) return 0;
+    // The cheap tests first: most casts stop at the switch or the tree
+    MasteryMath::CastFacts facts;
+    facts.enabled = m_mastery.enabled;
     auto* castSpell = RE::TESForm::LookupByID<RE::SpellItem>(castSpellId);
-    if (!castSpell) return 0;
+    if (!facts.enabled || !castSpell) return 0;
     const RE::FormID key = MasteryKeyOf(castSpellId);
-    if (!IsTreeSpell(key)) return 0;
+    facts.treeSpell = IsTreeSpell(key);
+    if (!facts.treeSpell) return 0;
 
     // The player has the spell cast, the tree's record or a copy of it
     auto* player = RE::PlayerCharacter::GetSingleton();
     auto* keySpell = RE::TESForm::LookupByID<RE::SpellItem>(key);
-    const bool owned = player && (player->HasSpell(castSpell) || (keySpell && player->HasSpell(keySpell)) ||
-                                  PlayerKnowsCopyOf(key));
-    if (!owned) return 0;
-
+    facts.owned = player && (player->HasSpell(castSpell) || (keySpell && player->HasSpell(keySpell)) ||
+                             PlayerKnowsCopyOf(key));
     // Still being learned: weakened (early learned) or waiting for ISL to teach it
     auto* hook = SpellEffectivenessHook::GetSingleton();
-    if (hook->IsEarlyLearnedSpell(key) || hook->IsEarlyLearnedSpell(castSpellId) || hook->IsHeldForISL(key)) return 0;
-
+    facts.stillLearning = hook->IsEarlyLearnedSpell(key) || hook->IsEarlyLearnedSpell(castSpellId) || hook->IsHeldForISL(key);
+    facts.learningTarget = std::ranges::any_of(m_learningTargets, [key](const auto& t) { return t.second == key; });
     // Mastered: unlocked here, at 100%, or known from outside the tree (IsSpellMastered, copies too)
-    return IsMasteredForRanks(key) ? key : 0;
+    facts.mastered = IsMasteredForRanks(key);
+    return MasteryMath::EarnsFromCast(facts) ? key : 0;
 }
 
 // =============================================================================

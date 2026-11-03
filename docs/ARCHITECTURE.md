@@ -1096,8 +1096,10 @@ costs, so a lower skill later (Legendary) never takes a rank away.
   calls `OnMasteredCast` after its targets loop, so the cast that takes a spell from 99% to 100% earns learning XP
   only. A cast earns when `mastery.enabled`; its tree spell (`SpellScanner::TreeSpellForTome`: the tree's record of
   a duplicate group, else the spell) is a tree node (`IsTreeSpell`); the player has the cast spell, the tree's
-  record or a copy (`PlayerKnowsCopyOf`); neither is early learned and the tree spell is not held for ISL; and the
-  tree spell is unlocked or `IsSpellMastered` (100%, or known from outside the tree - such spells earn too). The XP
+  record or a copy (`PlayerKnowsCopyOf`); neither is early learned and the tree spell is not held for ISL; the tree
+  spell is no learning target now (a copy known while its tree record is being learned earned both kinds of XP,
+  review 2026-11-04); and the tree spell is unlocked or `IsSpellMastered` (100%, or known from outside the tree - such spells earn too) -
+  all of it `MasteryMath::EarnsFromCast` over the facts `MasteryKeyForCast` gathers. The XP
   is kept under the tree spell's id (`MasteryKeyOf`): a copy's cast, a query by a copy's id, the relock and the
   panel all use that key.
 - **How much.** One cast: the cast's base XP (`SpellCastHandler`: Magicka cost / 10, at least 1) x `mastery.xpRate`

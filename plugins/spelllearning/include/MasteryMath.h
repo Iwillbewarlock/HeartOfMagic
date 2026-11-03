@@ -181,6 +181,25 @@ namespace MasteryMath
         return unlocked || progress >= 1.0f || masteredOtherwise;
     }
 
+    // What decides whether a cast earns mastery XP (MasteryKeyForCast fills it in)
+    struct CastFacts
+    {
+        bool enabled = false;         // mastery.enabled
+        bool treeSpell = false;       // the tree's record of the cast spell is a node
+        bool owned = false;           // the player has the cast spell, the tree's record or a copy
+        bool stillLearning = false;   // weakened (early learned) or held for ISL
+        bool learningTarget = false;  // the tree's record is a learning target now
+        bool mastered = false;        // CountsAsMastered
+    };
+
+    // Every condition at once. A learning target earns none even when it counts as mastered (a copy
+    // known while the tree's record is being learned): its casts are learning XP (review 2026-11-04,
+    // the cast got both).
+    [[nodiscard]] constexpr bool EarnsFromCast(const CastFacts& f) noexcept
+    {
+        return f.enabled && f.treeSpell && f.owned && !f.stillLearning && !f.learningTarget && f.mastered;
+    }
+
     // A saved value worth keeping: positive, finite and one the settings can reach
     [[nodiscard]] inline bool IsValidSavedXP(float xp) noexcept
     {

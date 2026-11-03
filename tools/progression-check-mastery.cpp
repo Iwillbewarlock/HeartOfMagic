@@ -123,6 +123,21 @@ namespace ProgressionCheck
                       !MX::IsValidSavedXP(nan) && !MX::IsValidSavedXP(std::numeric_limits<float>::infinity()) &&
                       !MX::IsValidSavedXP(MX::kMaxSavedXP * 2.0f),
                   "mastery: a saved value is kept only when positive, finite and reachable");
+            // I3: which cast earns
+            MX::CastFacts earns{ true, true, true, false, false, true };
+            Check(MX::EarnsFromCast(earns), "mastery cast: a mastered tree spell the player has earns");
+            MX::CastFacts target = earns;
+            target.learningTarget = true;
+            Check(!MX::EarnsFromCast(target), "mastery cast: a learning target earns none, even counted as mastered (copy known)");
+            MX::CastFacts learning = earns;
+            learning.stillLearning = true;
+            MX::CastFacts off = earns;
+            off.enabled = false;
+            MX::CastFacts notMastered = earns;
+            notMastered.mastered = false;
+            Check(!MX::EarnsFromCast(learning) && !MX::EarnsFromCast(off) && !MX::EarnsFromCast(notMastered),
+                  "mastery cast: weakened or ISL-held, ranks off, or not mastered: none");
+
             // B1: who keeps the ranks after a cheat-mode XP edit
             Check(MX::CountsAsMastered(true, 0.4f, false), "mastery kept: an unlocked spell set to 40% keeps its ranks");
             Check(MX::CountsAsMastered(false, 1.0f, false) && MX::CountsAsMastered(false, 0.0f, true),
