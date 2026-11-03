@@ -357,6 +357,19 @@ public:
     // XP numbers are in (end of SyncRequiredXPFromTree). Marks the session so later loads settle at EndLoad.
     // Game thread
     void SettlePendingTrackerFits();
+    // SyncRequiredXPFromTree's scope: while it is open a required XP change leaves pending counts alone
+    // (the sync fits them at its end); RAII, so a throw closes it too
+    class TreeRequiredSyncScope
+    {
+    public:
+        explicit TreeRequiredSyncScope(ProgressionManager& manager) : m_manager(manager) { ++m_manager.m_treeSync.syncDepth; }
+        ~TreeRequiredSyncScope() { --m_manager.m_treeSync.syncDepth; }
+        TreeRequiredSyncScope(const TreeRequiredSyncScope&) = delete;
+        TreeRequiredSyncScope& operator=(const TreeRequiredSyncScope&) = delete;
+
+    private:
+        ProgressionManager& m_manager;
+    };
 
     // Every mastery entry under MasteryKeyOf (two on one key keep the larger XP): at load end and after
     // a tree's prerequisites are applied (the tree decides which copy is its record)
@@ -473,9 +486,10 @@ private:
     // XP Settings
     XPSettings m_xpSettings;
 
-    // The tree's required XP numbers were applied this session (SettlePendingTrackerFits ran): a load's
-    // pending fits settle at EndLoad. The tree's numbers survive a revert (RequiredXPTable), so this does too
-    bool m_treeRequiredApplied = false;
+    // Pending fits' session state: a tree sync running (pending counts held), a tree applied this session
+    // (SettlePendingTrackerFits ran: a load's pending fits settle at EndLoad; the tree's numbers survive a
+    // revert, so this does too)
+    ProgressionMath::TreeSyncState m_treeSync;
 
     // Mastery ranks: the settings (config.json "mastery") and each tree spell's raw mastery XP.
     // Cleared by ClearAllProgress (load, revert), apart from m_spellProgress (SLMX is its own record)

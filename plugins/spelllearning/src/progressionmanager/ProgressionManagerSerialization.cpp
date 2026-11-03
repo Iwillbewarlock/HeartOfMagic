@@ -157,14 +157,14 @@ void ProgressionManager::EndLoad()
         if (saved != savedRequired.end()) {
             progress.fitPending = false;
             if (ProgressionMath::RescaleTrackers(progress, saved->second, progress.requiredXP)) ++rescaled;
-        } else if (ProgressionMath::LoadEndFit(progress, m_treeRequiredApplied)) {
+        } else if (ProgressionMath::LoadEndFit(progress, m_treeSync.treeApplied)) {
             ++pending;
         }
     }
     logger::info("ProgressionManager: Co-save load complete ({} entries, {} tree required XP values, {} with "
                  "per-source XP counts scaled to their required XP, {} with counts from an older save {})",
                  m_spellProgress.size(), m_requiredXP.TreeCount(), rescaled, pending,
-                 m_treeRequiredApplied ? "fitted now (the tree's numbers are in)" : "to fit");
+                 m_treeSync.treeApplied ? "fitted now (the tree's numbers are in)" : "to fit");
 }
 
 bool ProgressionManager::ReadRecord(SKSE::SerializationInterface* a_intfc,

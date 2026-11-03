@@ -313,17 +313,29 @@ namespace ProgressionMath
         return true;
     }
 
-    // A required XP change from `oldRequired`. Not pending: RescaleTrackers. Pending, `oldIsFinal` (the tree's
-    // numbers were applied this session): settled first at `oldRequired`, then scaled - never a change left
-    // unscaled, which reopened a cap (100 -> 200 kept 5/15 where 10/30 is the share). Pending and not final
-    // (the tree's sync is setting its numbers one by one, SettlePendingTrackerFits follows at its end): the
-    // counts are left alone - a fit at the passing tier number then a rescale to the tree's would lift a sum
-    // between p x R_tier and p x R_tree above what was saved and close capped sources early. True when
-    // anything changed.
-    template <class Progress>
-    bool RescaleSettlingFirst(Progress& progress, float oldRequired, float newRequired, bool oldIsFinal)
+    // The session's state for pending fits (ProgressionManager::m_treeSync). Pending counts are held only
+    // while a tree sync is running (SyncRequiredXPFromTree's SetRequiredXP calls, a scope of their own): its end
+    // fits them once at the tree's number. Anywhere else the number before a change is the session's final one
+    // (review 2026-11-04: holding them until "the tree applied this session" skipped the rescale after an
+    // Apply or Import, which never syncs the tree's numbers, and reopened a spent cap).
+    struct TreeSyncState
     {
-        if (progress.fitPending && !oldIsFinal) return false;
+        int syncDepth = 0;          // tree syncs running (nested scopes count)
+        bool treeApplied = false;   // a tree's numbers or prerequisites settled this session (LoadEndFit)
+
+        [[nodiscard]] constexpr bool HoldsPending() const noexcept { return syncDepth > 0; }
+    };
+
+    // A required XP change from `oldRequired`. Not pending: RescaleTrackers. Pending outside a tree sync:
+    // settled first at `oldRequired`, then scaled - never a change left unscaled, which reopened a cap
+    // (100 -> 200 kept 5/15 where 10/30 is the share). Pending inside a tree sync (`holdPending`, the sync is
+    // setting its numbers one by one and fits at its end): the counts are left alone - a fit at the passing
+    // tier number then a rescale to the tree's would lift a sum between p x R_tier and p x R_tree above what
+    // was saved and close capped sources early. True when anything changed.
+    template <class Progress>
+    bool RescaleSettlingFirst(Progress& progress, float oldRequired, float newRequired, bool holdPending)
+    {
+        if (progress.fitPending && holdPending) return false;
         bool changed = false;
         if (progress.fitPending) {
             progress.fitPending = false;

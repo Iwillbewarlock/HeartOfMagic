@@ -103,7 +103,7 @@ namespace ProgressionCheck
             // v2 load: has a basis, never marked; scaled as B2 says, never fitted
             Entry v2 = StuckV1();
             v2.fitPending = false;
-            const bool scaled = PM::RescaleSettlingFirst(v2, 100.0f, 200.0f, false);
+            const bool scaled = PM::RescaleSettlingFirst(v2, 100.0f, 200.0f, PM::TreeSyncState{}.HoldsPending());
             Check(scaled && !PM::SettlePendingFit(v2) && Near(v2.xpFromAny, 10.0f) && Near(v2.xpFromSchool, 30.0f),
                   "pending fit: a v2 entry is not marked or fitted, its counts only scaled with the required XP");
 
@@ -121,12 +121,12 @@ namespace ProgressionCheck
             changed.xpFromSchool = 15.0f;
             PM::LoadEndFit(changed, false);
             changed.requiredXP = 200.0f;
-            Check(PM::RescaleSettlingFirst(changed, 100.0f, 200.0f, true) && !changed.fitPending && Near(changed.xpFromAny, 10.0f) &&
+            Check(PM::RescaleSettlingFirst(changed, 100.0f, 200.0f, PM::TreeSyncState{ 0, true }.HoldsPending()) && !changed.fitPending && Near(changed.xpFromAny, 10.0f) &&
                       Near(changed.xpFromSchool, 30.0f) && Near(PM::GrantWithinCap(1.0f, 200.0f * kCapAny / 100.0f, changed.xpFromAny), 0.0f),
                   "pending fit: v1 pending, required 100 -> 200 -> 10/30, the any cap still closed");
             Entry stuckChanged = StuckV1();
             PM::LoadEndFit(stuckChanged, false);
-            PM::RescaleSettlingFirst(stuckChanged, 100.0f, 200.0f, true);
+            PM::RescaleSettlingFirst(stuckChanged, 100.0f, 200.0f, PM::TreeSyncState{ 0, true }.HoldsPending());
             Check(Near(stuckChanged.xpFromAny, 5.0f) && Near(stuckChanged.xpFromSchool, 15.0f) &&
                       Near(stuckChanged.xpFromAny + stuckChanged.xpFromSchool, 0.1f * 200.0f),
                   "pending fit: a stuck v1 entry and 100 -> 200 -> fitted to 10 at 100, then doubled (the share of 20 held)");
@@ -141,11 +141,26 @@ namespace ProgressionCheck
             skipped.xpFromSchool = 30.0f;
             PM::LoadEndFit(skipped, false);
             skipped.requiredXP = 400.0f;
-            const bool heldInSync = !PM::RescaleSettlingFirst(skipped, 100.0f, 400.0f, false) && skipped.fitPending &&
+            const bool heldInSync = !PM::RescaleSettlingFirst(skipped, 100.0f, 400.0f, PM::TreeSyncState{ 1, false }.HoldsPending()) && skipped.fitPending &&
                                     Near(skipped.xpFromAny, 20.0f);
             PM::SettlePendingFit(skipped);
             Check(heldInSync && !skipped.fitPending && Near(skipped.xpFromAny, 20.0f) && Near(skipped.xpFromSchool, 30.0f),
                   "pending fit: skipped startup tree, v1 load, tree synced 100 -> 400 -> the saved 20/30 kept, not inflated");
+
+            // No saved tree, v1 load, a tree Applied or Imported (no tree sync: no tree applied yet in the old rule),
+            // then a required XP change 100 -> 200 through the settings: outside a sync, fitted then scaled -> 10/30
+            Entry applied;
+            applied.progressPercent = 0.2f;
+            applied.requiredXP = 100.0f;
+            applied.xpFromAny = 5.0f;
+            applied.xpFromSchool = 15.0f;
+            const PM::TreeSyncState noSync{ 0, false };
+            PM::LoadEndFit(applied, noSync.treeApplied);
+            applied.requiredXP = 200.0f;
+            Check(PM::RescaleSettlingFirst(applied, 100.0f, 200.0f, noSync.HoldsPending()) && !applied.fitPending &&
+                      Near(applied.xpFromAny, 10.0f) && Near(applied.xpFromSchool, 30.0f) &&
+                      Near(PM::GrantWithinCap(1.0f, 200.0f * kCapAny / 100.0f, applied.xpFromAny), 0.0f),
+                  "pending fit: no saved tree, v1 load, tree applied without a sync, required 100 -> 200 -> 10/30");
 
             // An entry with no counts is not marked
             Entry none;

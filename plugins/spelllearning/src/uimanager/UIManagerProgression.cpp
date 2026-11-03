@@ -497,6 +497,9 @@ void UIManager::OnSetTreePrerequisites(const char* argument)
 
             dataApply = true;
             ApplyTreePrerequisiteEntries(request);
+            // The panel's tree (its load, Apply, Import): counts from an older save still pending are fitted now
+            // and the tree counts as applied this session (no SyncRequiredXPFromTree on Apply or Import)
+            ProgressionManager::GetSingleton()->SettlePendingTrackerFits();
             // The tree game start applied against the panel's (once, after the saved tree's load)
             TreeParity::AfterPanelApply(nullptr);
         } catch (const std::exception& e) {

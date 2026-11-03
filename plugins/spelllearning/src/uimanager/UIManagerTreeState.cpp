@@ -127,20 +127,24 @@ void SyncRequiredXPFromTree(const json& treeData)
     auto* pm = ProgressionManager::GetSingleton();
     int xpSyncCount = 0;
 
-    if (treeData.contains("schools")) {
-        for (auto& [schoolName, schoolData] : treeData["schools"].items()) {
-            if (schoolData.contains("nodes")) {
-                for (auto& node : schoolData["nodes"]) {
-                    // Not text: that node skipped (get<std::string>() threw and ended the sync for every node after it)
-                    if (node.contains("formId") && node["formId"].is_string()) {
-                        std::string formIdStr = node["formId"].get<std::string>();
-                        // Sync requiredXP from tree to ProgressionManager
-                        if (node.contains("requiredXP") && node["requiredXP"].is_number()) {
-                            float reqXP = node["requiredXP"].get<float>();
-                            if (reqXP > 0) {
-                                if (const auto formId = ParsePanelFormId(formIdStr, "LoadSpellTree XP sync")) {
-                                    pm->SetRequiredXP(*formId, reqXP, RequiredXP::Kind::kTree);
-                                    xpSyncCount++;
+    {
+        // Pending counts (SLPX v1) held while the tree's numbers go in one by one; fitted once after
+        const ProgressionManager::TreeRequiredSyncScope syncing(*pm);
+        if (treeData.contains("schools")) {
+            for (auto& [schoolName, schoolData] : treeData["schools"].items()) {
+                if (schoolData.contains("nodes")) {
+                    for (auto& node : schoolData["nodes"]) {
+                        // Not text: that node skipped (get<std::string>() threw and ended the sync for every node after it)
+                        if (node.contains("formId") && node["formId"].is_string()) {
+                            std::string formIdStr = node["formId"].get<std::string>();
+                            // Sync requiredXP from tree to ProgressionManager
+                            if (node.contains("requiredXP") && node["requiredXP"].is_number()) {
+                                float reqXP = node["requiredXP"].get<float>();
+                                if (reqXP > 0) {
+                                    if (const auto formId = ParsePanelFormId(formIdStr, "LoadSpellTree XP sync")) {
+                                        pm->SetRequiredXP(*formId, reqXP, RequiredXP::Kind::kTree);
+                                        xpSyncCount++;
+                                    }
                                 }
                             }
                         }
@@ -148,7 +152,7 @@ void SyncRequiredXPFromTree(const json& treeData)
                 }
             }
         }
-    }
+    }   // the sync's scope ends: the numbers are in
 
     if (xpSyncCount > 0) {
         logger::info("UIManager: Synced requiredXP for {} spells from tree to ProgressionManager", xpSyncCount);
