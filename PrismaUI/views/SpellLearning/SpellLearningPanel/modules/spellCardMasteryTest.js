@@ -100,8 +100,12 @@ var SpellCardMasteryTest = {
             state: { spellProgress: {}, spellMastery: {}, selectedNode: { formId: '0xFE000801', state: 'unlocked' } },
             settings: {},
             getCanonicalFormId: function(n) { return n.formId; },
-            SpellCardMastery: { draw: function(n) { drawn.push(n.formId); } }
+            DetailsPeek: { peekNode: null, isPeeking: function() { return !!this.peekNode; } }
         });
+        var real = this._layout()._sandbox(['spellCardMastery.js'], { state: box.state, DetailsPeek: box.DetailsPeek,
+            getCanonicalFormId: function(n) { return n.formId; } }).SpellCardMastery;
+        real.draw = function(n) { drawn.push(n.formId); };
+        box.SpellCardMastery = real;
         var U = box.ProgressUpdates;
         var mastery = { xp: 40, rank: 0, ranks: 3, floor: 0, next: 100 };
         var only = U.takeMastery('0xFE000801', { formId: '0xFE000801', currentXP: 0, requiredXP: 100, masteryOnly: true, mastery: mastery });
@@ -127,6 +131,16 @@ var SpellCardMasteryTest = {
         var cleared = U.takeMastery('0xFE000801', { formId: '0xFE000801', currentXP: 0, requiredXP: 0, masteryOnly: true });
         this.check(cleared === true && !box.state.spellMastery.hasOwnProperty('0xFE000801') && drawn.length === 1,
             'Updates: a mastery-only clear (ClearMastery) drops the rank and redraws the open card');
+        // Codex P2: a mastery update of the selected spell during a hover preview of another spell draws nothing
+        // into the preview; one for the previewed spell redraws it
+        box.DetailsPeek.peekNode = { formId: '0x0002B96B', state: 'unlocked' };
+        drawn.length = 0;
+        U.takeMastery('0xFE000801', { formId: '0xFE000801', masteryOnly: true, mastery: { xp: 50, rank: 0, ranks: 3, floor: 0, next: 100 } });
+        this.check(drawn.length === 0, 'Updates: the selected spell’s mastery update draws nothing into another spell’s hover preview');
+        U.takeMastery('0x0002B96B', { formId: '0x0002B96B', masteryOnly: true, mastery: { xp: 10, rank: 0, ranks: 3, floor: 0, next: 100 } });
+        this.check(drawn.length === 1 && drawn[0] === '0x0002B96B', 'Updates: an update for the previewed spell redraws the preview');
+        box.DetailsPeek.peekNode = null;
+
         box.state.spellMastery['0x00012FCD'] = { xp: 120, rank: 1, ranks: 3, floor: 100, next: 200 };
         box.state.learningTargets = {};
         box.window.onSpellRelocked(JSON.stringify({ success: true, formId: '0x00012FCD' }));

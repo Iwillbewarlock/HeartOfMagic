@@ -103,8 +103,8 @@ var ProgressUpdates = {
             delete state.spellMastery[canonId];
         }
         if (data.masteryOnly !== true) return false;
-        var sel = state.selectedNode;
-        if (sel && this._canon(sel) === canonId && typeof SpellCardMastery !== 'undefined') SpellCardMastery.draw(sel);
+        // The card on screen, only when it is this spell's (not the selection under a hover preview)
+        if (typeof SpellCardMastery !== 'undefined') SpellCardMastery.redrawShown(canonId);
         return true;
     },
 

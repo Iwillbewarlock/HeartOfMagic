@@ -44,6 +44,22 @@ var SpellCardMastery = {
         return { rank: rank, ranks: ranks, pct: Math.round(fraction * 100) };
     },
 
+    /**
+     * Redraw the row of the card on screen now: the hover peek's spell while one is previewed
+     * (DetailsPeek), else the selected spell. With a canonical id, only when that card is that spell's:
+     * an update for the selected spell must not draw its rank into another spell's preview.
+     * @param {string} [canonId]
+     */
+    redrawShown: function(canonId) {
+        if (typeof state === 'undefined' || !state) return;
+        var peeking = typeof DetailsPeek !== 'undefined' && DetailsPeek.isPeeking();
+        var shown = peeking ? DetailsPeek.peekNode : state.selectedNode;
+        if (!shown) return;
+        var canon = (typeof getCanonicalFormId === 'function') ? getCanonicalFormId(shown) : shown.formId;
+        if (canonId !== undefined && canon !== canonId) return;
+        this.draw(shown);
+    },
+
     /** The row for this node: shown with its rank and bar, or hidden. */
     draw: function(node) {
         var row = this._el('spell-mastery');
