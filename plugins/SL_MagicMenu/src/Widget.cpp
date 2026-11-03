@@ -399,6 +399,7 @@ namespace Widget
             // 2026-11-03: the add-ons opened at their session height (SeedOpeningHeights), and the check after each one's first draw
             std::set<Layout::BlockId> openedAtSession;
             std::map<Layout::BlockId, BlockRules::OpenCheck> openChecks;
+            std::set<Layout::BlockId> heightAsked;  // add-ons whose own height request was taken this menu (FirstAskAtOnce)
             int addonClickLogs = 0;
             // Block API v3: what made the last selection and the last kMessageShowSpell served (Context::source, servedRequest);
             // the blocks a kMessageVisible hid (their places kept); panels made per column (an overlay below a newer one is made
@@ -3028,6 +3029,9 @@ namespace Widget
             for (const auto& [id, height] : requests) {
                 const auto* addon = KnownAddon(id, "height request ('SLMH')");
                 if (!addon) continue;
+                // 2026-11-03: a block opened at its session height takes its first request at once (BlockRules::FirstAskAtOnce); a held
+                // shrink comes back here only for a block that asked already
+                const bool atOnce = BlockRules::FirstAskAtOnce(g_menu.openedAtSession.contains(id), g_menu.heightAsked.insert(id).second);
                 const auto current = g_menu.fitHeight.find(id);
                 const auto verdict = BlockRules::JudgeHeight(height, addon->height,
                     current != g_menu.fitHeight.end() ? std::optional{ current->second } : std::nullopt);
@@ -3046,7 +3050,7 @@ namespace Widget
                 // for the mode's end); a height that applies drops a waiting shrink (BlockRules::AskHeight)
                 {
                     auto state = FitStateOf(id);
-                    const bool applies = BlockRules::AskHeight(state, height, NowMs(), g_menu.layout.active);
+                    const bool applies = BlockRules::AskHeight(state, height, NowMs(), g_menu.layout.active || atOnce);
                     StoreHeld(id, state);
                     if (!applies) continue;
                 }

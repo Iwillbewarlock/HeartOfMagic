@@ -104,6 +104,15 @@ namespace BlockApiCheck
                 "asked again: keep");
             Expect(BlockRules::JudgeOpen({ 5, false }, 6, true) == OpenVerdict::kRevert, "opened at a remembered height, no ask: back to the registered height");
             Expect(BlockRules::JudgeOpen({ 5, false }, 6, false) == OpenVerdict::kKeep, "opened at the registered height, no ask: keep");
+
+            // a block opened at 120 whose first request this menu is 80: at once, as the first fit of a menu (no step 150 ms later)
+            Expect(BlockRules::FirstAskAtOnce(true, true) && !BlockRules::FirstAskAtOnce(true, false) && !BlockRules::FirstAskAtOnce(false, true),
+                "FirstAskAtOnce: only a seeded block's first own request");
+            BlockRules::FitState seeded{ 120.0, std::nullopt };
+            const bool first = BlockRules::AskHeight(seeded, 80.0, 1000.0, BlockRules::FirstAskAtOnce(true, true));
+            const bool later = BlockRules::AskHeight(seeded, 60.0, 1010.0, BlockRules::FirstAskAtOnce(true, false));
+            Expect(first && seeded.current == 80.0 && !later && seeded.held && seeded.held->height == 60.0,
+                "opened at 120: the first request 80 applies at once; a later shrink to 60 waits the delay");
         }
 
         void LayoutModeAndFill()

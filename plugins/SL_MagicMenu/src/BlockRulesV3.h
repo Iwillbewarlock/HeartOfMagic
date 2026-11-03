@@ -515,6 +515,14 @@ namespace BlockRules
         return true;
     }
 
+    /// The first request of a menu applies at once (AskHeight's menu's-first-fit rule) also for a block opened at its session height
+    /// (a_seeded): its fit then holds that height, which would make a smaller first request wait the shrink delay - a step 150 ms
+    /// after the open. a_firstAsk: the block's first own request this menu
+    constexpr bool FirstAskAtOnce(bool a_seeded, bool a_firstAsk)
+    {
+        return a_seeded && a_firstAsk;
+    }
+
     /// The check after a block's first draw of a menu: the frame it was drawn in, and whether a height request for it came since
     struct OpenCheck
     {
