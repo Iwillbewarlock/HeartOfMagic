@@ -306,4 +306,30 @@ namespace ProgressionMath
         }
         FitSharesToProgress(out, progress);
     }
+
+    // A spell's counts at load end, decided per spell: its SLPS entry when the save has one (`saved`, a
+    // ShareEntry: shares held to 0..1 and finite, then their sum to the progress - a hand-edited or odd save),
+    // else its absolute counts (`absolute`, SLPR / SLPX: a 1.7 save, or a spell an SLPS cut short lost) converted
+    // once, else none. 1 from shares, 2 converted, 0 nothing.
+    template <class Shares, class Saved, class Absolute>
+    int CountsAtLoad(Shares& out, const Saved* saved, const Absolute* absolute, float requiredXP, float progress)
+    {
+        if (saved) {
+            out.shareAny = CleanShare(saved->shareAny);
+            out.shareSchool = CleanShare(saved->shareSchool);
+            out.shareDirect = CleanShare(saved->shareDirect);
+            out.shareSelf = CleanShare(saved->shareSelf);
+            out.shareModded.clear();
+            for (const auto& [name, value] : saved->modded) {
+                if (const float share = CleanShare(value); share > 0.0f) out.shareModded[name] = share;
+            }
+            FitSharesToProgress(out, progress);
+            return 1;
+        }
+        if (absolute) {
+            SharesFromAbsolute(out, *absolute, requiredXP, progress);
+            return 2;
+        }
+        return 0;
+    }
 }

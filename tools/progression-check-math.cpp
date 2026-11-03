@@ -185,6 +185,40 @@ namespace ProgressionCheck
             Check(CS::ReadShareEntries(longName, 1 << 20, back) == CS::ReadResult::NameTooLong,
                   "SLPS: a modded name over the limit refused");
 
+            // Per spell at load: an SLPS cut after entry 1 of 3 - spell 1 from its shares, spells 2 and 3 converted
+            // from their absolute counts (5/15/50 of 100), not 0
+            const std::vector<CS::ShareEntry> three = { { 1, 0.02f, 0.0f, 0.0f, 0.0f, {} }, { 2, 0.05f, 0.15f, 0.5f, 0.0f, {} },
+                                                        { 3, 0.05f, 0.15f, 0.5f, 0.0f, {} } };
+            Bytes threeBytes;
+            std::vector<CS::ShareEntry> firstOnly;
+            const bool wrote = CS::WriteShareEntries(threeBytes, three);
+            const auto fullLength = static_cast<std::uint32_t>(threeBytes.data.size());
+            threeBytes.data.resize(4 + 24 + 10);   // count, entry 1 (24 bytes), part of entry 2
+            const bool cutRead = CS::ReadShareEntries(threeBytes, fullLength, firstOnly) == CS::ReadResult::ShortRead &&
+                                 firstOnly.size() == 1 && firstOnly[0].formId == 1;
+            CS::Entry absolute2;
+            absolute2.progressPercent = 0.9f;
+            absolute2.xpFromAny = 5.0f;
+            absolute2.xpFromSchool = 15.0f;
+            absolute2.xpFromDirect = 50.0f;
+            Shares spell1, spell2, spell3;
+            const int from1 = PM::CountsAtLoad(spell1, &firstOnly[0], &absolute2, 100.0f, 0.9f);
+            const int from2 = PM::CountsAtLoad(spell2, static_cast<const CS::ShareEntry*>(nullptr), &absolute2, 100.0f, 0.9f);
+            const int from3 = PM::CountsAtLoad(spell3, static_cast<const CS::ShareEntry*>(nullptr), &absolute2, 100.0f, 0.9f);
+            Check(wrote && cutRead && from1 == 1 && Near(spell1.shareAny, 0.02f) && from2 == 2 && from3 == 2 &&
+                      Near(spell2.shareAny, 0.05f) && Near(spell2.shareSchool, 0.15f) && Near(spell2.shareDirect, 0.5f) &&
+                      Near(spell3.shareDirect, 0.5f),
+                  "shares at load: an SLPS cut after entry 1 of 3 -> spell 1 from SLPS, spells 2-3 converted 5/15/50");
+            Shares nothing;
+            Check(PM::CountsAtLoad(nothing, static_cast<const CS::ShareEntry*>(nullptr), static_cast<const CS::Entry*>(nullptr),
+                                   100.0f, 0.5f) == 0 && Near(nothing.shareAny, 0.0f),
+                  "shares at load: a spell with neither keeps no counts");
+            const CS::ShareEntry odd{ 4, 0.3f, 0.3f, 0.3f, 0.0f, { { "book_reading", 0.3f } } };   // 120% on a 40% spell
+            Shares oddLoaded;
+            PM::CountsAtLoad(oddLoaded, &odd, static_cast<const CS::Entry*>(nullptr), 100.0f, 0.4f);
+            Check(Near(oddLoaded.shareAny + oddLoaded.shareSchool + oddLoaded.shareDirect + oddLoaded.shareModded["book_reading"], 0.4f),
+                  "shares at load: SLPS shares summing above the progress are held to it");
+
             // SLPX still in 1.7.0's layout: 20 bytes per spell, XP = share x required at the save
             const std::vector<CS::CapEntry> absolute{ { 0x0001'2FCD, PM::XPOfShare(0.05f, 400.0f), PM::XPOfShare(0.15f, 400.0f), 0.0f, 0.0f } };
             Bytes slpx;

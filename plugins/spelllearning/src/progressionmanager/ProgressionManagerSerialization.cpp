@@ -173,22 +173,15 @@ void ProgressionManager::EndLoad()
     std::size_t converted = 0;
     for (auto& [formId, progress] : m_spellProgress) {
         progress.requiredXP = BaseRequiredXP(formId);
-        if (const auto shares = m_pendingShares.find(formId); shares != m_pendingShares.end()) {
-            progress.shareAny = ProgressionMath::CleanShare(shares->second.shareAny);
-            progress.shareSchool = ProgressionMath::CleanShare(shares->second.shareSchool);
-            progress.shareDirect = ProgressionMath::CleanShare(shares->second.shareDirect);
-            progress.shareSelf = ProgressionMath::CleanShare(shares->second.shareSelf);
-            progress.shareModded.clear();
-            for (const auto& [name, value] : shares->second.modded) {
-                if (const float share = ProgressionMath::CleanShare(value); share > 0.0f) progress.shareModded[name] = share;
-            }
-            ++fromShares;
-        } else if (m_pendingShares.empty()) {
-            if (const auto absolute = m_pendingAbsolute.find(formId); absolute != m_pendingAbsolute.end()) {
-                ProgressionMath::SharesFromAbsolute(progress, absolute->second, progress.requiredXP, progress.progressPercent);
-                ++converted;
-            }
-        }
+        // Per spell (an SLPS cut short keeps its first entries: the spells after them convert from SLPX /
+        // SLPR; a good save's spell missing from SLPS has no counts there either)
+        const auto shares = m_pendingShares.find(formId);
+        const auto absolute = m_pendingAbsolute.find(formId);
+        const int from = ProgressionMath::CountsAtLoad(
+            progress, shares != m_pendingShares.end() ? &shares->second : nullptr,
+            absolute != m_pendingAbsolute.end() ? &absolute->second : nullptr, progress.requiredXP, progress.progressPercent);
+        if (from == 1) ++fromShares;
+        if (from == 2) ++converted;
     }
     m_pendingAbsolute.clear();
     m_pendingShares.clear();

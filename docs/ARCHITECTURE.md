@@ -984,7 +984,7 @@ read their records (a record whose reader threw is skipped; `GetNextRecordInfo` 
   study overflow below masters the same way. Crossing 1.0 for a spell not early learned (a copy known) masters
   as before. A spell set to 100% by cheat mode and never granted stays "ready" for the Unlock button.
 - **Internal sources** (`RegisterModdedXPSource(..., internal = true)`: passive learning) are tracked per spell
-  in `xpFromModded` but `AddInternalSourcedXP` does not cut them with the modded multiplier or cap
+  in `shareModded` (as shares of the required XP) but `AddInternalSourcedXP` does not cut them with the modded multiplier or cap
   (`GetSourceCap` answers 100): the modded default cap of 25% cut passive's per-tier caps (up to 50% for Master)
   at 25%. Passive asks for the amount that lands inside its tier cap after the overall multiplier
   (`ProgressionMath::PreMultiplierGrant`). `AddSourcedXP` and `RegisterModdedXPSource` from other mods refuse
@@ -1366,7 +1366,7 @@ the mod - always available. SpellTomeHook handles the core tome interception in 
   of its required XP); there is no XP-per-hour setting. `OnStudyComplete` applies the weakened name and
   descriptions once ISL has taught the spell
 - Study XP is capped per spell (`ProgressionManager::AddXPNoGrant`, 2026-10-17): all study of a spell is worth
-  its threshold share at most, counted in `xpFromModded["isl_study"]` (so the co-save keeps it). ISL starts
+  its threshold share at most, counted in `shareModded["isl_study"]` (a share of the required XP, so the co-save keeps it). ISL starts
   its own count again when the player swaps books mid-study, and each new count used to add its share on top -
   past 25%, and on a spell with cast XP up to 1.0 without ISL having taught it. Study XP also stops at
   `ProgressionMath::kNoGrantMaxProgress` (0.99): the last step comes from a cast once ISL has taught the spell.
@@ -1654,8 +1654,9 @@ last good value; the panel's `SetLearningTarget` / `SetRequiredXP` requests, the
 and XP overrides check it too) and never reaches a share division.
 
 The save writes the shares in `SLPS` and, for 1.7.0, the same counts as absolute XP in its layouts (`SLPX` v1,
-`SLPR`'s modded XP: share x the required XP at the save). A load with `SLPS` takes the shares as saved. A save
-without it (1.7 and before) has only absolute XP, converted once at `EndLoad` against the required XP worked out
+`SLPR`'s modded XP: share x the required XP at the save). A load decides per spell (`CountsAtLoad`): a spell with an `SLPS` entry takes its
+shares (held to 0..1, then their sum to the progress); one without (a 1.7 save, every time it comes back from 1.7.0,
+or a spell an `SLPS` cut short lost) has only absolute XP, converted once at `EndLoad` against the required XP worked out
 then (`BaseRequiredXP`: override, tree, tier and the known-higher share; this character's panel numbers are not in
 yet) and held to the progress (`SharesFromAbsolute`) - which also puts right a cap stuck by a cheat-mode lowering
 before fix A. **This is an approximation:** the 1.7 save does not say what required XP its counts were made

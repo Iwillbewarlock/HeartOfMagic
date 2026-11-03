@@ -36,10 +36,11 @@
   The counts are now kept as shares of the spell's required XP: they follow a lowered progress down (all cleared at
   0 XP), and a required XP that changes (an override, the tree's number, a game load) neither reopens nor closes a
   cap. The save keeps the shares in a record of their own and still writes the counts the way 1.7.0 reads them, so
-  going back keeps them. A 1.7 save's counts are converted once when it loads, against the required XP known then;
-  a cap stuck by the old bug is put right. For a spell learned downward that conversion can give back part of a used
-  cap once (up to 3.5% of the spell's XP for the any-spell cap, 10.5% same school, 35% direct link), or close one a
-  few percent early; from the next save on the counts are exact.
+  going back keeps them. A save from 1.7.0 has its counts converted when it loads (each time a save comes back from
+  1.7.0), against the required XP known then; a cap stuck by the old bug is put right. For a spell learned downward
+  that conversion can give back part of a used cap once - with the default settings up to 3.5% of the spell's XP for
+  the any-spell cap, 10.5% same school, 35% direct link (the share and the caps are settings) - or close one a few
+  percent early; from the next save on the counts are exact.
 - **Casting a copy of a linked spell.** When two plugins carry the same spell, the tree keeps one; a copy you
   learned before (or elsewhere) now counts as that spell for the direct-link XP of the spells next to it in the
   tree, as it already did for their requirements. It counted as a same-school cast only.

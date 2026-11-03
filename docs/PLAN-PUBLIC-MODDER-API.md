@@ -31,6 +31,11 @@ Three layers:
 
 ---
 
+> **Historical design notes.** The code sketches below name the per-source counts `xpFromModded` (absolute XP),
+> as first planned. Since 2026-11-04 the plugin keeps them as shares of the required XP (`shareModded`,
+> `SLPS` in the co-save; docs/ARCHITECTURE.md, "Per-source counts"); the API calls and their answers are as
+> described.
+
 ## 1. Self-Registering Modded XP Sources
 
 ### How It Works
