@@ -173,6 +173,7 @@ loadModule('panelRefreshTest', './modules/panelRefreshTest.js');
 loadModule('panelTidyTest', './modules/panelTidyTest.js');
 loadModule('panelLayoutTest', './modules/panelLayoutTest.js');
 loadModule('spellCardNeedsTest', './modules/spellCardNeedsTest.js');
+loadModule('spellCardMasteryTest', './modules/spellCardMasteryTest.js');
 loadModule('panelAuditTest', './modules/panelAuditTest.js');
 loadModule('unificationTest', './modules/unificationTest.js');
 

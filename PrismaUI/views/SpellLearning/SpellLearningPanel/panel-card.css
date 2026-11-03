@@ -147,6 +147,29 @@
     background: var(--accent-gold, #B8A878);
 }
 
+/* ---- Mastery ranks past 100% (spellCardMastery.js): one quiet line and a thin bar, as the state line ---- */
+.spell-mastery {
+    margin-top: 6px;
+    font-size: 0.85em;
+    line-height: 1.5;
+}
+
+.spell-mastery.hidden { display: none; }
+
+.spell-mastery-text { color: var(--text-primary, #C8C8B8); }
+
+.spell-mastery-bar {
+    height: 3px;
+    margin-top: 4px;
+    background: var(--divider, rgba(255, 255, 255, 0.08));
+}
+
+.spell-mastery-fill {
+    width: 0;
+    height: 100%;
+    background: var(--accent-gold, #B8A878);
+}
+
 /* ---- Still needed: chips; Met: one quiet line ---- */
 .spell-needs {
     display: flex;

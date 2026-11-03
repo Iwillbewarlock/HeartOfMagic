@@ -268,6 +268,8 @@ var state = {
     // Progression tracking
     learningTargets: {},  // school -> formId
     spellProgress: {},    // formId -> {xp, required, unlocked, ready}
+    spellMastery: {},     // formId -> {xp, rank, ranks, floor, next}: mastery ranks past 100% (spellCardMastery.js)
+    masteryInfo: null,    // {enabled, ranks} from C++'s progress reply; null until it sends one (an older DLL never does)
     selectedNode: null,
     playerKnownSpells: new Set(),
     weakenedSpells: new Set()  // Spells the player has in weakened/early-learned state (not fully mastered)

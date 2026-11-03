@@ -817,5 +817,10 @@
     "treeGrowth.readyToBuild": "Ready to build",
 
     "treeViewer.noSettingsAvailable": "No settings available",
-    "treeViewer.treeGrowthPreview": "Tree Growth Preview"
+    "treeViewer.treeGrowthPreview": "Tree Growth Preview",
+    "details.masteryRank": "Mastery rank {{rank}}/{{ranks}}",
+    "hud.masteryRankUp": "{{spell}}: mastery rank {{rank}} of {{ranks}}",
+    "settings.progression.masteryRanks": "Mastery Ranks",
+    "settings.progression.masteryEnable": "Ranks Past Mastery",
+    "settings.progression.masteryEnableDesc": "Casting a spell you have mastered earns mastery XP toward its ranks (3 by default). The numbers are in config.json, \"mastery\"."
 }

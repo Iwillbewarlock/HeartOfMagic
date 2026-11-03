@@ -177,6 +177,7 @@ var SpellCardNeeds = {
         if (progress) progress.classList.toggle('cheat-xp', cheat);
 
         this._drawState(node, info);
+        if (typeof SpellCardMastery !== 'undefined') SpellCardMastery.draw(node);
         var req = this.requirements(node, this._ctx(node));
         this._drawNeeds(node, req, editing);
         this._drawWhy(node, req, info, cheat);

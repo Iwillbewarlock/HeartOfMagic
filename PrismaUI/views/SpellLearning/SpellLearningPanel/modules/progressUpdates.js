@@ -88,9 +88,26 @@ var ProgressUpdates = {
         return false;
     },
 
+    /**
+     * The mastery part of an update (mastery ranks, spellCardMastery.js): stored, and the open card's row
+     * redrawn. True when that was all of it (masteryOnly: a spell with no learning progress, known from
+     * outside the tree), so its zero XP is not taken as learning progress.
+     */
+    takeMastery: function(canonId, data) {
+        if (data.mastery && typeof data.mastery === 'object') {
+            if (!state.spellMastery) state.spellMastery = {};
+            state.spellMastery[canonId] = data.mastery;
+        }
+        if (data.masteryOnly !== true) return false;
+        var sel = state.selectedNode;
+        if (sel && this._canon(sel) === canonId && typeof SpellCardMastery !== 'undefined') SpellCardMastery.draw(sel);
+        return true;
+    },
+
     handle: function(dataStr) {
         var data = typeof dataStr === 'string' ? JSON.parse(dataStr) : dataStr;
         var canonId = (typeof resolveCanonicalId === 'function') ? resolveCanonicalId(data.formId) : data.formId;
+        if (this.takeMastery(canonId, data)) return;
         if (typeof RequiredXPSync !== 'undefined') RequiredXPSync.noteReported(data.formId, data.requiredXP);
 
         // The panel's own required XP (tier settings, overrides, known-higher-spell share)

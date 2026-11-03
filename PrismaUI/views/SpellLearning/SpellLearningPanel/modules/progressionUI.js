@@ -882,6 +882,10 @@ window.onProgressData = function(dataStr) {
             }
         }
         
+        // Mastery ranks (spellCardMastery.js): apart from spellProgress, whose entries are learning progress
+        if (data.mastery && typeof data.mastery === 'object') state.masteryInfo = data.mastery;
+        if (data.spellMastery && typeof data.spellMastery === 'object') state.spellMastery = data.spellMastery;
+
         // Load spell progress
         if (data.spellProgress) {
             state.spellProgress = data.spellProgress;

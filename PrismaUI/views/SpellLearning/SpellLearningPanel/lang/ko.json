@@ -787,5 +787,10 @@
     "treeGrowth.treeBuilt": "트리 구축 완료",
     "treeGrowth.readyToBuild": "구축 준비 완료",
     "treeViewer.noSettingsAvailable": "사용 가능한 설정 없음",
-    "treeViewer.treeGrowthPreview": "트리 성장 미리보기"
+    "treeViewer.treeGrowthPreview": "트리 성장 미리보기",
+    "details.masteryRank": "숙달 단계 {{rank}}/{{ranks}}",
+    "hud.masteryRankUp": "{{spell}} 숙달 단계 {{rank}}/{{ranks}} 달성",
+    "settings.progression.masteryRanks": "숙달 단계",
+    "settings.progression.masteryEnable": "숙달 이후 단계",
+    "settings.progression.masteryEnableDesc": "숙달한 주문을 시전하면 숙달 경험치가 쌓여 단계가 오릅니다(기본 3단계). 세부 수치는 config.json의 \"mastery\"에서 바꿉니다."
 }

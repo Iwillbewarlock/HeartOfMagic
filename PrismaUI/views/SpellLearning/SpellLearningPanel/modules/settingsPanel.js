@@ -353,6 +353,8 @@ function initializeSettings() {
     if (typeof NotificationSetting !== 'undefined') NotificationSetting.init();
     // Spell Research practice and memory (shown with the Spell Research line)
     if (typeof SpellResearchMemorySetting !== 'undefined') SpellResearchMemorySetting.init();
+    // Mastery ranks' switch (masterySetting.js)
+    if (typeof MasterySetting !== 'undefined') MasterySetting.init();
     // Build Spell Tree at Start (autoBuildSetting.js)
     if (typeof AutoBuildSetting !== 'undefined') AutoBuildSetting.init();
     // The tree's tool bar size (its corner grip)
@@ -850,6 +852,7 @@ function saveUnifiedConfig() {
     if (typeof ReverseUnlockSetting !== 'undefined') ReverseUnlockSetting.saveTo(unifiedConfig);
     if (typeof NotificationSetting !== 'undefined') NotificationSetting.saveTo(unifiedConfig);
     if (typeof SpellResearchMemorySetting !== 'undefined') SpellResearchMemorySetting.saveTo(unifiedConfig);
+    if (typeof MasterySetting !== 'undefined') MasterySetting.saveTo(unifiedConfig);
     if (typeof PanelOpenSetting !== 'undefined') PanelOpenSetting.saveTo(unifiedConfig);
     if (typeof TreeToolsScale !== 'undefined') TreeToolsScale.saveTo(unifiedConfig);
     if (typeof DesignEffectsSetting !== 'undefined') DesignEffectsSetting.saveTo(unifiedConfig);
@@ -888,6 +891,7 @@ function resetSettings() {
     if (typeof ReverseUnlockSetting !== 'undefined') ReverseUnlockSetting.reset();
     if (typeof NotificationSetting !== 'undefined') NotificationSetting.reset();
     if (typeof SpellResearchMemorySetting !== 'undefined') SpellResearchMemorySetting.reset();
+    if (typeof MasterySetting !== 'undefined') MasterySetting.reset();
     if (typeof PanelOpenSetting !== 'undefined') PanelOpenSetting.reset();
     // Skill XP from studying: on (the only tome setting Reset to Defaults touches)
     if (settings.spellTomeLearning) {
@@ -1273,6 +1277,7 @@ window.onUnifiedConfigLoaded = function(dataStr) {
         // Notification settings (XP Alerts, weakened spell alerts)
         if (typeof NotificationSetting !== 'undefined') NotificationSetting.loadFrom(data);
         if (typeof SpellResearchMemorySetting !== 'undefined') SpellResearchMemorySetting.loadFrom(data);
+        if (typeof MasterySetting !== 'undefined') MasterySetting.loadFrom(data);
         if (typeof TreeToolsScale !== 'undefined') TreeToolsScale.loadFrom(data);
         
         // Update settings presets UI

@@ -712,6 +712,11 @@
                                 </div>
                                 <div id="spell-state-bar" class="spell-state-bar hidden"><div id="spell-state-fill" class="spell-state-fill"></div></div>
                             </div>
+                            <!-- Mastery ranks past 100%: "Mastery rank 1/3" and a bar, mastered spells only (modules/spellCardMastery.js) -->
+                            <div id="spell-mastery" class="spell-mastery hidden">
+                                <span id="spell-mastery-text" class="spell-mastery-text"></span>
+                                <div class="spell-mastery-bar"><div id="spell-mastery-fill" class="spell-mastery-fill"></div></div>
+                            </div>
                             <div id="spell-needs" class="spell-needs hidden">
                                 <span class="spell-needs-label" data-i18n="details.stillNeeded">Still needed:</span>
                                 <span id="spell-needs-chips" class="spell-needs-chips"></span>
@@ -1248,6 +1253,21 @@
                             </div>
                         
                             <!-- Known Higher Spells (modules/reverseUnlockSetting.js) -->
+                            <!-- Mastery ranks past 100% (modules/masterySetting.js; the numbers are config.json's "mastery") -->
+                            <div class="settings-subsection">
+                                <span class="subsection-title" data-i18n="settings.progression.masteryRanks">Mastery Ranks</span>
+                            </div>
+                            <div class="setting-row">
+                                <div class="setting-info">
+                                    <span class="setting-label" data-i18n="settings.progression.masteryEnable">Ranks Past Mastery</span>
+                                    <span class="setting-desc" data-i18n="settings.progression.masteryEnableDesc">Casting a spell you have mastered earns mastery XP toward its ranks (3 by default). The numbers are in config.json, "mastery".</span>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="masteryRanksToggle" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+
                             <div class="settings-subsection">
                                 <span class="subsection-title" data-i18n="settings.progression.reverseUnlock">Known Higher Spells</span>
                             </div>
@@ -2183,6 +2203,7 @@
     <script src="modules/panelOpenSetting.js"></script>
     <script src="modules/autoBuildSetting.js"></script>
     <script src="modules/spellResearchMemorySetting.js"></script>
+    <script src="modules/masterySetting.js"></script>
     <script src="modules/spellResearchStatus.js"></script>
     <script src="modules/requiredXPSync.js"></script>
     <script src="modules/designEffectsSetting.js"></script>
@@ -2198,6 +2219,7 @@
     <script src="modules/treeLegend.js"></script>
     <script src="modules/treeLoad.js"></script>
     <script src="modules/spellCardView.js"></script>
+    <script src="modules/spellCardMastery.js"></script>
     <script src="modules/spellCardNeeds.js"></script>
     <script src="modules/spellProgressView.js"></script>
     <script src="modules/spellSearch.js"></script>
