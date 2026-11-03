@@ -21,6 +21,7 @@ Scriptname SpellLearning Hidden
 ;   RegisterForModEvent("SpellLearning_TargetChanged", "OnTargetChanged")
 ;   RegisterForModEvent("SpellLearning_ProgressMilestone", "OnMilestone")
 ;   RegisterForModEvent("SpellLearning_SourceRegistered", "OnSourceRegistered")
+;   RegisterForModEvent("SpellLearning_MasteryRankUp", "OnMasteryRankUp")   ; school, rank reached, the spell
 ;
 ;   Event OnXPGained(string sourceName, float amount, Form spellForm)
 ;   EndEvent
@@ -83,6 +84,12 @@ bool Function IsSpellMastered(Spell akSpell) global native
 
 ; Returns true if spell has been granted to the player
 bool Function IsSpellUnlocked(Spell akSpell) global native
+
+; Mastery ranks: a mastered spell keeps earning mastery XP when cast. The rank reached
+; (0 up to the configured number of ranks, 3 by default; 0 for none or not mastered)
+; and the raw mastery XP behind it. Another plugin's copy reads the tree spell's.
+int Function GetMasteryRank(Spell akSpell) global native
+float Function GetMasteryXP(Spell akSpell) global native
 
 ; Returns true if spell is in tree, not yet unlocked, and prerequisites are met
 bool Function IsSpellAvailableToLearn(Spell akSpell) global native

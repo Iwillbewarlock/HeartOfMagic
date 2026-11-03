@@ -89,13 +89,13 @@ namespace HudNotify
     bool IsXPAlert(std::string_view a_key)
     {
         // How XP and power grow: casting a weakened spell, a power step, studying a
-        // tome (the hook, the ISL patch's hours), book XP. Not learned, mastered,
-        // blocked or the Spell Research line - those the player needs to see
-        static constexpr std::array<std::string_view, 9> kXPAlertKeys = {
+        // tome (the hook, the ISL patch's hours), book XP, a mastery rank reached. Not
+        // learned, mastered, blocked or the Spell Research line - those the player needs to see
+        static constexpr std::array<std::string_view, 10> kXPAlertKeys = {
             "hud.castPowerXP", "hud.castPower", "hud.powerIncreased",
             "hud.beginStudy", "hud.review", "hud.beginGrasp",
             "hud.studiedHour", "hud.studiedHours",
-            "hud.bookXpGranted"
+            "hud.bookXpGranted", "hud.masteryRankUp"
         };
         return std::ranges::find(kXPAlertKeys, a_key) != kXPAlertKeys.end();
     }

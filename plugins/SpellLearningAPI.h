@@ -34,7 +34,9 @@ namespace SpellLearning {
 
     // 2: ShowNotification (added at the end of ISpellLearningAPI - check
     //    GetAPIVersion() >= 2 before calling it)
-    constexpr uint32_t kAPIVersion = 2;
+    // 3: GetMasteryRank, GetMasteryXP (added at the end - check GetAPIVersion() >= 3
+    //    before calling them: an older Heart of Magic's table has no such entries)
+    constexpr uint32_t kAPIVersion = 3;
 
     // SKSE message types
     // kMessageType_APIReady is broadcasted BY SpellLearning at kPostPostLoad.
@@ -118,6 +120,14 @@ namespace SpellLearning {
         // runtime can call it.
         virtual bool ShowNotification(const char* key, const char* englishText,
                                       const char* const* namesAndValues, uint32_t pairCount) = 0;
+
+        // Mastery ranks (API version 3 and later), read only. A mastered spell keeps earning
+        // mastery XP when the player casts it; GetMasteryRank is the rank reached (0 to the
+        // configured number of ranks, 3 by default; 0 for a spell with none or not mastered),
+        // GetMasteryXP the raw XP behind it. Another plugin's copy of a tree spell reads the tree
+        // spell's. Game thread only, like every call here.
+        virtual int32_t GetMasteryRank(uint32_t spellFormID) const = 0;
+        virtual float GetMasteryXP(uint32_t spellFormID) const = 0;
     };
 
     // Convenience: null-safe string copy for message structs

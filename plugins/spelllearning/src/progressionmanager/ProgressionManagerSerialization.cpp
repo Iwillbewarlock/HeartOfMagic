@@ -130,6 +130,7 @@ void ProgressionManager::EndLoad()
                      applied, m_pendingCapTrackers.size(), m_pendingCapTrackers.size() - applied);
     }
     m_pendingCapTrackers.clear();
+    EndLoadMastery();
 
     // Every entry's required XP now that the whole save is in (ReadRecord's was
     // worked out before the records after SLPR)
@@ -150,6 +151,7 @@ bool ProgressionManager::ReadRecord(SKSE::SerializationInterface* a_intfc,
 {
     // Not ours: say so before looking at the version, or a record belonging to
     // another owner would be rejected here for a version it never claimed.
+    if (type == kMasteryRecord) return ReadMasteryRecord(a_intfc, version, length);
     if (type != kTargetsRecord && type != kProgressRecord && type != kCapTrackersRecord) return false;
 
     // Every version written so far is read: SLTR 1-2 (one layout), SLPR 1-3 (v3
@@ -316,6 +318,19 @@ std::string ProgressionManager::GetProgressJSON() const
         };
     }
     j["spellProgress"] = progress;
+
+    // Mastery ranks: the settings the card needs and every spell with mastery XP, whether it has a
+    // progress entry or not (a spell known from outside the tree has none). Apart from spellProgress,
+    // whose entries the panel reads as learning progress
+    j["mastery"] = { {"enabled", m_mastery.enabled}, {"ranks", m_mastery.ranks} };
+    json mastery = json::object();
+    for (const auto& [formId, xp] : m_masteryXP) {
+        const auto where = MasteryMath::ProgressFor(xp, m_mastery, MasteryTierOf(formId));
+        mastery[FormIdText::Format(formId)] = {
+            {"xp", xp}, {"rank", where.rank}, {"ranks", where.ranks}, {"floor", where.floor}, {"next", where.next}
+        };
+    }
+    j["spellMastery"] = mastery;
 
     return JsonText::Dump(j);
 }

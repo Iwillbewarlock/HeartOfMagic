@@ -5,7 +5,7 @@
 
 #include "progression-check.h"
 
-#include "MasteryMath.h"
+#include "MasteryConfig.h"
 #include "ProgressionCoSave.h"
 
 #include <cstdint>

@@ -34,6 +34,8 @@ namespace CoSave
     {
         logger::info("SKSE Serialization: Game saved");
         Guarded("ProgressionManager save", [&] { ProgressionManager::GetSingleton()->OnGameSaved(a_intfc); });
+        // SLMX apart from SLPR's write: a failure there does not cost the mastery XP, nor the other way round
+        Guarded("Mastery save", [&] { ProgressionManager::GetSingleton()->SaveMasteryRecord(a_intfc); });
         Guarded("SpellEffectivenessHook save", [&] { SpellEffectivenessHook::GetSingleton()->OnGameSaved(a_intfc); });
         Guarded("SpellTomeHook save", [&] { SpellTomeHook::GetSingleton()->OnGameSaved(a_intfc); });
         // DEST registrations (ISL's player alias and any other script that asked for

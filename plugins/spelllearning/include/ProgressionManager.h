@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Common.h"
+#include "MasteryMath.h"
 #include "ProgressionCoSave.h"
 #include "ProgressionMath.h"
 #include "RequiredXPTable.h"
@@ -321,6 +322,49 @@ public:
     // Send a ModEvent to Papyrus listeners
     static void SendModEvent(const char* eventName, const std::string& strArg, float numArg, RE::TESForm* sender = nullptr);
 
+    // =========================================================================
+    // MASTERY RANKS (ProgressionManagerMastery.cpp, MasteryMath.h)
+    // =========================================================================
+    // A mastered tree spell earns mastery XP when the player casts it, toward m_mastery.ranks
+    // ranks; kept per tree spell (a copy's cast earns for the tree's record), apart from the
+    // learning progress, saved in SLMX. No effect on the spell yet. Game thread only.
+    static constexpr uint32_t kMasteryRecord = 'SLMX';
+    void SetMasterySettings(const MasteryMath::Settings& settings);
+    const MasteryMath::Settings& GetMasterySettings() const { return m_mastery; }
+    // The tree spell this cast earns mastery XP for, or 0: ranks off, no tree spell, the player
+    // has neither it nor a copy, still weakened or held for ISL, or not mastered. OnSpellCast asks
+    // before it pays the cast's learning XP (a cast that masters a spell earns no mastery XP).
+    RE::FormID MasteryKeyForCast(RE::FormID castSpellId) const;
+    // One cast's mastery XP (MasteryMath::GainFor with the player's school skill); a rank reached
+    // shows hud.masteryRankUp and sends SpellLearning_MasteryRankUp (school, rank, the spell)
+    void OnMasteredCast(RE::FormID masteryKey, RE::FormID castSpellId, float baseXP);
+    // Raw mastery XP, rank and where it stands; a copy's id reads its tree spell's. 0 / rank 0 for none
+    float GetMasteryXP(RE::FormID spellId) const;
+    int GetMasteryRank(RE::FormID spellId) const;
+    MasteryMath::Progress GetMasteryProgress(RE::FormID spellId) const;
+    // Every spell with mastery XP, for a read-only look (the panel's progress reply)
+    const std::unordered_map<RE::FormID, float>& GetAllMasteryXP() const { return m_masteryXP; }
+    // Back to no mastery XP: RelockSpell, and SetSpellXP leaving the progress below 100%
+    void ClearMastery(RE::FormID spellId);
+    // SLMX, an owner step of its own in CoSave.cpp (independent of SLPR's write)
+    void SaveMasteryRecord(SKSE::SerializationInterface* a_intfc) const;
+    // Self-test only: a spell's raw mastery XP (an invalid value, 0 included, removes it)
+    void SetMasteryXPForTest(RE::FormID spellId, float xp);
+    // Self-test only: the learning targets taken out for a scope and put back as they were, with no
+    // event or notice either way (a test cast then pays no learning XP)
+    class LearningTargetsAside
+    {
+    public:
+        explicit LearningTargetsAside(ProgressionManager& manager);
+        ~LearningTargetsAside();
+        LearningTargetsAside(const LearningTargetsAside&) = delete;
+        LearningTargetsAside& operator=(const LearningTargetsAside&) = delete;
+
+    private:
+        ProgressionManager& m_manager;
+        std::unordered_map<std::string, RE::FormID> m_targets;
+    };
+
 private:
     ProgressionManager() = default;
     ~ProgressionManager() = default;
@@ -413,4 +457,13 @@ private:
     
     // XP Settings
     XPSettings m_xpSettings;
+
+    // Mastery ranks: the settings (config.json "mastery") and each tree spell's raw mastery XP.
+    // Cleared by ClearAllProgress (load, revert), apart from m_spellProgress (SLMX is its own record)
+    MasteryMath::Settings m_mastery;
+    std::unordered_map<RE::FormID, float> m_masteryXP;
+    RE::FormID MasteryKeyOf(RE::FormID spellId) const;   // the tree's record of its copy group, else itself
+    std::size_t MasteryTierOf(RE::FormID key) const;     // MasteryMath::TierIndex of DetermineSpellTier
+    bool ReadMasteryRecord(SKSE::SerializationInterface* a_intfc, uint32_t version, uint32_t length);
+    void EndLoadMastery();
 };

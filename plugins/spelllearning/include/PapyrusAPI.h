@@ -27,6 +27,8 @@
 //   - GetSpellRequiredXP()         : XP needed to master
 //   - IsSpellMastered()            : 100% + unlocked
 //   - IsSpellUnlocked()            : Granted to player
+//   - GetMasteryRank()             : Mastery rank past 100% (0 for none)
+//   - GetMasteryXP()               : Raw mastery XP behind it
 //   - IsSpellAvailableToLearn()    : In tree, prereqs met
 //   - ArePrerequisitesMet()        : Tree prereqs check
 //
@@ -84,6 +86,8 @@ namespace PapyrusAPI
     float GetSpellRequiredXP(RE::StaticFunctionTag*, RE::SpellItem* spell);
     bool IsSpellMastered(RE::StaticFunctionTag*, RE::SpellItem* spell);
     bool IsSpellUnlocked(RE::StaticFunctionTag*, RE::SpellItem* spell);
+    std::int32_t GetMasteryRank(RE::StaticFunctionTag*, RE::SpellItem* spell);
+    float GetMasteryXP(RE::StaticFunctionTag*, RE::SpellItem* spell);
     bool IsSpellAvailableToLearn(RE::StaticFunctionTag*, RE::SpellItem* spell);
     bool ArePrerequisitesMet(RE::StaticFunctionTag*, RE::SpellItem* spell);
 

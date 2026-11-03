@@ -167,6 +167,21 @@ public:
         });
     }
 
+    int32_t GetMasteryRank(uint32_t spellFormID) const override
+    {
+        return GuardApiCall("GetMasteryRank", [&] {
+            return static_cast<int32_t>(
+                ProgressionManager::GetSingleton()->GetMasteryRank(static_cast<RE::FormID>(spellFormID)));
+        });
+    }
+
+    float GetMasteryXP(uint32_t spellFormID) const override
+    {
+        return GuardApiCall("GetMasteryXP", [&] {
+            return ProgressionManager::GetSingleton()->GetMasteryXP(static_cast<RE::FormID>(spellFormID));
+        });
+    }
+
 private:
     SpellLearningAPIImpl() = default;
 };

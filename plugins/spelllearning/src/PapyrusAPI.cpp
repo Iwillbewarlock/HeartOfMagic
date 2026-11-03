@@ -196,6 +196,26 @@ namespace PapyrusAPI
         }).value_or(false);
     }
 
+    // Mastery ranks: the rank reached past mastery (0 for none or not mastered) and the raw XP
+    // behind it. Asked on the game thread like the other progress reads; 0 when it does not answer
+    std::int32_t GetMasteryRank(RE::StaticFunctionTag*, RE::SpellItem* spell)
+    {
+        if (!spell) return 0;
+        const RE::FormID formId = spell->GetFormID();
+        return Ask("Papyrus.GetMasteryRank", [formId]() {
+            return static_cast<std::int32_t>(ProgressionManager::GetSingleton()->GetMasteryRank(formId));
+        }).value_or(0);
+    }
+
+    float GetMasteryXP(RE::StaticFunctionTag*, RE::SpellItem* spell)
+    {
+        if (!spell) return 0.0f;
+        const RE::FormID formId = spell->GetFormID();
+        return Ask("Papyrus.GetMasteryXP", [formId]() {
+            return ProgressionManager::GetSingleton()->GetMasteryXP(formId);
+        }).value_or(0.0f);
+    }
+
     bool IsSpellUnlocked(RE::StaticFunctionTag*, RE::SpellItem* spell)
     {
         if (!spell) return false;
@@ -491,6 +511,8 @@ namespace PapyrusAPI
         RegisterGameThreadNative<GetSpellRequiredXP>(vm, "GetSpellRequiredXP", SCRIPT_NAME);
         RegisterGameThreadNative<IsSpellMastered>(vm, "IsSpellMastered", SCRIPT_NAME);
         RegisterGameThreadNative<IsSpellUnlocked>(vm, "IsSpellUnlocked", SCRIPT_NAME);
+        RegisterGameThreadNative<GetMasteryRank>(vm, "GetMasteryRank", SCRIPT_NAME);
+        RegisterGameThreadNative<GetMasteryXP>(vm, "GetMasteryXP", SCRIPT_NAME);
         RegisterGameThreadNative<IsSpellAvailableToLearn>(vm, "IsSpellAvailableToLearn", SCRIPT_NAME);
         RegisterGameThreadNative<ArePrerequisitesMet>(vm, "ArePrerequisitesMet", SCRIPT_NAME);
 
@@ -516,7 +538,7 @@ namespace PapyrusAPI
         RegisterGameThreadNative<NotificationText>(vm, "NotificationText", SCRIPT_NAME);
         RegisterGameThreadNative<NotificationsOff>(vm, "NotificationsOff", SCRIPT_NAME);
 
-        logger::info("PapyrusAPI: Registered {} functions under script '{}'", 30, SCRIPT_NAME);
+        logger::info("PapyrusAPI: Registered {} functions under script '{}'", 32, SCRIPT_NAME);
 
         return true;
     }

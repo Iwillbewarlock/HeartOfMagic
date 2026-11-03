@@ -42,6 +42,7 @@ void ProgressionManager::ClearAllProgress()
     logger::info("ProgressionManager: Clearing all progress data");
     m_learningTargets.clear();
     m_spellProgress.clear();
+    m_masteryXP.clear();   // SLMX: a save without it starts every spell at no mastery XP
     m_targetPrerequisites.clear();
     // This character's required XP numbers go; the tree's and the settings' overrides stay
     m_requiredXP.OnRevert();

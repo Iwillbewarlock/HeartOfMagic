@@ -68,6 +68,8 @@ void ProgressionManager::SetSpellXP(RE::FormID formId, float xp)
     progress.progressPercent = ProgressionMath::ProgressForXP(xp, progress.requiredXP);
     // The per-source counts follow a lowered XP down (a source at its cap gives again)
     ProgressionMath::FitTrackersToXP(progress, progress.GetCurrentXP());
+    // Below 100% the spell is no longer mastered: its mastery XP goes too
+    if (progress.progressPercent < 1.0f) ClearMastery(formId);
     m_dirty = true;
     SpellEffectivenessHook::GetSingleton()->SyncProgress(formId, progress.progressPercent);
 
@@ -85,6 +87,8 @@ void ProgressionManager::OnSpellCast(const std::string& school, RE::FormID castS
     // Get early learning settings
     auto* effectivenessHook = SpellEffectivenessHook::GetSingleton();
     const auto& earlySettings = effectivenessHook->GetSettings();
+    // Mastery XP: decided before the learning XP below, so the cast that masters a spell earns none
+    const RE::FormID masteryKey = MasteryKeyForCast(castSpellId);
 
     // Iterate through all learning targets and grant XP based on settings. A copy:
     // AddXP clears targets when a spell is mastered (every school targeting it),
@@ -216,6 +220,8 @@ void ProgressionManager::OnSpellCast(const std::string& school, RE::FormID castS
                    true);
         if (single) break;  // Only one target in single mode
     }
+
+    if (masteryKey != 0) OnMasteredCast(masteryKey, castSpellId, baseXP);
 
     // One info line per cast that earned something (a cast earning nothing stays at debug)
     if (!credited.empty()) {

@@ -17,6 +17,7 @@
 #include "PassiveLearningSource.h"
 #include "ThreadUtils.h"
 #include "librarian/SpellResearchMemory.h"
+#include "MasteryConfig.h"
 
 // =============================================================================
 // SETTINGS (Legacy - now uses Unified Config)
@@ -261,6 +262,11 @@ void ApplySettingsFromConfig(const nlohmann::json& config)
 
     // Spell Research practice and memory (spellResearch.memoryExchange; missing keys are the defaults)
     Librarian::SpellResearchMemory::ApplyConfig(config);
+
+    // Mastery ranks ("mastery"; missing keys are the defaults, a bad value the default and logged)
+    std::vector<std::string> masteryProblems;
+    ProgressionManager::GetSingleton()->SetMasterySettings(MasteryMath::ReadSettings(config, &masteryProblems));
+    for (const auto& problem : masteryProblems) logger::warn("UIManager: config.json {} - the default is used", problem);
 }
 
 void ApplyGameplayConfig(const nlohmann::json& config)
@@ -396,6 +402,9 @@ json GenerateDefaultConfig() {
                 {"maxPracticeBoost", 25}
             }}
         }},
+        // Mastery ranks (MasteryMath.h): only the switch; the numbers' defaults live in the code
+        // until a player writes them (MasteryConfig.h reads every key)
+        {"mastery", {{"enabled", MasteryMath::kDefaultEnabled}}},
         {"schoolColors", json::object()},
         {"customProfiles", json::object()}
     };

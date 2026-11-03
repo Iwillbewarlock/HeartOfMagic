@@ -488,8 +488,10 @@ void ProgressionManager::RelockSpell(RE::FormID formId)
     SpellEffectivenessHook::RemoveEarlySpellFromPlayer(formId);
     // A relocked spell is no longer being learned either
     ClearLearningTargetForSpell(formId);
-    // Back to nothing: its tome's XP too (the list is in the co-save, SLTX)
+    // Back to nothing: its tome's XP too (the list is in the co-save, SLTX), and its mastery XP
+    // (also for a spell with no progress entry, known from outside the tree)
     SpellTomeHook::GetSingleton()->UnmarkTomeXPGranted(formId);
+    ClearMastery(formId);
 
     auto it = m_spellProgress.find(formId);
     if (it == m_spellProgress.end()) {

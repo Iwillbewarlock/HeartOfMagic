@@ -155,6 +155,15 @@ void UIManager::NotifyProgressUpdate(RE::FormID formId, float currentXP, float r
     update["progress"] = requiredXP > 0 ? (currentXP / requiredXP) : 0.0f;
     update["ready"] = currentXP >= requiredXP;
     update["unlocked"] = progress.unlocked;  // Include unlocked status
+    // Mastery ranks: where the spell's mastery XP stands; masteryOnly when it has no learning
+    // progress (known from outside the tree), so the panel takes only the mastery part
+    auto* progression = ProgressionManager::GetSingleton();
+    if (progression->GetMasteryXP(formId) > 0.0f) {
+        const auto where = progression->GetMasteryProgress(formId);
+        update["mastery"] = { {"xp", progression->GetMasteryXP(formId)}, {"rank", where.rank}, {"ranks", where.ranks},
+                              {"floor", where.floor}, {"next", where.next} };
+    }
+    update["masteryOnly"] = !progression->HasProgressRecord(formId);
 
     // PERFORMANCE: Use trace for frequent progress updates
     logger::trace("UIManager: Sending progress update to UI - formId: {}, XP: {:.1f}/{:.1f}, unlocked: {}",
