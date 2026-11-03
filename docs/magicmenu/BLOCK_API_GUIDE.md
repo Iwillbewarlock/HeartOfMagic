@@ -234,8 +234,14 @@ messaging->Dispatch(BlockApi::kMessageHeight, &request, sizeof(request), BlockAp
 
 - The registered height is the maximum. A request that is not finite, <= 0, or more than the registered height is
   refused (logged).
-- Every magic menu opens at the registered height. The example resets its compact flag in a `MenuOpenCloseEvent` sink
-  for that reason.
+- A menu opens with the block at its registered height, unless the block asks for its height again right after its first
+  draw of a menu (in that draw, or before the next UI frame): then the next menu (in the same game session) opens it at
+  the height it last asked for, so the blocks under it do not jump at each open. If such a block then does not ask again
+  after its first draw, the host puts it back to the registered height one frame later and opens later menus at it. A
+  block that only asks on a key, like the example's compact toggle, never asks at its first draw, so every menu still
+  opens it at the registered height: the example resets its compact flag in a `MenuOpenCloseEvent` sink for that reason.
+  A block whose content height changes from menu to menu should ask for its height in every first draw (send once per
+  menu, then only on a change); then it opens at its last height and moves at most to the new one.
 - A larger height, or the height the block has now, applies on the next UI frame and drops a smaller one that is still
   waiting. A smaller height waits about 150 ms first (the host's shrink delay, `kShrinkDelayMs` in `BlockRules.h`), so a
   block that grows back at once does not make the columns jump. In the layout mode every height applies at once. The
@@ -323,9 +329,16 @@ may add fields at the end.
 | `rowSize` | the SkyUI list's row text size (0 until measured; every v3 block is drawn again once it is known) |
 | `lineFirst`, `linePitch` | the game font's first line height and per-line step, per size unit (fallback 1.25) |
 | `frameSeq` | the host's UI frame number this menu, from 1; read it only when `structSize >= kContextFrameSeqNeeded`; 0 = a host that does not send it |
+| `columnRoom` | the room from your content clip's top down to the bottom of its column's visible area, as if the column were not scrolled (stage units; 0 or less when the clip starts below it); read it only when `structSize >= kContextColumnRoomNeeded` |
 
 `frameSeq` is the same for every `frame` call of one frame, so a plugin with several blocks can do its shared work once
 per frame.
+
+`columnRoom` (2026-11-03) is for content that grows with what it lists: fit it to this room so the block never runs past
+the bottom of the screen's column. The host measures it each frame from the column's area cut to the movie's visible
+frame, so it follows other screen shapes and the blocks above yours, but not the scroll - fitting to `viewTop` ..
+`viewBottom` instead would shrink the block as the player scrolls, and the column would then scroll back. The Heart of
+Magic progress card fits its next-spell rows to it.
 
 ## The id and the saved layout
 
@@ -547,4 +560,8 @@ checked.
 - `kMessageKeyHint` came later than the rest of v3 (2026-10-31). An older host ignores it.
 - `Context::frameSeq` was added at the end of `Context` (2026-10-31): read it only when
   `structSize >= kContextFrameSeqNeeded`.
+- `Context::columnRoom` was added after a `reserved` field (2026-11-03), past the 88 bytes a 2026-10-31 host sends: read it
+  only when `structSize >= kContextColumnRoomNeeded`.
+- The opening height (2026-11-03): an older host opens every menu at the registered heights; nothing in the messages
+  changed.
 - The v3 messages (`kMessageShowSpell`, `kMessageVisible`, `kMessageKeyHint`) must carry apiVersion 3.

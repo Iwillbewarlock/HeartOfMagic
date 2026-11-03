@@ -380,6 +380,11 @@ this section are history.
   fit; `BlockRules::ApplyFits` puts it into Arrange's heights (and takes a fitted block out of the fill set, so our card
   no longer grows to the column's bottom). A block's full height (`FullHeight`: the ini rect, our card's fill, an add-on's
   registered height, arranged with no fit: `g_menu.blocksMax`) is its maximum and its size in the layout mode.
+  2026-11-03 (progress-next-pick plan): an add-on that asks for its height again after its first draw of a menu opens the
+  next menu at the height it last asked for this game session (`g_sessionHeights`, `SeedOpeningHeights` before anything
+  is arranged; `JudgeOpenings` puts a block that then does not ask back to its registered height a frame later; pure
+  parts `BlockRules::OpeningHeight / RememberHeight / JudgeOpen` in BlockRulesV3.h, block-api-check). The layout mode
+  still shows registered heights; built-in blocks are not affected. Context gained `columnRoom` (`BlockRules::ColumnRoom`).
 - Rule that keeps it loop-free: every room is worked out from the block's full height; only the bottom-anchored parts
   (the node card's bottom rule / XP / button, our card's footer) are placed at the fitted height. `FitBlock` stores
   `min(needed + kFitSlack, full)` and lays the columns out at once (the blocks below move up in the same frame); drawing

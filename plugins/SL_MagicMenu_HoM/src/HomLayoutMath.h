@@ -269,7 +269,8 @@ namespace LayoutMath
     }
 
     /// The height a card last asked for this menu: a request goes out only when it changed (the host draws the block again at
-    /// the asked size, which asks for the same height - no loop). Every menu opens at the registered height: Reset
+    /// the asked size, which asks for the same height - no loop). Reset at each menu: the first request of a menu is always sent,
+    /// which also keeps the host's opening height (the card's last asked height, 2026-11-03) for the next menu
     class HeightSender
     {
     public:

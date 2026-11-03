@@ -165,6 +165,26 @@ Contract changes made during the implementation (each in BlockApi.h's header com
   (bumped when the block is drawn into a new content clip) tell the add-on its clips changed; `ownMouse` and
   `keepWhenEmpty` are the flags `kFlagOwnMouse` and `kFlagKeepWhenEmpty`.
 
+## Progress card: next-spell rows (2026-11-03, progress-next-pick plan)
+
+- With no learning target in the active school (HoM clears it when the target is mastered) and spells to learn, the
+  progress card shows a heading ("No learning target · Click a spell to learn next"), up to `[Progress] iMaxChoices`
+  (1..8, default 4) rows of the candidates the U key walks (`SchoolInfo::candidates`) - the direct structural children
+  of the school's last target seen this game session first (`Session::lastTarget`, cleared at a game load), then the
+  next-learnable order (tier, name, FormID) - and, when more are left, one "N more · [U] to step through" line. A row
+  shows "<name> · <level>", or the name alone (cut) when both do not fit.
+- A row's release (the block now has `kFlagOwnMouse`; press and release on the same row) is acted on in the progress
+  block's frame: the U key's pick (`PickByKey`: the tree centres on it, the node card shows it) and the node card
+  button's set-target request (`SetTargetIfChosen` -> `DoSetTarget` -> `Hom::RequestTarget`; only a spell that can be
+  learned now). A release outside the column's visible part is ignored, as the tree's node clicks. The row under the
+  mouse shows a faint `kTitleColor` band.
+- Height: the progress block registers `max(ini rect, the rows' height at the fallback metrics)` (157 for 4 rows); the
+  card fits its content as before. The rows fit the card's registered height and `Context::columnRoom` (the column's
+  visible room, unscrolled); at least one row. Pure parts: `ChoiceRules.h` (magic-menu-hom-block-check: order, rows,
+  rooms at 16:9 / 16:10 / 21:9 / 4:3). SelfTest C1 logs whether the rows ended inside the room.
+- Not done from the plan: rule (2), "the same element or technique as the last target", has no data in the add-on (the
+  tree file has no tags; HoM's API v2 has no tag query; spell_catalog.json would be a new file dependency).
+
 ## Open questions
 
 - Q1 frame / key in the layout mode: never (proposed).

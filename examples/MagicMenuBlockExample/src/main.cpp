@@ -236,7 +236,8 @@ namespace
         return used;
     }
 
-    // Every magic menu opens at the registered height, so the compact toggle starts over at each open
+    // The block never asks for a height in its first draw, so the host opens every magic menu with it at the registered height
+    // (BlockApi.h "kMessageHeight") and the compact toggle starts over at each open
     class MenuSink final : public RE::BSTEventSink<RE::MenuOpenCloseEvent>
     {
     public:
