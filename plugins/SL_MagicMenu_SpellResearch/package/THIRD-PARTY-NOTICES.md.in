@@ -1,0 +1,49 @@
+# Third-party notices - the Spell Research block for Magic Menu Rewrite @SPELL_RESEARCH_BLOCK_VERSION@
+
+`SKSE/Plugins/MagicMenuRewrite_SpellResearch.dll` adds a Spell Research block to Magic Menu Rewrite's magic menu (the
+archetypes of the selected spell and links to Spell Research's windows). It ships with Spell Research - Prisma UI 2 and
+needs Magic Menu Rewrite to show anything.
+
+## Licenses
+
+- **The DLL is a GPL-3.0-or-later combined work.** It statically links **CommonLibSSE-NG 10.0.0**, which is licensed
+  GPL-3.0-or-later with the **Modding Exception** and the **GPL-3.0 Linking Exception**. The DLL is distributed under
+  those terms: `licenses/CommonLibSSE-NG/COPYING.txt` (GNU GPL version 3) and `licenses/CommonLibSSE-NG/EXCEPTIONS.md`
+  (the two exceptions).
+- **The block's own source files are MIT** (`MagicMenuRewrite_SpellResearch-LICENSE.txt` next to this file): the C++
+  in the Heart of Magic repository's `plugins/SL_MagicMenu_SpellResearch/` (and `Common.h`, `PCH.h` and
+  `WideFileSink.h` from `plugins/`), the ini file and the language files. MIT is compatible with the GPL; files you
+  take from it on their own stay MIT.
+
+## Parts from Spell Research - Prisma UI
+
+- `src/SRPrismaAPI.h` declares Spell Research - Prisma UI's interface, which the block calls to open its windows.
+- `src/ArchetypeIcons.h` is generated (`tools/sr-icons/convert.mjs` in the Heart of Magic repository) from
+  Spell Research - Prisma UI's own archetype icons (`tools/icons/skald-icons.js` of its repository).
+
+## Corresponding Source
+
+The complete Corresponding Source for the DLL is public at <https://github.com/Iwillbewarlock/HeartOfMagic>, tag
+`spell-research-block-v@SPELL_RESEARCH_BLOCK_VERSION@` (the tag of this block's release). CommonLibSSE-NG is its git
+submodule `plugins/external/commonlibsse-ng` at tag `v10.0.0` (<https://github.com/alandtse/CommonLibVR>, branch `ng`);
+`git submodule update --init --recursive` fetches it. The third-party libraries below come from the vcpkg manifest
+`vcpkg.json`. Building: `BuildRelease.ps1` (see the repository's README and CLAUDE.md); the build puts these files in
+`dist/SpellResearchBlock_@SPELL_RESEARCH_BLOCK_VERSION@/`.
+
+## Libraries in the DLL
+
+Linked statically or compiled in from headers (vcpkg triplet `x64-windows-static`). Their license texts are in
+`licenses/`.
+
+| Library | Version | License | License text |
+|---|---|---|---|
+| CommonLibSSE-NG | 10.0.0 | GPL-3.0-or-later + Modding Exception + GPL-3.0 Linking Exception | `licenses/CommonLibSSE-NG/COPYING.txt`, `licenses/CommonLibSSE-NG/EXCEPTIONS.md` |
+| CommonLibSSE (the original code by Ryan-rsm-McKenzie that CommonLibSSE-NG grew from) | - | MIT (kept for attribution) | `licenses/CommonLibSSE-NG/LICENSE-MIT.txt` |
+| {fmt} | 12.1.0 | MIT | `licenses/fmt.txt` |
+| spdlog | 1.17.0 | MIT | `licenses/spdlog.txt` |
+| JSON for Modern C++ (nlohmann-json) | 3.12.0 | MIT | `licenses/nlohmann-json.txt` |
+| Xbyak | 7.28 | BSD-3-Clause | `licenses/xbyak.txt` |
+| DirectXMath | 2025-04-03 | MIT | `licenses/directxmath.txt` |
+| DirectX Tool Kit (DirectXTK) | 2025-10-27 | MIT | `licenses/directxtk.txt` |
+
+The Microsoft C/C++ runtime (CRT) is linked statically under the Visual Studio redistribution terms.

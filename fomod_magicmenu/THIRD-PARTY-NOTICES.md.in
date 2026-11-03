@@ -2,14 +2,15 @@
 
 ## Licenses
 
-- **The plugin DLLs are a GPL-3.0-or-later combined work.** `00 Core/SKSE/Plugins/MagicMenuRewrite.dll` and
-  `10 Heart of Magic Block/SKSE/Plugins/MagicMenuRewrite_HoM.dll` statically link **CommonLibSSE-NG 10.0.0**, which is
-  licensed GPL-3.0-or-later with the **Modding Exception** and the **GPL-3.0 Linking Exception**. The DLLs are
-  distributed under those terms: `licenses/CommonLibSSE-NG/COPYING.txt` (GNU GPL version 3) and
-  `licenses/CommonLibSSE-NG/EXCEPTIONS.md` (the two exceptions).
+- **The plugin DLL is a GPL-3.0-or-later combined work.** `00 Core/SKSE/Plugins/MagicMenuRewrite.dll` statically
+  links **CommonLibSSE-NG 10.0.0**, which is licensed GPL-3.0-or-later with the **Modding Exception** and the **GPL-3.0
+  Linking Exception**. The DLL is distributed under those terms: `licenses/CommonLibSSE-NG/COPYING.txt` (GNU GPL
+  version 3) and `licenses/CommonLibSSE-NG/EXCEPTIONS.md` (the two exceptions). The blocks for other mods ship with
+  those mods since 1.2.0: the Heart of Magic block (`MagicMenuRewrite_HoM.dll`) with Heart of Magic Librarian, the
+  Spell Research block (`MagicMenuRewrite_SpellResearch.dll`) with Spell Research - Prisma UI 2, each with its own
+  notices.
 - **The magic menu's own source files are MIT** (`LICENSE` next to this file): the C++ in the repository's
-  `plugins/SL_MagicMenu/` and `plugins/SL_MagicMenu_HoM/` (and `Common.h`, `PCH.h`, `WideFileSink.h` and `SpellLearningAPI.h` from `plugins/`) and the ini
-  files. MIT is compatible with the GPL; files you take from this project on their own stay MIT.
+  `plugins/SL_MagicMenu/` (and `Common.h`, `PCH.h` and `WideFileSink.h` from `plugins/`) and the ini files. MIT is compatible with the GPL; files you take from this project on their own stay MIT.
 
 ## Credits
 
@@ -20,14 +21,14 @@
 
 ## Corresponding Source
 
-The complete Corresponding Source for the DLLs is public at
+The complete Corresponding Source for the DLL is public at
 <https://github.com/Iwillbewarlock/HeartOfMagic>, tag `magic-menu-v@MAGIC_MENU_VERSION@` (the tag of this release).
 CommonLibSSE-NG is its git submodule `plugins/external/commonlibsse-ng` at tag `v10.0.0`
 (<https://github.com/alandtse/CommonLibVR>, branch `ng`); `git submodule update --init --recursive`
 fetches it. The third-party libraries below come from the vcpkg manifest `vcpkg.json`. Building:
 `BuildRelease.ps1` (see the repository's README and CLAUDE.md).
 
-## Libraries in the DLLs
+## Libraries in the DLL
 
 Linked statically or compiled in from headers (vcpkg triplet `x64-windows-static`). Their license
 texts are in `licenses/`.

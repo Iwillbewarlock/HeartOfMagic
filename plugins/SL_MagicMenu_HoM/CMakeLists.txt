@@ -6,6 +6,8 @@
 # add-on blocks of MagicMenuRewrite (Block API v3), reading Heart of Magic's API v2
 # and spell_tree.json. The magic menu itself has no Heart of Magic since HoM
 # add-on plan Task 5. Design: docs/superpowers/specs/2026-10-30-magic-menu-hom-addon-design.md
+# Since 2026-11-04 (docs/magicmenu/BLOCKS_MOVE.md) it ships with Heart of Magic Librarian,
+# not Magic Menu Rewrite: its DLL carries HoM's version (HOM_VERSION, the top-level CMakeLists.txt).
 # The host's shared headers (BlockApi.h, Draw.h, TextFit.h, LayoutMath.h,
 # SpellSchool.h, Settings.h for its Rect) and its GameThread.cpp come from
 # plugins/SL_MagicMenu/src. CommonLibSSE-NG, compiler flags, and vcpkg packages
@@ -14,7 +16,7 @@
 
 project(
     SL_MagicMenu_HoM
-    VERSION ${MAGIC_MENU_VERSION}
+    VERSION ${HOM_VERSION}
     DESCRIPTION "Heart of Magic - spell tree, progress and node card blocks for the magic menu"
     LANGUAGES CXX
 )
@@ -33,7 +35,7 @@ add_commonlibsse_plugin(${PROJECT_NAME}
     AUTHOR "HeartOfMagic"
     USE_ADDRESS_LIBRARY
     MINIMUM_SKSE_VERSION "2.0.12"
-    VERSION ${MAGIC_MENU_VERSION}
+    VERSION ${HOM_VERSION}
     SOURCES
         src/Main.cpp
         src/HomSettings.cpp
@@ -80,8 +82,9 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 
 # --------------------------------------------------------------------------
 # dist/MagicMenuRewrite_HoM/ - the install folder for a dev copy, made on every
-# build (as SL_MagicMenu_SpellResearch_dist); the release zip with the FOMOD is
-# plugins/cmake/Distribution.cmake's assemble_magicmenu_dist:
+# build (as SL_MagicMenu_SpellResearch_dist); in the release it is an option of Heart of
+# Magic Librarian's FOMOD (plugins/cmake/Distribution.cmake's assemble_dist,
+# optional/MagicMenuRewriteBlocks/, its .pdb in HoM's DebugSymbols zip):
 #   SKSE/Plugins/MagicMenuRewrite_HoM.dll (+ .pdb for crash logs)
 #   SKSE/Plugins/MagicMenuRewrite_HoM/lang/*.json (en, ko; sources in dist/lang)
 # No ini of its own: the block reads its keys (and [Display] sLanguage) from MagicMenuRewrite.ini.

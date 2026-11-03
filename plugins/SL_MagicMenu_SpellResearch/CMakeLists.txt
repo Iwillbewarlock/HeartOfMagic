@@ -1,6 +1,8 @@
 # ==========================================================================
 # SL_MagicMenu_SpellResearch -- the Spell Research archetypes block for the magic menu
-#   (shipped as MagicMenuRewrite_SpellResearch.dll; not in the 1.0.0 release)
+#   (shipped as MagicMenuRewrite_SpellResearch.dll in "Spell Research - Prisma UI 2", which takes
+#   dist/SpellResearchBlock_<version>/ from plugins/cmake/Distribution.cmake's
+#   assemble_srblock_dist; its DLL carries that release's version, SPELL_RESEARCH_BLOCK_VERSION)
 # ==========================================================================
 # The first add-on block of MagicMenuRewrite (Block API v2): the archetypes Spell
 # Research files for the card's spell, and links to Spell Research Prisma's
@@ -11,7 +13,7 @@
 
 project(
     SL_MagicMenu_SpellResearch
-    VERSION ${MAGIC_MENU_VERSION}
+    VERSION ${SPELL_RESEARCH_BLOCK_VERSION}
     DESCRIPTION "Heart of Magic - Spell Research block for the magic menu"
     LANGUAGES CXX
 )
@@ -30,7 +32,7 @@ add_commonlibsse_plugin(${PROJECT_NAME}
     AUTHOR "HeartOfMagic"
     USE_ADDRESS_LIBRARY
     MINIMUM_SKSE_VERSION "2.0.12"
-    VERSION ${MAGIC_MENU_VERSION}
+    VERSION ${SPELL_RESEARCH_BLOCK_VERSION}
     SOURCES
         src/Main.cpp
         src/Settings.cpp

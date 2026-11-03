@@ -118,6 +118,39 @@ Only installable when MysticismMagic.esp is active.
                 </group>
             </optionalFileGroups>
         </installStep>
+        <installStep name="Magic Menu Rewrite">
+            <optionalFileGroups order="Explicit">
+                <group name="Magic Menu Rewrite" type="SelectAny">
+                    <plugins order="Explicit">
+                        <plugin name="Heart of Magic block for Magic Menu Rewrite">
+                            <description>
+Adds Heart of Magic Librarian's windows to the magic menu of Magic Menu Rewrite: the spell tree, the learning progress card (with the spells you can learn next when a school has no learning target) and the node card.
+
+Needs Magic Menu Rewrite (1.2.0 or later recommended). Without it this block does nothing. Picked by default when Magic Menu Rewrite is installed.
+
+Magic Menu Rewrite 1.1.0 shipped this block itself, under the same file name (SKSE\Plugins\MagicMenuRewrite_HoM.dll): this copy may overwrite that one. Your block layout and its settings in MagicMenuRewrite.ini stay as they are.
+                            </description>
+                            <files>
+                                <folder source="optional\MagicMenuRewriteBlocks\SKSE" destination="SKSE" priority="0"/>
+                            </files>
+                            <typeDescriptor>
+                                <dependencyType>
+                                    <defaultType name="Optional"/>
+                                    <patterns>
+                                        <pattern>
+                                            <dependencies operator="And">
+                                                <fileDependency file="SKSE\Plugins\MagicMenuRewrite.dll" state="Active"/>
+                                            </dependencies>
+                                            <type name="Recommended"/>
+                                        </pattern>
+                                    </patterns>
+                                </dependencyType>
+                            </typeDescriptor>
+                        </plugin>
+                    </plugins>
+                </group>
+            </optionalFileGroups>
+        </installStep>
     </installSteps>
 
     <!-- ================================================================== -->

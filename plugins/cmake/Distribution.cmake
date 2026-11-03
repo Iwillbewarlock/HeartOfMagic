@@ -16,7 +16,7 @@ endif()
 add_custom_target(assemble_dist ALL
     COMMENT "Assembling release distribution...")
 
-add_dependencies(assemble_dist SpellLearning DontEatSpellTomes SL_BookXP)
+add_dependencies(assemble_dist SpellLearning DontEatSpellTomes SL_BookXP SL_MagicMenu_HoM)
 
 if(TARGET papyrus_build)
     add_dependencies(assemble_dist papyrus_build)
@@ -73,6 +73,34 @@ add_custom_command(TARGET assemble_dist POST_BUILD
     "$<$<BOOL:$<TARGET_PDB_FILE:DontEatSpellTomes>>:$<TARGET_PDB_FILE:DontEatSpellTomes>>"
     "${DIST_PDB_DIR}/SKSE/Plugins/"
     COMMAND "${CMAKE_COMMAND}" -E echo "Copying DLLs..."
+    VERBATIM
+)
+
+# ============================================================================
+# 2b. The Heart of Magic block for Magic Menu Rewrite (plugins/SL_MagicMenu_HoM:
+#     the spell tree window, the learning progress card and the node card), an
+#     option of the FOMOD since 1.9.0 (before, Magic Menu Rewrite 1.1.0 shipped it;
+#     docs/magicmenu/BLOCKS_MOVE.md). Under optional/ like the ISL patch, so a copy of
+#     the zip extracted by hand into Data does not get a block without Magic Menu
+#     Rewrite: optional/MagicMenuRewriteBlocks/SKSE/Plugins/MagicMenuRewrite_HoM.dll
+#     and MagicMenuRewrite_HoM/lang/*.json (the names Magic Menu Rewrite 1.1.0
+#     installed, so this copy replaces that one). No ini of its own: the block reads
+#     its keys from MagicMenuRewrite.ini. Its .pdb goes to the DebugSymbols archive.
+# ============================================================================
+
+set(_hom_block_dist "${DIST_VERSION_DIR}/optional/MagicMenuRewriteBlocks/SKSE/Plugins")
+add_custom_command(TARGET assemble_dist POST_BUILD
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${_hom_block_dist}/MagicMenuRewrite_HoM/lang"
+    COMMAND "${CMAKE_COMMAND}" -E copy
+    "$<TARGET_FILE:SL_MagicMenu_HoM>"
+    "${_hom_block_dist}/"
+    COMMAND "${CMAKE_COMMAND}" -E copy_directory
+    "${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu_HoM/dist/lang"
+    "${_hom_block_dist}/MagicMenuRewrite_HoM/lang"
+    COMMAND "${CMAKE_COMMAND}" -E $<IF:$<BOOL:$<TARGET_PDB_FILE:SL_MagicMenu_HoM>>,copy,true>
+    "$<$<BOOL:$<TARGET_PDB_FILE:SL_MagicMenu_HoM>>:$<TARGET_PDB_FILE:SL_MagicMenu_HoM>>"
+    "${DIST_PDB_DIR}/SKSE/Plugins/"
+    COMMAND "${CMAKE_COMMAND}" -E echo "Copying the Magic Menu Rewrite block..."
     VERBATIM
 )
 
@@ -377,15 +405,13 @@ message(STATUS "  Designs:  ${_design_zip_list}")
 #      00 Core/SKSE/Plugins/MagicMenuRewrite/lang/en.json, ko.json
 #      00 Core/SKSE/Plugins/InventoryReforged/MagicMenuRewrite.ini (Inventory Reforged
 #        loads every ini in that folder; it turns IR's magic-menu panel off)
-#      10 Heart of Magic Block/SKSE/Plugins/MagicMenuRewrite_HoM.dll
-#      10 Heart of Magic Block/SKSE/Plugins/MagicMenuRewrite_HoM/lang/en.json, ko.json
-#      LICENSE, THIRD-PARTY-NOTICES.md, licenses/ (as 3b, with the ports these
-#      two DLLs link)
-#    and the two DLLs' .pdb in MagicMenuRewrite_<version>_DebugSymbols.zip. The Spell
-#    Research block is not in this release (a later FOMOD option). Nothing above
-#    changes: HoM's assemble_dist stays as it was. The targets keep the repo's
-#    working names (SL_MagicMenu, SL_MagicMenu_HoM); $<TARGET_FILE> gives the
-#    shipped MagicMenuRewrite*.dll (their OUTPUT_NAME).
+#      LICENSE, THIRD-PARTY-NOTICES.md, licenses/ (as 3b, with the ports this DLL links)
+#    and the DLL's .pdb in MagicMenuRewrite_<version>_DebugSymbols.zip. Since 1.2.0 the
+#    core and the Block API only: the blocks ship with their mods (docs/magicmenu/
+#    BLOCKS_MOVE.md) - the Heart of Magic block in HoM's release (2b above), the Spell
+#    Research block in "Spell Research - Prisma UI 2" (section 10). The target keeps
+#    the repo's working name (SL_MagicMenu); $<TARGET_FILE> gives the shipped
+#    MagicMenuRewrite.dll (its OUTPUT_NAME).
 # ============================================================================
 
 if(NOT DEFINED MAGIC_MENU_DIST_VERSION_DIR)
@@ -396,9 +422,7 @@ endif()
 set(_mm_dist "${MAGIC_MENU_DIST_VERSION_DIR}")
 set(_mm_pdb_dir "${MAGIC_MENU_DIST_VERSION_DIR}_DebugSymbols")
 set(_mm_core "${_mm_dist}/00 Core")
-set(_mm_hom "${_mm_dist}/10 Heart of Magic Block")
 set(_mm_core_src "${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu/dist")
-set(_mm_hom_src "${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu_HoM/dist")
 set(_mm_fomod_src "${CMAKE_SOURCE_DIR}/fomod_magicmenu")
 set(_mm_licenses_dist "${_mm_dist}/licenses")
 # CommonLibSSE-NG's ports these DLLs carry (fmt and spdlog for the log, DirectXTK and
@@ -410,7 +434,7 @@ set(_mm_vcpkg_license_ports fmt spdlog nlohmann-json xbyak directxmath directxtk
 add_custom_target(assemble_magicmenu_dist ALL
     COMMENT "Assembling the magic menu's release distribution...")
 
-add_dependencies(assemble_magicmenu_dist SL_MagicMenu SL_MagicMenu_HoM)
+add_dependencies(assemble_magicmenu_dist SL_MagicMenu)
 
 configure_file(
     "${_mm_fomod_src}/THIRD-PARTY-NOTICES.md.in"
@@ -429,13 +453,12 @@ foreach(_port IN LISTS _mm_vcpkg_license_ports)
         "${_mm_licenses_dist}/${_port}.txt")
 endforeach()
 
-# Clean, then the FOMOD, the core folder and the HoM block's folder; the .pdb apart
+# Clean, then the FOMOD and the core folder; the .pdb apart
 add_custom_command(TARGET assemble_magicmenu_dist POST_BUILD
     COMMAND "${CMAKE_COMMAND}" -E rm -rf "${_mm_dist}" "${_mm_pdb_dir}"
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${_mm_dist}/fomod"
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${_mm_core}/SKSE/Plugins/MagicMenuRewrite/lang"
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${_mm_core}/SKSE/Plugins/InventoryReforged"
-    COMMAND "${CMAKE_COMMAND}" -E make_directory "${_mm_hom}/SKSE/Plugins/MagicMenuRewrite_HoM/lang"
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${_mm_pdb_dir}/SKSE/Plugins"
     COMMAND "${CMAKE_COMMAND}" -E copy
     "${_mm_fomod_src}/fomod/ModuleConfig.xml"
@@ -451,19 +474,10 @@ add_custom_command(TARGET assemble_magicmenu_dist POST_BUILD
     COMMAND "${CMAKE_COMMAND}" -E copy_directory
     "${_mm_core_src}/lang"
     "${_mm_core}/SKSE/Plugins/MagicMenuRewrite/lang"
-    COMMAND "${CMAKE_COMMAND}" -E copy
-    "$<TARGET_FILE:SL_MagicMenu_HoM>"
-    "${_mm_hom}/SKSE/Plugins/"
-    COMMAND "${CMAKE_COMMAND}" -E copy_directory
-    "${_mm_hom_src}/lang"
-    "${_mm_hom}/SKSE/Plugins/MagicMenuRewrite_HoM/lang"
     COMMAND "${CMAKE_COMMAND}" -E $<IF:$<BOOL:$<TARGET_PDB_FILE:SL_MagicMenu>>,copy,true>
     "$<$<BOOL:$<TARGET_PDB_FILE:SL_MagicMenu>>:$<TARGET_PDB_FILE:SL_MagicMenu>>"
     "${_mm_pdb_dir}/SKSE/Plugins/"
-    COMMAND "${CMAKE_COMMAND}" -E $<IF:$<BOOL:$<TARGET_PDB_FILE:SL_MagicMenu_HoM>>,copy,true>
-    "$<$<BOOL:$<TARGET_PDB_FILE:SL_MagicMenu_HoM>>:$<TARGET_PDB_FILE:SL_MagicMenu_HoM>>"
-    "${_mm_pdb_dir}/SKSE/Plugins/"
-    COMMAND "${CMAKE_COMMAND}" -E echo "Copying the magic menu's FOMOD, DLLs, ini and language files..."
+    COMMAND "${CMAKE_COMMAND}" -E echo "Copying the magic menu's FOMOD, DLL, ini and language files..."
     VERBATIM
 )
 
@@ -505,3 +519,88 @@ add_custom_command(TARGET assemble_magicmenu_dist POST_BUILD
 message(STATUS "Magic menu release assembly configured:")
 message(STATUS "  Output:   ${_mm_dist}")
 message(STATUS "  Archive:  ${DIST_DIR}/${_mm_dist_folder_name}.zip (+ ${_mm_pdb_folder_name}.zip)")
+
+# ============================================================================
+# 10. The Spell Research block's package (plugins/SL_MagicMenu_SpellResearch,
+#     MagicMenuRewrite_SpellResearch.dll) for "Spell Research - Prisma UI 2" to ship
+#     (SPELL_RESEARCH_BLOCK_VERSION, the top-level CMakeLists.txt): no FOMOD of its own,
+#     that release puts these files in its archive. assemble_srblock_dist makes
+#     dist/SpellResearchBlock_<version>/ and its zip:
+#       SKSE/Plugins/MagicMenuRewrite_SpellResearch.dll, MagicMenuRewrite_SpellResearch.ini
+#       SKSE/Plugins/MagicMenuRewrite_SpellResearch/lang/en.json, ko.json
+#       MagicMenuRewrite_SpellResearch-THIRD-PARTY-NOTICES.md, MagicMenuRewrite_SpellResearch-LICENSE.txt,
+#       licenses/ (as 3b, the ports this DLL links) - for the archive's root, not Data
+#       DebugSymbols/SKSE/Plugins/MagicMenuRewrite_SpellResearch.pdb (for that release's
+#       debug symbols archive)
+#     The file, plugin, log, ini and lang names are the ones the magic menu's earlier
+#     builds used, so a saved layout and a player's ini keep working.
+# ============================================================================
+
+if(NOT DEFINED SPELL_RESEARCH_BLOCK_DIST_DIR)
+    message(STATUS "SPELL_RESEARCH_BLOCK_DIST_DIR not defined - Spell Research block package disabled")
+    return()
+endif()
+
+set(_sr_dist "${SPELL_RESEARCH_BLOCK_DIST_DIR}")
+set(_sr_name "MagicMenuRewrite_SpellResearch")
+set(_sr_src "${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu_SpellResearch")
+set(_sr_plugins "${_sr_dist}/SKSE/Plugins")
+set(_sr_licenses_dist "${_sr_dist}/licenses")
+
+add_custom_target(assemble_srblock_dist ALL
+    COMMENT "Assembling the Spell Research block's package...")
+
+add_dependencies(assemble_srblock_dist SL_MagicMenu_SpellResearch)
+
+configure_file(
+    "${_sr_src}/package/THIRD-PARTY-NOTICES.md.in"
+    "${CMAKE_BINARY_DIR}/srblock/${_sr_name}-THIRD-PARTY-NOTICES.md"
+    @ONLY
+)
+
+# the same ports as the magic menu's DLL (CommonLibSSE-NG's and nlohmann-json), checked in section 9
+set(_sr_vcpkg_license_commands)
+foreach(_port IN LISTS _mm_vcpkg_license_ports)
+    list(APPEND _sr_vcpkg_license_commands
+        COMMAND "${CMAKE_COMMAND}" -E copy
+        "${_vcpkg_share}/${_port}/copyright"
+        "${_sr_licenses_dist}/${_port}.txt")
+endforeach()
+
+add_custom_command(TARGET assemble_srblock_dist POST_BUILD
+    COMMAND "${CMAKE_COMMAND}" -E rm -rf "${_sr_dist}"
+    COMMAND "${CMAKE_COMMAND}" -E rm -f "${_sr_dist}.zip"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${_sr_plugins}/${_sr_name}/lang"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${_sr_dist}/DebugSymbols/SKSE/Plugins"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${_sr_licenses_dist}/CommonLibSSE-NG"
+    COMMAND "${CMAKE_COMMAND}" -E copy
+    "$<TARGET_FILE:SL_MagicMenu_SpellResearch>"
+    "${_sr_src}/dist/${_sr_name}.ini"
+    "${_sr_plugins}/"
+    COMMAND "${CMAKE_COMMAND}" -E copy_directory
+    "${_sr_src}/dist/lang"
+    "${_sr_plugins}/${_sr_name}/lang"
+    COMMAND "${CMAKE_COMMAND}" -E $<IF:$<BOOL:$<TARGET_PDB_FILE:SL_MagicMenu_SpellResearch>>,copy,true>
+    "$<$<BOOL:$<TARGET_PDB_FILE:SL_MagicMenu_SpellResearch>>:$<TARGET_PDB_FILE:SL_MagicMenu_SpellResearch>>"
+    "${_sr_dist}/DebugSymbols/SKSE/Plugins/"
+    COMMAND "${CMAKE_COMMAND}" -E copy
+    "${CMAKE_BINARY_DIR}/srblock/${_sr_name}-THIRD-PARTY-NOTICES.md"
+    "${_sr_dist}/"
+    COMMAND "${CMAKE_COMMAND}" -E copy
+    "${CMAKE_SOURCE_DIR}/LICENSE"
+    "${_sr_dist}/${_sr_name}-LICENSE.txt"
+    COMMAND "${CMAKE_COMMAND}" -E copy
+    "${_commonlib_dir}/COPYING.txt"
+    "${_commonlib_dir}/EXCEPTIONS.md"
+    "${_commonlib_dir}/licenses/LICENSE-MIT.txt"
+    "${_sr_licenses_dist}/CommonLibSSE-NG/"
+    ${_sr_vcpkg_license_commands}
+    COMMAND "${CMAKE_COMMAND}" -E chdir "${_sr_dist}"
+        "${CMAKE_COMMAND}" -E tar cf "${_sr_dist}.zip" --format=zip --
+        SKSE DebugSymbols licenses ${_sr_name}-THIRD-PARTY-NOTICES.md ${_sr_name}-LICENSE.txt
+    COMMAND "${CMAKE_COMMAND}" -E echo "Creating SpellResearchBlock_${SPELL_RESEARCH_BLOCK_VERSION}.zip..."
+    VERBATIM
+)
+
+message(STATUS "Spell Research block package configured:")
+message(STATUS "  Output:   ${_sr_dist} (+ .zip)")

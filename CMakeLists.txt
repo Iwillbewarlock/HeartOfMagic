@@ -61,11 +61,21 @@ set(DIST_DIR "${CMAKE_SOURCE_DIR}/dist")
 # The release's folder and zip: HeartOfMagic-Librarian_<version> (the DLLs keep their names)
 set(DIST_NAME "HeartOfMagic-Librarian")
 set(DIST_VERSION_DIR "${DIST_DIR}/${DIST_NAME}_${PROJECT_VERSION}")
-# The magic menu (plugins/SL_MagicMenu and its add-on blocks, shipped as Magic Menu Rewrite:
-# MagicMenuRewrite*.dll) ships apart, with its own version: the three plugins' DLL version,
-# fomod_magicmenu's info.xml and dist/MagicMenuRewrite_<version>
-set(MAGIC_MENU_VERSION "1.1.0")
+# The magic menu (plugins/SL_MagicMenu, shipped as Magic Menu Rewrite: MagicMenuRewrite.dll) ships
+# apart, with its own version: its DLL version, fomod_magicmenu's info.xml and
+# dist/MagicMenuRewrite_<version>. Since 1.2.0 (2026-11-04) it ships the core and the Block API
+# only; each block ships with its mod (plugins/cmake/Distribution.cmake):
+#   - the Heart of Magic block (plugins/SL_MagicMenu_HoM, MagicMenuRewrite_HoM.dll) in Heart of
+#     Magic Librarian's release, an option of its FOMOD, with HoM's version (PROJECT_VERSION)
+#   - the Spell Research block (plugins/SL_MagicMenu_SpellResearch, MagicMenuRewrite_SpellResearch.dll)
+#     in "Spell Research - Prisma UI 2", which takes dist/SpellResearchBlock_<version>/ from here;
+#     its DLL carries that release's version, SPELL_RESEARCH_BLOCK_VERSION (2.0.0 assumed until
+#     that release is numbered)
+set(MAGIC_MENU_VERSION "1.2.0")
 set(MAGIC_MENU_DIST_VERSION_DIR "${DIST_DIR}/MagicMenuRewrite_${MAGIC_MENU_VERSION}")
+set(HOM_VERSION "${PROJECT_VERSION}")
+set(SPELL_RESEARCH_BLOCK_VERSION "2.0.0")
+set(SPELL_RESEARCH_BLOCK_DIST_DIR "${DIST_DIR}/SpellResearchBlock_${SPELL_RESEARCH_BLOCK_VERSION}")
 
 add_subdirectory(plugins/spelllearning)
 add_subdirectory(plugins/DummyDEST)
