@@ -1287,7 +1287,9 @@ bar - the share of the way from the rank reached to the next, full at the last r
 `panel-card.css`, which no design add-on overrides for the state bar either, so every design (Skald and the five
 add-ons) draws it in its own colours. No row for a spell being learned, while the ranks are off (Settings >
 Learning > Mastery Ranks) or when the DLL sent no mastery data (an older version). A mastered spell with no
-mastery XP yet reads "Mastery rank 0/3" over an empty bar. Drawn by `SpellCardNeeds.render` on every card
+mastery XP yet reads "Mastery rank 0/3" over an empty bar. A rank C++ cleared (relock, the spell no longer
+mastered) goes from the card too: an update of this DLL with no mastery part drops it, as does a relock
+(`ProgressUpdates.takeMastery`, `onSpellRelocked`); an older DLL's update (no `masteryOnly`) leaves it. Drawn by `SpellCardNeeds.render` on every card
 redraw; the text keyed (`details.masteryRank`), so a language switch writes it again. Tests:
 `spellCardMasteryTest.js`.
 

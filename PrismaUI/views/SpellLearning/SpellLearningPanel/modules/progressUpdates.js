@@ -97,6 +97,10 @@ var ProgressUpdates = {
         if (data.mastery && typeof data.mastery === 'object') {
             if (!state.spellMastery) state.spellMastery = {};
             state.spellMastery[canonId] = data.mastery;
+        } else if (data.hasOwnProperty('masteryOnly') && state.spellMastery) {
+            // This DLL's update with no mastery part: the spell has none any more (cleared, relocked).
+            // An older DLL's update (no masteryOnly) says nothing about it
+            delete state.spellMastery[canonId];
         }
         if (data.masteryOnly !== true) return false;
         var sel = state.selectedNode;
@@ -220,6 +224,11 @@ window.onSpellRelocked = function(dataStr) {
             }
         }
         ProgressUpdates.forgetWeakened(canonId, data.formId);
+        // Relocked: no mastery rank either (C++ cleared it)
+        if (state.spellMastery) {
+            delete state.spellMastery[canonId];
+            delete state.spellMastery[data.formId];
+        }
         ProgressUpdates.nodesFor(canonId).forEach(function(n) {
             if (n.state === 'unlocked') n.state = 'available';
             if (typeof syncDuplicateState === 'function') syncDuplicateState(n);

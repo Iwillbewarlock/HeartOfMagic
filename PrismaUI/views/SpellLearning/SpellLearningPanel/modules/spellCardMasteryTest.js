@@ -114,6 +114,23 @@ var SpellCardMasteryTest = {
             'Updates: a spell with learning progress keeps its mastery part and goes on to the progress part');
         var older = U.takeMastery('0x00012FD0', { formId: '0x00012FD0', currentXP: 5, requiredXP: 100 });
         this.check(older === false && !box.state.spellMastery['0x00012FD0'], 'Updates: an update without mastery fields (an older DLL) is as before');
+
+        // B3: a rank C++ cleared goes from the panel too
+        box.state.spellMastery['0x00012FCD'] = { xp: 120, rank: 1, ranks: 3, floor: 100, next: 200 };
+        U.takeMastery('0x00012FCD', { formId: '0x00012FCD', currentXP: 5, requiredXP: 100 });
+        this.check(box.state.spellMastery['0x00012FCD'] && box.state.spellMastery['0x00012FCD'].rank === 1,
+            'Updates: an update from an older DLL (no masteryOnly) leaves the rank held');
+        U.takeMastery('0x00012FCD', { formId: '0x00012FCD', currentXP: 40, requiredXP: 100, masteryOnly: false });
+        this.check(!box.state.spellMastery.hasOwnProperty('0x00012FCD'), 'Updates: an update from this DLL with no mastery part drops the rank');
+        box.state.spellMastery['0xFE000801'] = { xp: 40, rank: 0, ranks: 3, floor: 0, next: 100 };
+        drawn.length = 0;
+        var cleared = U.takeMastery('0xFE000801', { formId: '0xFE000801', currentXP: 0, requiredXP: 0, masteryOnly: true });
+        this.check(cleared === true && !box.state.spellMastery.hasOwnProperty('0xFE000801') && drawn.length === 1,
+            'Updates: a mastery-only clear (ClearMastery) drops the rank and redraws the open card');
+        box.state.spellMastery['0x00012FCD'] = { xp: 120, rank: 1, ranks: 3, floor: 100, next: 200 };
+        box.state.learningTargets = {};
+        box.window.onSpellRelocked(JSON.stringify({ success: true, formId: '0x00012FCD' }));
+        this.check(!box.state.spellMastery.hasOwnProperty('0x00012FCD'), 'Updates: a relocked spell loses its rank on the panel');
     },
 
     _setting: function() {
