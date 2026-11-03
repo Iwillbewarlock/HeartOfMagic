@@ -280,13 +280,15 @@ target_link_libraries(magic-menu-layout-check PRIVATE
 # tab bit of a SkyUI category and a block's visibility per tab, the press / release
 # cancel rules, the 'SLMH' / 'SLMS' / 'SLMV' messages and their queues, the key queue, the
 # 'SLMK' key hints (reading, the per-block list, the strip's buttons, the panel's growth),
-# the v3 content box, visible part and overlay clears. One PASS/FAIL line per check and
-# a total; --selftest the same; exit 1 when any check fails.
+# the v3 content box, visible part and overlay clears, the opening height ('SLMH' asked
+# again after the first draw: the next menu opens at it) and Context::columnRoom. One
+# PASS/FAIL line per check and a total; --selftest the same; exit 1 when any check fails.
 
 add_executable(magic-menu-block-api-check
     magic-menu-block-api-check.cpp
     magic-menu-block-api-check-v3.cpp
     magic-menu-block-api-check-hints.cpp
+    magic-menu-block-api-check-heights.cpp
     ${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu/src/BlockRegistry.cpp
 )
 
@@ -333,12 +335,15 @@ target_link_libraries(magic-menu-sr-block-check PRIVATE
 # MagicMenuRewrite.ini (the shipped dist ini and made-up ones), the registered heights,
 # the pick rules (bug G1), the strings' fill and key labels, the cards' height
 # requests, and the tree window / progress card / node card arithmetic moved here
-# from magic-menu-preview-check (HoM add-on plan Task 6). The core's src is on the
+# from magic-menu-preview-check (HoM add-on plan Task 6); the progress card's
+# next-spell rows (ChoiceRules.h, 2026-11-03: order, rows that fit, rooms at four
+# screen shapes, [Progress] iMaxChoices). The core's src is on the
 # include path for Settings.h, LayoutMath.h, BlockRules.h and BlockApi.h. One
 # PASS/FAIL line per check and a total; --selftest the same; exit 1 when any fails.
 
 add_executable(magic-menu-hom-block-check
     magic-menu-hom-block-check.cpp
+    magic-menu-hom-block-check-choices.cpp
 )
 
 target_compile_features(magic-menu-hom-block-check PRIVATE cxx_std_23)

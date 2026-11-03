@@ -115,4 +115,7 @@ namespace BlockApiCheck
     void V3Messages();
     void V3Host();
     void V3KeyHints();
+
+    // magic-menu-block-api-check-heights.cpp
+    void V3OpeningHeights();
 }

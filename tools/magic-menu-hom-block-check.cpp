@@ -8,12 +8,15 @@
 // (Selection.h PickAfterFrame: U after the list change; one set-target request for G + the button; a stale key pick) and
 // TreeRules.h (TooltipValid, the tree's look and its legend - B1, L2 mask clicks counted and not acted on). Final review I1:
 // the selection state a new card form settles in its first draw (Selection.h SettleDue, PickForShown, CentreNodeFor, SchoolFor).
+// 2026-11-03 (magic-menu-hom-block-check-choices.cpp): the progress card's next-spell rows (ChoiceRules.h), [Progress] iMaxChoices.
 // Not covered here (the in-game self-test only, bSelfTest=1): GetPrivateProfileString itself, HoM's API, anything drawn.
 //
 //   magic-menu-hom-block-check              one PASS/FAIL line per check, a total line
 //   magic-menu-hom-block-check --selftest   the same checks, then a "selftest: all PASS / N FAIL" summary line
 //
 // No game types. Exit 0 when every check passes, 1 when one fails, 2 on a bad argument.
+
+#include "magic-menu-hom-block-check.h"
 
 #include "BlockRules.h"
 #include "HomLayoutMath.h"
@@ -47,26 +50,11 @@ namespace
     constexpr int kExitFail = 1;
     constexpr int kExitUsage = 2;
 
-    int g_pass = 0;
-    int g_fail = 0;
-
-    void Expect(bool a_ok, const std::string& a_what)
-    {
-        std::printf("  %s  %s\n", a_ok ? "PASS" : "FAIL", a_what.c_str());
-        (a_ok ? g_pass : g_fail) += 1;
-    }
-
-    bool Near(double a_lhs, double a_rhs, double a_tolerance)
-    {
-        return std::abs(a_lhs - a_rhs) <= a_tolerance;
-    }
-
-    std::string Text(const char* a_format, auto... a_values)
-    {
-        char buffer[512];
-        std::snprintf(buffer, sizeof(buffer), a_format, a_values...);
-        return buffer;
-    }
+    using HomBlockCheck::Expect;
+    using HomBlockCheck::g_fail;
+    using HomBlockCheck::g_pass;
+    using HomBlockCheck::Near;
+    using HomBlockCheck::Text;
 
     // ---- an ini as GetPrivateProfileString reads it (the plugin's reader; written apart from HomSettings.h on purpose) ----
 
@@ -135,7 +123,7 @@ namespace
         const HomSettings::Values d;
         return a_v.keyNext == d.keyNext && a_v.keySetTarget == d.keySetTarget && SameRect(a_v.tree, d.tree) && SameRect(a_v.progress, d.progress) &&
                SameRect(a_v.nodeCard, d.nodeCard) && a_v.treeScale == d.treeScale && a_v.treeMarkScale == d.treeMarkScale && a_v.maxSteps == d.maxSteps &&
-               a_v.maxNodes == d.maxNodes && a_v.debugExtraHeight == d.debugExtraHeight && a_v.selfTest == d.selfTest;
+               a_v.maxNodes == d.maxNodes && a_v.maxChoices == d.maxChoices && a_v.debugExtraHeight == d.debugExtraHeight && a_v.selfTest == d.selfTest;
     }
 
     // ---- the cases ----
@@ -739,6 +727,7 @@ int main(int a_argc, char** a_argv)
     TreeLayout();
     ProgressLayout();
     FitMath();
+    HomBlockCheck::Choices();
     std::printf("hom-block-check: %d PASS, %d FAIL\n", g_pass, g_fail);
     if (selftest) std::printf(g_fail == 0 ? "selftest: all PASS\n" : "selftest: %d FAIL\n", g_fail);
     return g_fail == 0 ? kExitOk : kExitFail;

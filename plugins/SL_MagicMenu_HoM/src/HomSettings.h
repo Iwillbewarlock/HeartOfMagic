@@ -52,6 +52,10 @@ namespace HomSettings
         int maxSteps = 1;   // iMaxSteps (1..6): link steps that count as linked to the centre: drawn in full and clickable even when locked
         int maxNodes = 60;  // iMaxNodes (1..200)
 
+        // [Progress] iMaxChoices (1..8, 2026-11-03): the most spell rows the progress card lists when the school has no learning
+        // target (more candidates add one "N more" line); the progress block's registered height grows to fit them
+        int maxChoices = 4;
+
         // [Debug] fDebugExtraHeight (0..2000): stage units added to the node card block's height so its column overflows and the
         // column scroll can be tried in game (0 = no effect)
         double debugExtraHeight = 0.0;
@@ -66,6 +70,7 @@ namespace HomSettings
     inline constexpr double kMinTreeScale = 0.01, kMaxTreeScale = 10.0;
     inline constexpr double kMinMarkScale = 0.5, kMaxMarkScale = 3.0;
     inline constexpr int kMaxSteps = 6, kMaxNodes = 200;
+    inline constexpr int kMinChoices = 1, kMaxChoices = 8;  // ChoiceRules::kMinMaxChoices / kMaxMaxChoices
     inline constexpr double kMaxDebugExtraHeight = 2000.0;  // a few screens of overflow at most
     inline constexpr double kStageMin = -4000.0, kStageMax = 4000.0;
 
@@ -168,6 +173,7 @@ namespace HomSettings
         detail::Number(a_raw, read, "Layout", "fTreeMarkScale", v.treeMarkScale, kMinMarkScale, kMaxMarkScale);
         detail::Number(a_raw, read, "Layout", "iMaxSteps", v.maxSteps, 1, kMaxSteps);
         detail::Number(a_raw, read, "Layout", "iMaxNodes", v.maxNodes, 1, kMaxNodes);
+        detail::Number(a_raw, read, "Progress", "iMaxChoices", v.maxChoices, kMinChoices, kMaxChoices);
         detail::Number(a_raw, read, "Debug", "fDebugExtraHeight", v.debugExtraHeight, 0.0, kMaxDebugExtraHeight);
         return read;
     }

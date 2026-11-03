@@ -65,6 +65,7 @@ namespace HomSettings
         LogRect("node card", v.nodeCard);
         logger::info("HomSettings:   tree scale {} (default {}), mark scale {} (default {}), max steps {}, max nodes {} (default {})", v.treeScale,
             Values{}.treeScale, v.treeMarkScale, Values{}.treeMarkScale, v.maxSteps, v.maxNodes, Values{}.maxNodes);
+        logger::info("HomSettings:   [Progress] iMaxChoices {} (default {})", v.maxChoices, Values{}.maxChoices);
         if (v.debugExtraHeight > 0) {
             logger::info("HomSettings:   [Debug] fDebugExtraHeight {} - the node card block is that much taller (a scroll test; 0 = off)", v.debugExtraHeight);
         }

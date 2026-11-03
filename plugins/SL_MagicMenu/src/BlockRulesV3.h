@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <cmath>
 #include <cstring>
+#include <map>
 #include <optional>
 #include <set>
 #include <string>
@@ -24,7 +25,8 @@
 // 'SLMV' messages, whether a queued 'SLMS' is still due, the key queue, the
 // content clip's pad, the block's visible part and its overlay's clears; the
 // 'SLMK' key hints (2026-10-31): reading, the per-block list, the strip's hint
-// buttons of a frame and the panel's growth (KeyHints.cpp). In namespace
+// buttons of a frame and the panel's growth (KeyHints.cpp); the opening height
+// and the column's room (2026-11-03, Context::columnRoom). In namespace
 // BlockRules beside BlockRules.h (which is at the repo's 600-line limit). No
 // game types: tools/magic-menu-block-api-check runs these on made-up cases.
 // =============================================================================
@@ -478,5 +480,69 @@ namespace BlockRules
         if (!a_last) return true;
         if (a_now.y > a_last->y + kRowTolerance) return true;
         return a_now.y >= a_last->y - kRowTolerance && a_now.x > a_last->x;
+    }
+    // ---------------------------------------------------------------------
+    // 2026-11-03 (progress-next-pick plan): a block that asks for its height ('SLMH') right after its first draw of a menu opens
+    // the next menu at the height it last asked for this game session (no jump of the blocks under it at each open); the layout
+    // mode keeps showing the registered height (LaidOutHeight). The saved layout file is not touched
+    // ---------------------------------------------------------------------
+
+    /// A block's last asked height this game session, and whether it asked again after its first draw in the last menu it was
+    /// drawn in (only then is the next menu opened at it)
+    struct SessionHeight
+    {
+        double height{};
+        bool reasks{};
+    };
+
+    /// The height a block opens a menu at (put into the menu's fit heights before anything is laid out), or nullopt for its
+    /// registered one: nothing remembered, a block that did not ask again after its first draw, or a height that is not a finite
+    /// number in 0 < height <= a_registered (never above the registered maximum)
+    inline std::optional<double> OpeningHeight(const std::optional<SessionHeight>& a_remembered, double a_registered)
+    {
+        if (!a_remembered || !a_remembered->reasks) return std::nullopt;
+        const double height = a_remembered->height;
+        if (!std::isfinite(height) || height <= 0.0 || height > a_registered + kHeightTolerance) return std::nullopt;
+        return height;
+    }
+
+    /// A height that applied this menu becomes the block's remembered one (its reasks flag kept); one above a_registered or not a
+    /// finite number > 0 is not remembered (false)
+    inline bool RememberHeight(std::map<std::string, SessionHeight>& a_session, const std::string& a_id, double a_height, double a_registered)
+    {
+        if (!std::isfinite(a_height) || a_height <= 0.0 || a_height > a_registered + kHeightTolerance) return false;
+        a_session[a_id].height = a_height;
+        return true;
+    }
+
+    /// The check after a block's first draw of a menu: the frame it was drawn in, and whether a height request for it came since
+    struct OpenCheck
+    {
+        std::uint64_t drawnFrame{};
+        bool asked{};
+    };
+
+    enum class OpenVerdict
+    {
+        kWait,    // still the frame of the first draw: its request may come at this frame's second height pass
+        kKeep,    // decided: the block keeps its height (it asked again, or it opened at its registered height)
+        kRevert,  // decided: it opened at a remembered height and did not ask again - back to its registered height
+    };
+
+    /// a_check judged at a_nowFrame (the host's frame count) for a block that opened at a remembered height (a_seeded) or not.
+    /// Decided from the frame after the first draw on; the block's reasks flag becomes a_check.asked
+    inline OpenVerdict JudgeOpen(const OpenCheck& a_check, std::uint64_t a_nowFrame, bool a_seeded)
+    {
+        if (a_nowFrame <= a_check.drawnFrame) return OpenVerdict::kWait;
+        if (a_check.asked) return OpenVerdict::kKeep;
+        return a_seeded ? OpenVerdict::kRevert : OpenVerdict::kKeep;
+    }
+
+    /// Context::columnRoom: from the content clip's top (on screen, a_contentTop - its column scrolled by a_scroll) down to the
+    /// column's visible bottom - its area's bottom (a_areaBottom) cut to the movie's visible frame (a_visibleBottom) - as if the
+    /// column were not scrolled. The same at every scroll; 0 or less when the clip starts below the visible bottom
+    inline double ColumnRoom(double a_contentTop, double a_scroll, double a_areaBottom, double a_visibleBottom)
+    {
+        return std::min(a_areaBottom, a_visibleBottom) - (a_contentTop + a_scroll);
     }
 }
