@@ -1133,8 +1133,10 @@ costs, so a lower skill later (Legendary) never takes a rank away.
   switch writes only `mastery.enabled` (the C++ save merges objects key by key, the rest stays).
 - **Panel.** `GetProgressJSON` adds `mastery` (`enabled`, `ranks`) and `spellMastery` (every spell with mastery XP,
   progress entry or not: `xp`, `rank`, `ranks`, `floor`, `next`), apart from `spellProgress` (whose entries the panel
-  reads as learning progress, `isSpellMastered`); `UIManager::NotifyProgressUpdate` adds `mastery` and `masteryOnly`
-  (no learning progress entry: the panel takes the mastery part only). The card: docs/DESIGN.md, "Mastery rank row".
+  reads as learning progress, `isSpellMastered`); `UIManager::NotifyProgressUpdate` adds `mastery` (absent when the
+  spell has none: the panel drops what it held) and `masteryOnly`, true only for the updates `OnMasteredCast` and
+  `ClearMastery` post (`ProgressionNotify::Progress(..., masteryOnly)`): the mastery XP alone changed, the panel
+  leaves the learning progress as it is (review 2026-11-04: it was "no progress entry"). The card: docs/DESIGN.md, "Mastery rank row".
 - **Read API.** C++ `ISpellLearningAPI::GetMasteryRank` / `GetMasteryXP` (API version 3), Papyrus
   `SpellLearning.GetMasteryRank` / `GetMasteryXP` (docs/PLAN-PUBLIC-MODDER-API.md): 0 for a spell not mastered now
   (`IsMasteredForRanks`, `MasteryMath::ReportedXP`); the panel reads the stored XP (`GetStoredMasteryXP`) and shows it

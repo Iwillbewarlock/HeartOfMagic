@@ -29,7 +29,7 @@ namespace ProgressionNotify
 {
     enum class Kind
     {
-        kProgress,          // formId, currentXP, requiredXP
+        kProgress,          // formId, currentXP, requiredXP, flag = mastery only (the learning part unchanged)
         kProgressRefresh,   // text = formId as the caller had it; XP read when sent
         kSpellReady,        // formId
         kSpellUnlocked,     // formId, flag = success
@@ -66,7 +66,9 @@ namespace ProgressionNotify
         Batch& operator=(const Batch&) = delete;
     };
 
-    void Progress(RE::FormID formId, float currentXP, float requiredXP);
+    // masteryOnly: a change of the spell's mastery XP alone (OnMasteredCast, ClearMastery); the panel takes
+    // only the update's mastery part, not its learning progress
+    void Progress(RE::FormID formId, float currentXP, float requiredXP, bool masteryOnly = false);
     void ProgressRefresh(const std::string& formIdText);
     void SpellReady(RE::FormID formId);
     void SpellUnlocked(RE::FormID formId, bool success);

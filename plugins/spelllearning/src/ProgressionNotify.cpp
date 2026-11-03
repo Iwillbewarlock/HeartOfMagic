@@ -33,7 +33,7 @@ namespace ProgressionNotify
             auto* ui = UIManager::GetSingleton();
             switch (event.kind) {
             case Kind::kProgress:
-                ui->NotifyProgressUpdate(event.formId, event.a, event.b);
+                ui->NotifyProgressUpdate(event.formId, event.a, event.b, event.flag);
                 break;
             case Kind::kProgressRefresh:
                 // The formId text the caller had, parsed (and complained about) where it always was
@@ -113,9 +113,9 @@ namespace ProgressionNotify
     Batch::Batch() { t_queue.Open(); }
     Batch::~Batch() { t_queue.Close(Send); }
 
-    void Progress(RE::FormID formId, float currentXP, float requiredXP)
+    void Progress(RE::FormID formId, float currentXP, float requiredXP, bool masteryOnly)
     {
-        Post({ .kind = Kind::kProgress, .formId = formId, .a = currentXP, .b = requiredXP });
+        Post({ .kind = Kind::kProgress, .formId = formId, .a = currentXP, .b = requiredXP, .flag = masteryOnly });
     }
 
     void ProgressRefresh(const std::string& formIdText)

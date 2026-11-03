@@ -90,8 +90,8 @@ var ProgressUpdates = {
 
     /**
      * The mastery part of an update (mastery ranks, spellCardMastery.js): stored, and the open card's row
-     * redrawn. True when that was all of it (masteryOnly: a spell with no learning progress, known from
-     * outside the tree), so its zero XP is not taken as learning progress.
+     * redrawn. True when that was all of it (masteryOnly: C++ sends it for a change of the mastery XP alone -
+     * a mastered cast, a clear), so the update's XP figures are not taken as learning progress.
      */
     takeMastery: function(canonId, data) {
         if (data.mastery && typeof data.mastery === 'object') {

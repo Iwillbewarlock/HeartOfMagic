@@ -137,14 +137,9 @@ void ProgressionManager::OnMasteredCast(RE::FormID masteryKey, RE::FormID castSp
         // SpellLearning_MasteryRankUp: the school the way SpellMastered names it, the rank reached, the spell
         SendModEvent("SpellLearning_MasteryRankUp", EventSchoolOf(masteryKey), static_cast<float>(rankAfter), spell);
     }
-    // The panel's card follows (UIManager::NotifyProgressUpdate carries the mastery fields)
-    // (the entry's own required XP when it has one: GetRequiredXP walks the known-higher-spell links)
-    const auto progress = m_spellProgress.find(masteryKey);
-    if (progress != m_spellProgress.end() && progress->second.requiredXP > 0.0f) {
-        ProgressionNotify::Progress(masteryKey, progress->second.GetCurrentXP(), progress->second.requiredXP);
-    } else {
-        ProgressionNotify::Progress(masteryKey, 0.0f, GetRequiredXP(masteryKey));
-    }
+    // The panel's card follows: a mastery-only update (UIManager::NotifyProgressUpdate carries the mastery
+    // fields; the XP figures are not read for one)
+    ProgressionNotify::Progress(masteryKey, 0.0f, 0.0f, true);
 }
 
 void ProgressionManager::ClearMastery(RE::FormID spellId)
@@ -155,6 +150,8 @@ void ProgressionManager::ClearMastery(RE::FormID spellId)
     if (erased == 0) return;
     m_dirty = true;
     logger::info("Mastery: {:08X} mastery XP cleared (no longer mastered, or relocked)", key);
+    // The panel drops the rank it shows (a mastery-only update with no mastery part)
+    ProgressionNotify::Progress(key, 0.0f, 0.0f, true);
 }
 
 // =============================================================================

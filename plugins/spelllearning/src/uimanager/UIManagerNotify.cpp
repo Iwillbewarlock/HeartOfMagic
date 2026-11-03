@@ -126,7 +126,7 @@ void UIManager::SendClipboardContent(const std::string& content)
 // PROGRESSION NOTIFICATIONS
 // =============================================================================
 
-void UIManager::NotifyProgressUpdate(RE::FormID formId, float currentXP, float requiredXP)
+void UIManager::NotifyProgressUpdate(RE::FormID formId, float currentXP, float requiredXP, bool masteryOnly)
 {
     // PERFORMANCE: Skip UI updates when panel is not visible
     // The UI will refresh when it becomes visible anyway. First: this runs on
@@ -155,15 +155,17 @@ void UIManager::NotifyProgressUpdate(RE::FormID formId, float currentXP, float r
     update["progress"] = requiredXP > 0 ? (currentXP / requiredXP) : 0.0f;
     update["ready"] = currentXP >= requiredXP;
     update["unlocked"] = progress.unlocked;  // Include unlocked status
-    // Mastery ranks: where the spell's mastery XP stands; masteryOnly when it has no learning
-    // progress (known from outside the tree), so the panel takes only the mastery part
+    // Mastery ranks: where the spell's mastery XP stands (no "mastery" field: none, the panel drops what it
+    // held); masteryOnly when the message is about the mastery XP alone (OnMasteredCast, ClearMastery) - the
+    // panel then leaves the learning progress as it is. Always present, so the panel tells this DLL's
+    // messages from an older one's (which never clear a rank)
     auto* progression = ProgressionManager::GetSingleton();
     if (const float masteryXP = progression->GetStoredMasteryXP(formId); masteryXP > 0.0f) {
         const auto where = progression->GetMasteryProgress(formId);
         update["mastery"] = { {"xp", masteryXP}, {"rank", where.rank}, {"ranks", where.ranks},
                               {"floor", where.floor}, {"next", where.next} };
     }
-    update["masteryOnly"] = !progression->HasProgressRecord(formId);
+    update["masteryOnly"] = masteryOnly;
 
     // PERFORMANCE: Use trace for frequent progress updates
     logger::trace("UIManager: Sending progress update to UI - formId: {}, XP: {:.1f}/{:.1f}, unlocked: {}",

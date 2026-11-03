@@ -80,7 +80,8 @@ public:
     void SendClipboardContent(const std::string& content);
 
     // Progression system notifications
-    void NotifyProgressUpdate(RE::FormID formId, float currentXP, float requiredXP);
+    // masteryOnly: only the mastery part changed (the panel leaves the learning progress alone)
+    void NotifyProgressUpdate(RE::FormID formId, float currentXP, float requiredXP, bool masteryOnly = false);
     void NotifyProgressUpdate(const std::string& formIdStr);  // Triggers UI refresh for spell
     void NotifySpellReady(RE::FormID formId);
     void NotifySpellUnlocked(RE::FormID formId, bool success);
