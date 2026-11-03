@@ -33,12 +33,13 @@
 - **XP that stopped coming after a spell's progress was lowered.** Each kind of casting XP (any spell, same
   school, a direct link) has a cap per spell; the XP counted against those caps stayed where it was when cheat
   mode, a mod or a smaller required XP lowered the spell's progress, so a source at its cap gave nothing again.
-  The counts now follow a lowered progress down (scaled to the XP the spell still holds, all cleared at 0 XP), and
-  keep their share when the required XP changes, both ways: a required XP lowered and raised again, or a game load
-  that works out a passing number before the real one arrives, no longer reopens or closes a cap. The save keeps
-  the required XP they were made against; an older version skips that record and starts those counts at 0. A save
-  from 1.7 with a cap stuck this way is put right as soon as the spell tree's numbers are in: at the load itself
-  when the tree was read at the main menu, else when the tree loads, a required XP changes or the spell next gets XP.
+  The counts are now kept as shares of the spell's required XP: they follow a lowered progress down (all cleared at
+  0 XP), and a required XP that changes (an override, the tree's number, a game load) neither reopens nor closes a
+  cap. The save keeps the shares in a record of their own and still writes the counts the way 1.7.0 reads them, so
+  going back keeps them. A 1.7 save's counts are converted once when it loads, against the required XP known then;
+  a cap stuck by the old bug is put right. For a spell learned downward that conversion can give back part of a used
+  cap once (up to 3.5% of the spell's XP for the any-spell cap, 10.5% same school, 35% direct link), or close one a
+  few percent early; from the next save on the counts are exact.
 - **Casting a copy of a linked spell.** When two plugins carry the same spell, the tree keeps one; a copy you
   learned before (or elsewhere) now counts as that spell for the direct-link XP of the spells next to it in the
   tree, as it already did for their requirements. It counted as a same-school cast only.

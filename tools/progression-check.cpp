@@ -252,12 +252,11 @@ namespace
             { 0x0BAD'0001, 1.0f, 2.0f, 3.0f, 4.0f },  // a spell with no SLPR entry
         };
         ByteWriter px;
-        Check(CS::WriteCapEntries(px, caps) && px.bytes.size() == 4 + caps.size() * CS::kCapEntrySize &&
-                  CS::kCapEntrySize == 24,
-              "SLPX written (v2): count + 24 bytes per spell");
+        Check(CS::WriteCapEntries(px, caps) && px.bytes.size() == 4 + caps.size() * CS::kCapEntrySize,
+              "SLPX written: count + 20 bytes per spell");
         std::vector<CS::CapEntry> capsBack;
         ByteReader pxIn{ px.bytes };
-        const bool pxOk = CS::ReadCapEntries(pxIn, CS::kCapTrackersVersion, static_cast<std::uint32_t>(px.bytes.size()), capsBack) ==
+        const bool pxOk = CS::ReadCapEntries(pxIn, static_cast<std::uint32_t>(px.bytes.size()), capsBack) ==
                           CS::ReadResult::Ok;
         Check(pxOk && capsBack.size() == 2 && capsBack[0].formId == caps[0].formId &&
                   Near(capsBack[0].xpFromDirect, 30.0f) && Near(capsBack[1].xpFromSelf, 4.0f),
@@ -283,12 +282,12 @@ namespace
         auto pxCut = px.bytes;
         pxCut.resize(pxCut.size() - 3);
         ByteReader pxCutIn{ pxCut };
-        Check(CS::ReadCapEntries(pxCutIn, CS::kCapTrackersVersion, static_cast<std::uint32_t>(px.bytes.size()), capsBack) ==
+        Check(CS::ReadCapEntries(pxCutIn, static_cast<std::uint32_t>(px.bytes.size()), capsBack) ==
                       CS::ReadResult::ShortRead &&
                   capsBack.size() == 1 && capsBack[0].formId == caps[0].formId,
               "SLPX cut short: the whole entry before the cut kept");
         ByteReader pxLenIn{ px.bytes };
-        Check(CS::ReadCapEntries(pxLenIn, CS::kCapTrackersVersion, static_cast<std::uint32_t>(px.bytes.size()) - 1, capsBack) ==
+        Check(CS::ReadCapEntries(pxLenIn, static_cast<std::uint32_t>(px.bytes.size()) - 1, capsBack) ==
                   CS::ReadResult::CountTooLarge,
               "SLPX count larger than the record refused");
         Check(CS::CapEntry{ 1, 0.0f, 0.0f, 0.0f, 0.0f }.IsEmpty() && !caps[0].IsEmpty(),

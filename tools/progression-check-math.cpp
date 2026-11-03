@@ -45,196 +45,160 @@ namespace ProgressionCheck
             }
         };
 
-        struct Counts
+        // The plugin's per-source counts (SpellProgress without the game types): shares of the required XP
+        struct Shares
         {
-            float xpFromAny = 0.0f;
-            float xpFromSchool = 0.0f;
-            float xpFromDirect = 0.0f;
-            float xpFromSelf = 0.0f;
-            std::unordered_map<std::string, float> xpFromModded;
+            float shareAny = 0.0f;
+            float shareSchool = 0.0f;
+            float shareDirect = 0.0f;
+            float shareSelf = 0.0f;
+            std::unordered_map<std::string, float> shareModded;
         };
 
-        // A load's entry as the plugin holds it (SpellProgress without the game types)
-        struct Entry : Counts
+        // A cast's grant against the any cap, as OnSpellCast and AddSourcedXP do it: the room under the cap
+        // (CapRoom), then the share the XP really added (ShareOf)
+        float GrantAny(Shares& s, float gainXP, float requiredXP, float capShare)
         {
-            float progressPercent = 0.0f;
-            float requiredXP = 0.0f;
-            bool fitPending = false;
-        };
-
-        // An entry from a 1.7 save (SLPX v1, no basis) stuck before fix A: 10% of 100 XP held, but the
-        // any and school counts at their caps (5 and 15) from before a cheat-mode lowering
-        Entry StuckV1()
-        {
-            Entry e;
-            e.progressPercent = 0.1f;
-            e.requiredXP = 100.0f;
-            e.xpFromAny = 5.0f;
-            e.xpFromSchool = 15.0f;
-            return e;
+            const float grant = (std::min)(gainXP, PM::CapRoom(capShare, s.shareAny, requiredXP));
+            s.shareAny += PM::ShareOf(grant, requiredXP);
+            return grant;
         }
 
-        // The one-time fit of a v1 save's counts: at the tree's numbers, or the first XP without a tree
-        void PendingFitCases()
+        // The per-source counts as shares (redesign 2026-11-04)
+        void ShareCases()
         {
-            constexpr float kCapAny = 5.0f;   // percent
-            const float anyCapAt100 = 100.0f * kCapAny / 100.0f;
-
-            // v1 load before any tree this session -> marked, saved with no basis; the tree's numbers in
-            // (SettlePendingTrackerFits) -> fitted to the 10 XP held, the any cap open
-            Entry tree = StuckV1();
-            const bool marked = PM::LoadEndFit(tree, false);
-            Check(marked && tree.fitPending && Near(tree.xpFromAny, 5.0f) && Near(PM::BasisToSave(tree), 0.0f),
-                  "pending fit: a v1 entry loaded before any tree is marked, saved with no basis");
-            const bool settled = PM::SettlePendingFit(tree);
-            Check(settled && !tree.fitPending && Near(tree.xpFromAny + tree.xpFromSchool, 10.0f) &&
-                      PM::GrantWithinCap(1.0f, anyCapAt100, tree.xpFromAny) > 0.0f && Near(PM::BasisToSave(tree), 100.0f),
-                  "pending fit: tree applied -> the stuck counts fitted to the 10 XP held, the any cap open again");
-            Check(!PM::SettlePendingFit(tree) && Near(tree.xpFromAny, 2.5f), "pending fit: once only");
-
-            // v1 load, no tree this session: the spell's first XP fits it (the cast loop, AddSourcedXP)
-            Entry cast = StuckV1();
-            PM::LoadEndFit(cast, false);
-            const bool firstXP = PM::SettlePendingFit(cast);
-            Check(firstXP && Near(cast.xpFromAny, 2.5f) && Near(cast.xpFromSchool, 7.5f) &&
-                      Near(PM::GrantWithinCap(1.0f, anyCapAt100, cast.xpFromAny), 1.0f),
-                  "pending fit: no tree, first cast -> fitted, the any cap gives again");
-
-            // v2 load: has a basis, never marked; scaled as B2 says, never fitted
-            Entry v2 = StuckV1();
-            v2.fitPending = false;
-            const bool scaled = PM::RescaleSettlingFirst(v2, 100.0f, 200.0f, PM::TreeSyncState{}.HoldsPending());
-            Check(scaled && !PM::SettlePendingFit(v2) && Near(v2.xpFromAny, 10.0f) && Near(v2.xpFromSchool, 30.0f),
-                  "pending fit: a v2 entry is not marked or fitted, its counts only scaled with the required XP");
-
-            // Tree read first (main menu), then a v1 save loaded: settled at load end, no tree read follows
-            Entry treeFirst = StuckV1();
-            Check(PM::LoadEndFit(treeFirst, true) && !treeFirst.fitPending &&
-                      Near(treeFirst.xpFromAny + treeFirst.xpFromSchool, 10.0f) && Near(PM::BasisToSave(treeFirst), 100.0f),
-                  "pending fit: tree applied first, then a v1 load -> settled at load end");
-
-            // Pending, then a required XP change 100 -> 200: settled at 100 first, then scaled - 10/30, not 5/15
-            Entry changed;
-            changed.progressPercent = 0.2f;   // 20 of 100 held: 5 + 15 counted, not stuck
-            changed.requiredXP = 100.0f;
-            changed.xpFromAny = 5.0f;
-            changed.xpFromSchool = 15.0f;
-            PM::LoadEndFit(changed, false);
-            changed.requiredXP = 200.0f;
-            Check(PM::RescaleSettlingFirst(changed, 100.0f, 200.0f, PM::TreeSyncState{ 0, true }.HoldsPending()) && !changed.fitPending && Near(changed.xpFromAny, 10.0f) &&
-                      Near(changed.xpFromSchool, 30.0f) && Near(PM::GrantWithinCap(1.0f, 200.0f * kCapAny / 100.0f, changed.xpFromAny), 0.0f),
-                  "pending fit: v1 pending, required 100 -> 200 -> 10/30, the any cap still closed");
-            Entry stuckChanged = StuckV1();
-            PM::LoadEndFit(stuckChanged, false);
-            PM::RescaleSettlingFirst(stuckChanged, 100.0f, 200.0f, PM::TreeSyncState{ 0, true }.HoldsPending());
-            Check(Near(stuckChanged.xpFromAny, 5.0f) && Near(stuckChanged.xpFromSchool, 15.0f) &&
-                      Near(stuckChanged.xpFromAny + stuckChanged.xpFromSchool, 0.1f * 200.0f),
-                  "pending fit: a stuck v1 entry and 100 -> 200 -> fitted to 10 at 100, then doubled (the share of 20 held)");
-
-            // Startup tree skipped, v1 load, then the tree's sync: SetRequiredXP per spell (tier 100 -> tree 400)
-            // before SettlePendingTrackerFits. 30% held: 30 at 100, 120 at 400; saved sum 50 lies between.
-            // The counts stay as saved through the sync, then are fitted at 400: 50 kept, not lifted to 120
-            Entry skipped;
-            skipped.progressPercent = 0.3f;
-            skipped.requiredXP = 100.0f;
-            skipped.xpFromAny = 20.0f;
-            skipped.xpFromSchool = 30.0f;
-            PM::LoadEndFit(skipped, false);
-            skipped.requiredXP = 400.0f;
-            const bool heldInSync = !PM::RescaleSettlingFirst(skipped, 100.0f, 400.0f, PM::TreeSyncState{ 1, false }.HoldsPending()) && skipped.fitPending &&
-                                    Near(skipped.xpFromAny, 20.0f);
-            PM::SettlePendingFit(skipped);
-            Check(heldInSync && !skipped.fitPending && Near(skipped.xpFromAny, 20.0f) && Near(skipped.xpFromSchool, 30.0f),
-                  "pending fit: skipped startup tree, v1 load, tree synced 100 -> 400 -> the saved 20/30 kept, not inflated");
-
-            // No saved tree, v1 load, a tree Applied or Imported (no tree sync: no tree applied yet in the old rule),
-            // then a required XP change 100 -> 200 through the settings: outside a sync, fitted then scaled -> 10/30
-            Entry applied;
-            applied.progressPercent = 0.2f;
-            applied.requiredXP = 100.0f;
-            applied.xpFromAny = 5.0f;
-            applied.xpFromSchool = 15.0f;
-            const PM::TreeSyncState noSync{ 0, false };
-            PM::LoadEndFit(applied, noSync.treeApplied);
-            applied.requiredXP = 200.0f;
-            Check(PM::RescaleSettlingFirst(applied, 100.0f, 200.0f, noSync.HoldsPending()) && !applied.fitPending &&
-                      Near(applied.xpFromAny, 10.0f) && Near(applied.xpFromSchool, 30.0f) &&
-                      Near(PM::GrantWithinCap(1.0f, 200.0f * kCapAny / 100.0f, applied.xpFromAny), 0.0f),
-                  "pending fit: no saved tree, v1 load, tree applied without a sync, required 100 -> 200 -> 10/30");
-
-            // An entry with no counts is not marked
-            Entry none;
-            none.progressPercent = 0.3f;
-            none.requiredXP = 100.0f;
-            Check(!PM::MarkFitPending(none) && !none.fitPending, "pending fit: an entry with no counts is not marked");
-        }
-
-        // B2: the per-source counts against the required XP, through a save and a load whose first
-        // required XP is passing (this character's number back from the panel later, the tree's late)
-        void TrackerShareCases()
-        {
-            constexpr float kSaved = 500.0f;     // the required XP when the game was saved
-            constexpr float kPassing = 100.0f;   // what the load works out first (tier only)
-            constexpr float kCapAny = 5.0f;      // percent
-            Counts c;
-            c.xpFromAny = 25.0f;                 // the any cap (5% of 500) closed
-            c.xpFromSchool = 30.0f;
-            c.xpFromSelf = 100.0f;
-            c.xpFromModded["book_reading"] = 20.0f;
-
-            // Save (SLPX v2 with the required XP), load
-            Bytes record;
-            const std::vector<CS::CapEntry> saved{ { 0x0001'2FCD, c.xpFromAny, c.xpFromSchool, c.xpFromDirect, c.xpFromSelf, kSaved } };
-            std::vector<CS::CapEntry> back;
-            const bool io = CS::WriteCapEntries(record, saved) &&
-                            CS::ReadCapEntries(record, CS::kCapTrackersVersion, static_cast<std::uint32_t>(record.data.size()),
-                                               back) == CS::ReadResult::Ok;
-            Check(io && back.size() == 1 && Near(back[0].requiredXP, kSaved) && Near(back[0].xpFromAny, 25.0f),
-                  "tracker share: SLPX v2 carries the required XP the counts were made against");
-
-            // EndLoad: the passing required XP - the counts keep their share, the any cap stays closed
-            Counts loaded = c;
-            Check(PM::RescaleTrackers(loaded, back[0].requiredXP, kPassing) && Near(loaded.xpFromAny, 5.0f) &&
-                      Near(loaded.xpFromModded["book_reading"], 4.0f) &&
-                      Near(PM::GrantWithinCap(3.0f, kPassing * kCapAny / 100.0f, loaded.xpFromAny), 0.0f),
-                  "tracker share: load at a passing 100 -> any 5 of a 5 cap, still closed");
-            // The real number arrives (SetRequiredXP): back to the saved counts, still closed
-            Check(PM::RescaleTrackers(loaded, kPassing, kSaved) && Near(loaded.xpFromAny, 25.0f) &&
-                      Near(loaded.xpFromSchool, 30.0f) && Near(loaded.xpFromSelf, 100.0f) &&
-                      Near(loaded.xpFromModded["book_reading"], 20.0f) &&
-                      Near(PM::GrantWithinCap(3.0f, kSaved * kCapAny / 100.0f, loaded.xpFromAny), 0.0f),
-                  "tracker share: then 500 again -> the saved counts back, the any cap never reopened");
-
-            // A required XP lowered then raised (override toggled, the share slider)
-            Counts toggled = c;
-            PM::RescaleTrackers(toggled, 500.0f, 250.0f);
-            PM::RescaleTrackers(toggled, 250.0f, 500.0f);
-            Check(Near(toggled.xpFromAny, 25.0f) && Near(toggled.xpFromSchool, 30.0f) &&
-                      Near(toggled.xpFromModded["book_reading"], 20.0f),
-                  "tracker share: 500 -> 250 -> 500 gives every count back");
-
-            // A v1 save (no required XP), equal numbers, bad numbers: nothing scaled
-            Bytes v1;
-            v1.data.resize(sizeof(std::uint32_t) + CS::kCapEntrySizeV1);
-            const std::uint32_t one = 1;
-            const float v1Fields[] = { 7.0f, 0.0f, 0.0f, 0.0f };
-            const std::uint32_t id = 0x0001'2FCD;
-            std::memcpy(v1.data.data(), &one, 4);
-            std::memcpy(v1.data.data() + 4, &id, 4);
-            std::memcpy(v1.data.data() + 8, v1Fields, sizeof(v1Fields));
-            std::vector<CS::CapEntry> v1Back;
-            const bool v1Ok = CS::ReadCapEntries(v1, 1, static_cast<std::uint32_t>(v1.data.size()), v1Back) == CS::ReadResult::Ok;
-            Counts v1Counts;
-            v1Counts.xpFromAny = 7.0f;
-            Check(v1Ok && v1Back.size() == 1 && Near(v1Back[0].xpFromAny, 7.0f) && Near(v1Back[0].requiredXP, 0.0f) &&
-                      !PM::RescaleTrackers(v1Counts, v1Back[0].requiredXP, kPassing) && Near(v1Counts.xpFromAny, 7.0f),
-                  "tracker share: a v1 save reads with no required XP, its counts kept as saved");
+            constexpr float kCapAny = 0.05f;
             const float nan = std::numeric_limits<float>::quiet_NaN();
-            Counts same = c;
-            Check(!PM::RescaleTrackers(same, 500.0f, 500.0f) && !PM::RescaleTrackers(same, 0.0f, 500.0f) &&
-                      !PM::RescaleTrackers(same, 500.0f, nan) && !PM::RescaleTrackers(same, -3.0f, 500.0f) &&
-                      Near(same.xpFromAny, 25.0f),
-                  "tracker share: an equal, 0, negative or NaN required XP scales nothing");
+            const float inf = std::numeric_limits<float>::infinity();
+
+            // Required XP changes in any order never reopen or inflate a cap
+            Shares s;
+            float given = GrantAny(s, 10.0f, 100.0f, kCapAny);   // 5 given, the cap (5% of 100) reached
+            bool closed = Near(given, 5.0f) && Near(s.shareAny, kCapAny);
+            for (const float required : { 50.0f, 400.0f, 100.0f, 1500.0f }) {
+                closed = closed && Near(GrantAny(s, 10.0f, required, kCapAny), 0.0f) && Near(s.shareAny, kCapAny);
+            }
+            Check(closed, "shares: a spent any cap stays spent through required XP 100 -> 50 -> 400 -> 100 -> 1500");
+            Shares half;
+            GrantAny(half, 2.5f, 100.0f, kCapAny);   // half the any cap at 100
+            const float atFour = GrantAny(half, 100.0f, 400.0f, kCapAny);
+            Check(Near(atFour, 10.0f) && Near(half.shareAny, kCapAny),
+                  "shares: half a cap used at 100 leaves half of it at 400 (10 XP of 20), not 17.5, not 0");
+
+            // Unusable required XP never divides
+            Check(!PM::IsUsableRequiredXP(0.0f) && !PM::IsUsableRequiredXP(-5.0f) && !PM::IsUsableRequiredXP(nan) &&
+                      !PM::IsUsableRequiredXP(inf) && PM::IsUsableRequiredXP(1.0f),
+                  "shares: a required XP of 0, negative, NaN or infinity is not usable");
+            Check(Near(PM::ShareOf(5.0f, 0.0f), 0.0f) && Near(PM::ShareOf(5.0f, nan), 0.0f) && Near(PM::ShareOf(5.0f, inf), 0.0f) &&
+                      Near(PM::ShareOf(inf, 100.0f), 0.0f) && Near(PM::XPOfShare(0.5f, inf), 0.0f) &&
+                      Near(PM::CapRoom(kCapAny, 0.0f, nan), 0.0f),
+                  "shares: XP <-> share and the cap room are 0 against an unusable required XP, never NaN or inf");
+            Check(Near(PM::CleanShare(nan), 0.0f) && Near(PM::CleanShare(-0.2f), 0.0f) && Near(PM::CleanShare(3.0f), 1.0f) &&
+                      Near(PM::CleanShare(0.4f), 0.4f),
+                  "shares: a share read from a save is finite and in 0..1");
+
+            // Fix A on shares: SetSpellXP lowering the progress
+            Shares lowered;   // 75% held, any and school at their caps, then set back to 10%
+            lowered.shareAny = 0.05f;
+            lowered.shareSchool = 0.15f;
+            lowered.shareSelf = 0.55f;
+            Check(PM::FitSharesToProgress(lowered, 0.10f) &&
+                      Near(lowered.shareAny + lowered.shareSchool + lowered.shareSelf, 0.10f) &&
+                      PM::CapRoom(kCapAny, lowered.shareAny, 100.0f) > 0.0f,
+                  "shares: SetSpellXP 75% -> 10% scales the shares to 10%, the any cap open again");
+            Shares zero;
+            zero.shareDirect = 0.5f;
+            zero.shareModded["isl_study"] = 0.25f;
+            Check(PM::FitSharesToProgress(zero, 0.0f) && Near(zero.shareDirect, 0.0f) && Near(zero.shareModded["isl_study"], 0.0f),
+                  "shares: SetSpellXP 0 clears every share, modded too");
+            Shares inStep;
+            inStep.shareSchool = 0.15f;
+            inStep.shareModded["passive"] = 0.050005f;
+            Check(!PM::FitSharesToProgress(inStep, 0.20f) && Near(inStep.shareSchool, 0.15f),
+                  "shares: a float hair over the progress is not touched");
+
+            // ISL study: its count is a share too - the study cap (threshold share) holds whatever the required XP
+            Shares study;
+            const float threshold = 0.25f;
+            const float firstXP = PM::StudyGrant(40.0f, 100.0f, threshold, PM::XPOfShare(0.0f, 100.0f));   // 25 of 100
+            study.shareModded["isl_study"] = PM::ShareOf(firstXP, 100.0f);
+            const float later = PM::StudyGrant(40.0f, 400.0f, threshold, PM::XPOfShare(study.shareModded["isl_study"], 400.0f));
+            Check(Near(firstXP, 25.0f) && Near(study.shareModded["isl_study"], 0.25f) && Near(later, 0.0f),
+                  "shares: ISL study capped at 25% of 100, still spent when the required XP is 400");
+
+            // A 1.7 save's absolute counts converted once (SLPX v1 four, SLPR modded): XP / the required XP then
+            CS::Entry old;
+            old.progressPercent = 0.3f;
+            old.xpFromAny = 5.0f;
+            old.xpFromSchool = 15.0f;
+            old.modded = { { "book_reading", 10.0f } };
+            Shares converted;
+            PM::SharesFromAbsolute(converted, old, 100.0f, old.progressPercent);
+            Check(Near(converted.shareAny, 0.05f) && Near(converted.shareSchool, 0.15f) &&
+                      Near(converted.shareModded["book_reading"], 0.10f),
+                  "shares: a 1.7 save's 5/15/10 XP at a required 100 -> 5%/15%/10%");
+            CS::Entry stuck;   // 1.7: progress lowered to 10% by cheat mode before fix A, counts at their caps
+            stuck.progressPercent = 0.1f;
+            stuck.xpFromAny = 5.0f;
+            stuck.xpFromSchool = 15.0f;
+            Shares unstuck;
+            PM::SharesFromAbsolute(unstuck, stuck, 100.0f, stuck.progressPercent);
+            Check(Near(unstuck.shareAny + unstuck.shareSchool, 0.10f) && PM::CapRoom(kCapAny, unstuck.shareAny, 100.0f) > 0.0f,
+                  "shares: a 1.7 save stuck before fix A is held to its 10% at the conversion, the any cap open");
+            Shares badRequired;
+            PM::SharesFromAbsolute(badRequired, old, nan, old.progressPercent);
+            Check(Near(badRequired.shareAny, 0.0f) && badRequired.shareModded.empty(),
+                  "shares: no conversion against an unusable required XP (all 0, never NaN)");
+
+            // SLPS round trip, cut short, a count too large, a long name
+            const std::vector<CS::ShareEntry> entries = { { 0x0001'2FCD, 0.05f, 0.15f, 0.2f, 0.3f, { { "book_reading", 0.1f } } },
+                                                          { 0xFE00'0801, 0.0f, 0.0f, 0.0f, 0.0f, { { "passive", 0.02f } } } };
+            Bytes slps;
+            std::vector<CS::ShareEntry> back;
+            const bool io = CS::WriteShareEntries(slps, entries) &&
+                            CS::ReadShareEntries(slps, static_cast<std::uint32_t>(slps.data.size()), back) == CS::ReadResult::Ok;
+            Check(io && back.size() == 2 && Near(back[0].shareSchool, 0.15f) && back[0].modded.size() == 1 &&
+                      back[0].modded[0].first == "book_reading" && Near(back[0].modded[0].second, 0.1f) &&
+                      back[1].formId == 0xFE00'0801 && Near(back[1].modded[0].second, 0.02f),
+                  "SLPS round trip: four shares and the modded ones per spell");
+            Bytes cut;
+            cut.data = slps.data;
+            cut.data.resize(cut.data.size() - 2);
+            Check(CS::ReadShareEntries(cut, static_cast<std::uint32_t>(slps.data.size()), back) == CS::ReadResult::ShortRead &&
+                      back.size() == 1 && back[0].formId == 0x0001'2FCD,
+                  "SLPS cut short: the whole entry before it kept");
+            Bytes huge;
+            const std::uint32_t many = 0x1000'0000;
+            huge.WriteRecordData(&many, 4);
+            Check(CS::ReadShareEntries(huge, 4, back) == CS::ReadResult::CountTooLarge && back.empty(),
+                  "SLPS: a count larger than the record refused");
+            Bytes longName;
+            const std::uint32_t one = 1;
+            const std::uint32_t id = 7;
+            const float zeroShare = 0.0f;
+            const std::uint32_t tooLong = CS::kMaxNameLength + 1;
+            longName.WriteRecordData(&one, 4);
+            longName.WriteRecordData(&id, 4);
+            for (int i = 0; i < 4; ++i) longName.WriteRecordData(&zeroShare, 4);
+            longName.WriteRecordData(&one, 4);
+            longName.WriteRecordData(&tooLong, 4);
+            Check(CS::ReadShareEntries(longName, 1 << 20, back) == CS::ReadResult::NameTooLong,
+                  "SLPS: a modded name over the limit refused");
+
+            // SLPX still in 1.7.0's layout: 20 bytes per spell, XP = share x required at the save
+            const std::vector<CS::CapEntry> absolute{ { 0x0001'2FCD, PM::XPOfShare(0.05f, 400.0f), PM::XPOfShare(0.15f, 400.0f), 0.0f, 0.0f } };
+            Bytes slpx;
+            Check(CS::WriteCapEntries(slpx, absolute) && slpx.data.size() == 4 + 20 && CS::kCapEntrySize == 20 &&
+                      CS::kCapTrackersVersion == 1,
+                  "SLPX written in 1.7.0's v1 layout: count + 20 bytes per spell");
+            std::uint32_t count = 0;
+            std::uint32_t formId = 0;
+            float fields[4] = {};
+            std::memcpy(&count, slpx.data.data(), 4);
+            std::memcpy(&formId, slpx.data.data() + 4, 4);
+            std::memcpy(fields, slpx.data.data() + 8, 16);
+            Check(count == 1 && formId == 0x0001'2FCD && Near(fields[0], 20.0f) && Near(fields[1], 60.0f) && Near(fields[2], 0.0f),
+                  "SLPX bytes as 1.7.0 reads them: id, then 20 and 60 XP (5% and 15% of 400)");
         }
     }
 
@@ -448,45 +412,9 @@ namespace ProgressionCheck
     // The XP fixes of 2026-11-03 (the four losses before 100%)
     void XPFixCases()
     {
-        TrackerShareCases();
-        PendingFitCases();
-
-        // A: the per-source counts never stay over the XP the spell holds
-        struct FakeProgress
-        {
-            float xpFromAny = 0.0f;
-            float xpFromSchool = 0.0f;
-            float xpFromDirect = 0.0f;
-            float xpFromSelf = 0.0f;
-            std::unordered_map<std::string, float> xpFromModded;
-        };
+        // A (on shares): ShareCases, with the redesign's cases
+        ShareCases();
         const float nan = std::numeric_limits<float>::quiet_NaN();
-        Check(Near(PM::TrackerScale(40.0f, 30.0f), 1.0f) && Near(PM::TrackerScale(40.0f, 40.0f), 1.0f),
-              "trackers: counts at or under the XP held are left alone");
-        Check(Near(PM::TrackerScale(40.0f, 80.0f), 0.5f), "trackers: counts of 80 on 40 XP held scale by 0.5");
-        Check(Near(PM::TrackerScale(0.0f, 50.0f), 0.0f) && Near(PM::TrackerScale(-5.0f, 50.0f), 0.0f) &&
-                  Near(PM::TrackerScale(nan, 50.0f), 0.0f),
-              "trackers: no XP held (0, negative, NaN) clears every count");
-        FakeProgress lowered;   // cheat mode set 75 of 100 XP back to 10: any and school were at their caps
-        lowered.xpFromAny = 5.0f;
-        lowered.xpFromSchool = 15.0f;
-        lowered.xpFromSelf = 55.0f;
-        lowered.xpFromModded["book_reading"] = 0.0f;
-        Check(PM::FitTrackersToXP(lowered, 10.0f) && Near(lowered.xpFromAny, 5.0f * 10.0f / 75.0f) &&
-                  Near(lowered.xpFromSchool, 15.0f * 10.0f / 75.0f) && Near(lowered.xpFromSelf, 55.0f * 10.0f / 75.0f) &&
-                  Near(lowered.xpFromAny + lowered.xpFromSchool + lowered.xpFromSelf, 10.0f),
-              "trackers: 75 counted on 10 XP held -> each count scaled, the sum 10, the any cap open again");
-        FakeProgress cleared;
-        cleared.xpFromDirect = 50.0f;
-        cleared.xpFromModded["isl_study"] = 25.0f;
-        Check(PM::FitTrackersToXP(cleared, 0.0f) && Near(cleared.xpFromDirect, 0.0f) &&
-                  Near(cleared.xpFromModded["isl_study"], 0.0f),
-              "trackers: SetSpellXP 0 clears the built-in and modded counts");
-        FakeProgress inStep;
-        inStep.xpFromSchool = 15.0f;
-        inStep.xpFromModded["passive"] = 5.0005f;   // 20.0005 counted on 20 held
-        Check(!PM::FitTrackersToXP(inStep, 20.0f) && Near(inStep.xpFromSchool, 15.0f),
-              "trackers: counts a float hair over the XP held are not touched");
 
         // B: a cast of another plugin's copy of a linked spell is a direct cast
         const std::vector<std::uint32_t> targetPrereqs{ 0x0001'2FCD, 0x0001'2FD0 };   // Flames, Frostbite

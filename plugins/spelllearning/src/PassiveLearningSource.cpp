@@ -141,9 +141,9 @@ void PassiveLearningSource::GrantPassiveXP(float gameHoursElapsed) {
 
         // Check how much passive XP has already been granted
         float alreadyGranted = 0.0f;
-        auto it = progress.xpFromModded.find(ProgressionManager::kPassiveSource);
-        if (it != progress.xpFromModded.end()) {
-            alreadyGranted = it->second;
+        auto it = progress.shareModded.find(ProgressionManager::kPassiveSource);
+        if (it != progress.shareModded.end()) {
+            alreadyGranted = progress.XPOfShare(it->second);   // kept as a share of the required XP
         }
 
         float remaining = ProgressionMath::CapRemaining(maxPassiveXP, alreadyGranted);

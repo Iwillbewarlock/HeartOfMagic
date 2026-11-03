@@ -23,8 +23,8 @@ namespace ProgressionCheck
     void MathCases();
     /// RequiredXPTable.h: required XP by kind, what a revert keeps
     void RequiredXPCases();
-    /// ProgressionMath.h: the XP fixes of 2026-11-03 (per-source counts against the XP held, a copy
-    /// as a direct link, the XP a grant really added, single mode's order)
+    /// ProgressionMath.h: the XP fixes of 2026-11-03 (per-source counts as shares of the required XP, SLPS and
+    /// SLPX v1, a copy as a direct link, the XP a grant really added, single mode's order)
     void XPFixCases();
 
     // progression-check-mastery.cpp

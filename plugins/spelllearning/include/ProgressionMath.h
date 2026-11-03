@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <numeric>
 #include <vector>
@@ -11,8 +12,8 @@
 //
 // The numbers ProgressionManager and the ISL study callback work out, kept apart
 // from the game types so tools/progression-check.cpp runs the same code against
-// made-up cases. XP values are absolute XP; progress is a fraction of the
-// required XP (0..1). Every function is O(1).
+// made-up cases. XP values are absolute XP; progress and the per-source counts
+// are fractions of the required XP (0..1). Every function is O(1) unless it says.
 namespace ProgressionMath
 {
     // Study XP (ISL) never takes a spell to 1.0 on its own: ISL has not taught
@@ -213,141 +214,96 @@ namespace ProgressionMath
     }
 
     // =========================================================================
-    // Per-source XP counts (the caps) against the XP the spell holds
+    // Per-source counts (the caps) as SHARES of the required XP (redesign 2026-11-04)
     // =========================================================================
+    // Each source's count is the share of the spell's required XP it has given (0..1, as the progress
+    // is): the cap check is share + gain / required <= cap share, so a change of the required XP (the
+    // tree's number, an override, the known-higher share, a load) needs nothing done to the counts, in any
+    // order. The co-save keeps them as shares (SLPS); 1.7.0's absolute layouts (SLPX v1, SLPR's modded XP)
+    // are still written (share x required) so going back to 1.7.0 keeps them. Any struct with shareAny,
+    // shareSchool, shareDirect, shareSelf and a name -> share map shareModded.
 
-    // The counts may be a hair over the XP from float sums; only more than this share is cut
+    // The shares may be a hair over the progress from float sums; only more than this is cut
     inline constexpr float kTrackerSlack = 1e-4f;
 
-    // What every per-source count is multiplied by so that their sum is at most the XP the
-    // spell holds now: 1 when it already is, 0 when the spell holds nothing (or NaN). Without it
-    // a progress lowered by cheat mode, SetSpellXP or a smaller required XP kept the counts where
-    // they were, so a source at its cap stayed there and gave nothing again.
-    [[nodiscard]] constexpr float TrackerScale(float currentXP, float trackedTotal) noexcept
+    // A required XP a share may be taken against: finite and positive. Anything else is refused at the
+    // inputs (SetRequiredXP keeps the last good value) and never reaches a division.
+    [[nodiscard]] inline bool IsUsableRequiredXP(float requiredXP) noexcept
     {
-        if (!(currentXP > 0.0f)) return 0.0f;
-        if (!(trackedTotal > currentXP * (1.0f + kTrackerSlack))) return 1.0f;
-        return currentXP / trackedTotal;
+        return std::isfinite(requiredXP) && requiredXP > 0.0f;
     }
 
-    // The per-source counts are shares of the required XP, as the progress is: when a spell's required
-    // XP changes from `oldRequired` to `newRequired` (an override set or removed, the reverse unlock share,
-    // the tree's number arriving after a load), every count is scaled by new / old - both ways, so a
-    // required XP lowered then raised gives the counts back, and a cap closed at 15% stays closed at 15%.
-    // Nothing when either is not positive or they are equal. True when it changed. Shrinking the counts
-    // to the XP held (FitTrackersToXP) is only for a lowered progress (SetSpellXP): a required XP change
-    // moves the progress's XP by the same factor, so the counts' sum stays within it.
-    template <class Progress>
-    bool RescaleTrackers(Progress& progress, float oldRequired, float newRequired)
+    // XP as a share of the required XP: 0 when either is not usable (NaN, infinite, not positive)
+    [[nodiscard]] inline float ShareOf(float xp, float requiredXP) noexcept
     {
-        if (!(oldRequired > 0.0f) || !(newRequired > 0.0f) || oldRequired == newRequired) return false;
-        const float scale = newRequired / oldRequired;
-        progress.xpFromAny *= scale;
-        progress.xpFromSchool *= scale;
-        progress.xpFromDirect *= scale;
-        progress.xpFromSelf *= scale;
-        for (auto& source : progress.xpFromModded) source.second *= scale;
-        return true;
+        if (!IsUsableRequiredXP(requiredXP) || !std::isfinite(xp) || !(xp > 0.0f)) return 0.0f;
+        return xp / requiredXP;
     }
 
-    // TrackerScale applied to a progress entry (any struct with xpFromAny, xpFromSchool,
-    // xpFromDirect, xpFromSelf and a name -> XP map xpFromModded). True when it changed.
-    template <class Progress>
-    bool FitTrackersToXP(Progress& progress, float currentXP)
+    // A share as XP of the required XP (the 1.7.0 layouts, the passive and study caps): 0 when not usable
+    [[nodiscard]] inline float XPOfShare(float share, float requiredXP) noexcept
     {
-        float total = progress.xpFromAny + progress.xpFromSchool + progress.xpFromDirect + progress.xpFromSelf;
-        for (const auto& source : progress.xpFromModded) total += source.second;
+        if (!IsUsableRequiredXP(requiredXP) || !std::isfinite(share) || !(share > 0.0f)) return 0.0f;
+        return share * requiredXP;
+    }
+
+    // A share as read from a save: finite and in 0..1, else 0 (above 1 held at 1)
+    [[nodiscard]] inline float CleanShare(float share) noexcept
+    {
+        if (!std::isfinite(share) || !(share > 0.0f)) return 0.0f;
+        return (std::min)(share, 1.0f);
+    }
+
+    // The XP still under a cap: (capShare - trackedShare) x required, never negative
+    [[nodiscard]] inline float CapRoom(float capShare, float trackedShare, float requiredXP) noexcept
+    {
+        return XPOfShare(capShare - trackedShare, requiredXP);
+    }
+
+    // What every share is multiplied by so that their sum is at most the progress: 1 when it already is,
+    // 0 when the spell holds nothing (or NaN)
+    [[nodiscard]] constexpr float TrackerScale(float progress, float trackedTotal) noexcept
+    {
+        if (!(progress > 0.0f)) return 0.0f;
+        if (!(trackedTotal > progress * (1.0f + kTrackerSlack))) return 1.0f;
+        return progress / trackedTotal;
+    }
+
+    // Fix A: the shares' sum at most the progress. Without it a progress lowered by cheat mode, SetSpellXP,
+    // the API or Papyrus kept the counts where they were, so a source at its cap gave nothing again. True
+    // when it changed.
+    template <class Progress>
+    bool FitSharesToProgress(Progress& shares, float progress)
+    {
+        float total = shares.shareAny + shares.shareSchool + shares.shareDirect + shares.shareSelf;
+        for (const auto& source : shares.shareModded) total += source.second;
         if (total == 0.0f) return false;
-        const float scale = TrackerScale(currentXP, total);
+        const float scale = TrackerScale(progress, total);
         if (scale >= 1.0f) return false;
-        progress.xpFromAny *= scale;
-        progress.xpFromSchool *= scale;
-        progress.xpFromDirect *= scale;
-        progress.xpFromSelf *= scale;
-        for (auto& source : progress.xpFromModded) source.second *= scale;
+        shares.shareAny *= scale;
+        shares.shareSchool *= scale;
+        shares.shareDirect *= scale;
+        shares.shareSelf *= scale;
+        for (auto& source : shares.shareModded) source.second *= scale;
         return true;
     }
 
-    // =========================================================================
-    // Counts from a save that does not say what required XP they were made against (SLPX v1, a
-    // 1.7 save): absolute XP, maybe still stuck above the XP held by an old cheat-mode lowering (fix A
-    // came after). They are fitted to the XP held once, when the spell's required XP is no longer the
-    // load's passing number: at load end when the tree's numbers were already applied this session (a
-    // tree read at the main menu), else after the tree's numbers are in (SyncRequiredXPFromTree), at the
-    // first required XP change (fitted at the number before it, then scaled - never left unscaled), or
-    // at the spell's first XP. Until then a save writes no basis for them (the next load marks them
-    // again). Any struct with the counts, progressPercent, requiredXP and a bool fitPending.
-    // =========================================================================
-
-    // At load end, for an entry with no saved basis: pending when it has any count. True when marked.
-    template <class Progress>
-    bool MarkFitPending(Progress& progress)
+    // A 1.7 save's absolute counts (SLPX v1's four, SLPR's modded XP; `absolute` has xpFromAny ... and a
+    // name -> XP list `modded`) as shares, once, at load end: XP / the required XP known then, the sum
+    // then held to the progress. An approximation: the save does not say what required XP they were
+    // counted against (docs/ARCHITECTURE.md, "Per-source counts").
+    template <class Shares, class Absolute>
+    void SharesFromAbsolute(Shares& out, const Absolute& absolute, float requiredXP, float progress)
     {
-        bool any = progress.xpFromAny != 0.0f || progress.xpFromSchool != 0.0f || progress.xpFromDirect != 0.0f ||
-                   progress.xpFromSelf != 0.0f;
-        for (const auto& source : progress.xpFromModded) any = any || source.second != 0.0f;
-        progress.fitPending = any;
-        return any;
-    }
-
-    // The one-time fit: FitTrackersToXP against the XP held now, the mark cleared (the counts are then
-    // shares of the current required XP, as every other entry's). True when it was pending.
-    template <class Progress>
-    bool SettlePendingFit(Progress& progress)
-    {
-        if (!progress.fitPending) return false;
-        progress.fitPending = false;
-        FitTrackersToXP(progress, progress.progressPercent * progress.requiredXP);
-        return true;
-    }
-
-    // At load end, for an entry with no saved basis: marked (MarkFitPending), and settled at once when the
-    // tree's required XP numbers were already applied this session - the number now is final, and no tree
-    // read follows to settle it (review 2026-11-04: a tree read at the main menu, then a v1 save loaded).
-    // True when it has counts to fit.
-    template <class Progress>
-    bool LoadEndFit(Progress& progress, bool treeRequiredApplied)
-    {
-        if (!MarkFitPending(progress)) return false;
-        if (treeRequiredApplied) SettlePendingFit(progress);
-        return true;
-    }
-
-    // The session's state for pending fits (ProgressionManager::m_treeSync). Pending counts are held only
-    // while a tree sync is running (SyncRequiredXPFromTree's SetRequiredXP calls, a scope of their own): its end
-    // fits them once at the tree's number. Anywhere else the number before a change is the session's final one
-    // (review 2026-11-04: holding them until "the tree applied this session" skipped the rescale after an
-    // Apply or Import, which never syncs the tree's numbers, and reopened a spent cap).
-    struct TreeSyncState
-    {
-        int syncDepth = 0;          // tree syncs running (nested scopes count)
-        bool treeApplied = false;   // a tree's numbers or prerequisites settled this session (LoadEndFit)
-
-        [[nodiscard]] constexpr bool HoldsPending() const noexcept { return syncDepth > 0; }
-    };
-
-    // A required XP change from `oldRequired`. Not pending: RescaleTrackers. Pending outside a tree sync:
-    // settled first at `oldRequired`, then scaled - never a change left unscaled, which reopened a cap
-    // (100 -> 200 kept 5/15 where 10/30 is the share). Pending inside a tree sync (`holdPending`, the sync is
-    // setting its numbers one by one and fits at its end): the counts are left alone - a fit at the passing
-    // tier number then a rescale to the tree's would lift a sum between p x R_tier and p x R_tree above what
-    // was saved and close capped sources early. True when anything changed.
-    template <class Progress>
-    bool RescaleSettlingFirst(Progress& progress, float oldRequired, float newRequired, bool holdPending)
-    {
-        if (progress.fitPending && holdPending) return false;
-        bool changed = false;
-        if (progress.fitPending) {
-            progress.fitPending = false;
-            changed = FitTrackersToXP(progress, progress.progressPercent * oldRequired);
+        out.shareAny = ShareOf(absolute.xpFromAny, requiredXP);
+        out.shareSchool = ShareOf(absolute.xpFromSchool, requiredXP);
+        out.shareDirect = ShareOf(absolute.xpFromDirect, requiredXP);
+        out.shareSelf = ShareOf(absolute.xpFromSelf, requiredXP);
+        out.shareModded.clear();
+        for (const auto& [name, xp] : absolute.modded) {
+            const float share = ShareOf(xp, requiredXP);
+            if (share > 0.0f) out.shareModded[name] = share;
         }
-        return RescaleTrackers(progress, oldRequired, newRequired) || changed;
-    }
-
-    // The basis SLPX v2 saves: the required XP, or 0 (not known) while the fit is pending
-    template <class Progress>
-    [[nodiscard]] float BasisToSave(const Progress& progress)
-    {
-        return progress.fitPending ? 0.0f : progress.requiredXP;
+        FitSharesToProgress(out, progress);
     }
 }

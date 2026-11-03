@@ -35,25 +35,22 @@ public:
         float requiredXP = 100.0f;     // Loaded from tree data at runtime
         bool unlocked = false;
 
-        // XP from each source (for cap tracking)
-        float xpFromAny = 0.0f;        // XP gained from any-spell casts
-        float xpFromSchool = 0.0f;     // XP gained from same-school casts
-        float xpFromDirect = 0.0f;     // XP gained from direct prereq casts
-        float xpFromSelf = 0.0f;       // XP gained from self-casting
+        // What each source has given, as a SHARE of the required XP (0..1, like the progress), for its cap:
+        // a cap check is share + gain / required <= cap share, so a required XP change needs nothing done
+        // here (ProgressionMath, "Per-source counts")
+        float shareAny = 0.0f;         // any-spell casts
+        float shareSchool = 0.0f;      // same-school casts
+        float shareDirect = 0.0f;      // direct prerequisite casts
+        float shareSelf = 0.0f;        // casting the spell itself
 
-        // XP from modded sources (for per-source cap tracking)
-        std::unordered_map<std::string, float> xpFromModded;  // source name -> tracked XP
-        // The counts came from a save with no basis required XP (SLPX v1) and are not fitted yet
-        // (ProgressionMath::SettlePendingFit; SettlePendingTrackerFits, the spell's first XP)
-        bool fitPending = false;
+        // Modded and internal sources (passive, ISL study): source name -> share
+        std::unordered_map<std::string, float> shareModded;
 
         // Computed property
         float GetCurrentXP() const { return progressPercent * requiredXP; }
-        float GetTotalTrackedXP() const {
-            float total = xpFromAny + xpFromSchool + xpFromDirect + xpFromSelf;
-            for (const auto& [name, xp] : xpFromModded) total += xp;
-            return total;
-        }
+        // A share as XP of this spell's required XP (0 when it is not usable)
+        float XPOfShare(float share) const { return ProgressionMath::XPOfShare(share, requiredXP); }
+        float ShareOfXP(float xp) const { return ProgressionMath::ShareOf(xp, requiredXP); }
     };
 
     static ProgressionManager* GetSingleton();
@@ -124,7 +121,7 @@ public:
     void AddXP(const std::string& formIdStr, float amount);  // String overload for DEST integration
     // ISL study XP: recorded without the early grant (ISL teaches the spell itself),
     // all study XP of a spell capped at its unlock-threshold share (tracked under
-    // kStudySource in xpFromModded, so the co-save keeps it), and never taking the
+    // kStudySource in shareModded, so the co-save keeps it), and never taking the
     // spell to 1.0 (ProgressionMath::NoGrantProgress). Returns the XP added.
     float AddXPNoGrant(const std::string& formIdStr, float amount);
     static constexpr const char* kStudySource = "isl_study";
@@ -184,7 +181,8 @@ public:
     static constexpr uint32_t kTargetsVersion = 2;
     static constexpr uint32_t kProgressRecord = 'SLPR';     // Spell Learning Progress Record
     static constexpr uint32_t kTargetsRecord = 'SLTR';      // Spell Learning Targets Record
-    static constexpr uint32_t kCapTrackersRecord = 'SLPX';  // Spell Learning Progress XP by source
+    static constexpr uint32_t kCapTrackersRecord = 'SLPX';  // Spell Learning Progress XP by source (1.7.0 layout)
+    static constexpr uint32_t kSharesRecord = 'SLPS';       // Spell Learning Progress Shares by source
     
     // Called by SKSE serialization callbacks
     void OnGameSaved(SKSE::SerializationInterface* a_intfc);
@@ -353,24 +351,6 @@ public:
     // Back to no mastery XP: RelockSpell, and SetSpellXP leaving the spell no longer mastered
     // (IsMasteredForRanks false)
     void ClearMastery(RE::FormID spellId);
-    // The one-time fit of counts loaded with no basis (SLPX v1), for every pending entry: the tree's required
-    // XP numbers are in (end of SyncRequiredXPFromTree). Marks the session so later loads settle at EndLoad.
-    // Game thread
-    void SettlePendingTrackerFits();
-    // SyncRequiredXPFromTree's scope: while it is open a required XP change leaves pending counts alone
-    // (the sync fits them at its end); RAII, so a throw closes it too
-    class TreeRequiredSyncScope
-    {
-    public:
-        explicit TreeRequiredSyncScope(ProgressionManager& manager) : m_manager(manager) { ++m_manager.m_treeSync.syncDepth; }
-        ~TreeRequiredSyncScope() { --m_manager.m_treeSync.syncDepth; }
-        TreeRequiredSyncScope(const TreeRequiredSyncScope&) = delete;
-        TreeRequiredSyncScope& operator=(const TreeRequiredSyncScope&) = delete;
-
-    private:
-        ProgressionManager& m_manager;
-    };
-
     // Every mastery entry under MasteryKeyOf (two on one key keep the larger XP): at load end and after
     // a tree's prerequisites are applied (the tree decides which copy is its record)
     void RekeyMasteryToTree();
@@ -463,9 +443,12 @@ private:
     // Progress data: spell formId -> progress
     std::unordered_map<RE::FormID, SpellProgress> m_spellProgress;
 
-    // SLPX entries read during a load (form ids resolved), put onto m_spellProgress
-    // in EndLoad - after every SLPR entry is in, whatever order the records came in
+    // A load's per-source counts, by resolved form id, put onto m_spellProgress in EndLoad once every
+    // record is in (whatever order they came in): the SLPS shares where the save has them, else the
+    // absolute XP of a 1.7 save (SLPR's modded XP and v3 fields, SLPX) converted once
     std::vector<ProgressionCoSave::CapEntry> m_pendingCapTrackers;
+    std::unordered_map<RE::FormID, ProgressionCoSave::Entry> m_pendingAbsolute;
+    std::unordered_map<RE::FormID, ProgressionCoSave::ShareEntry> m_pendingShares;
 
     // Required XP numbers by kind (RequiredXPTable.h): the tree's and the settings'
     // overrides survive a revert, this character's do not. A load used to drop all of
@@ -474,8 +457,10 @@ private:
     // A spell's required XP without its progress entry (RequiredXP::Table::For with its
     // tier and reverse unlock share). EndLoad sizes every entry from it.
     float BaseRequiredXP(RE::FormID formId) const;
-    bool ReadCapTrackers(SKSE::SerializationInterface* a_intfc, uint32_t version, uint32_t length);
-    void WriteCapTrackers(SKSE::SerializationInterface* a_intfc) const;
+    bool ReadCapTrackers(SKSE::SerializationInterface* a_intfc, uint32_t length);
+    bool ReadShares(SKSE::SerializationInterface* a_intfc, uint32_t length);
+    // SLPX (1.7.0's absolute layout) and SLPS (the shares)
+    void WriteCounterRecords(SKSE::SerializationInterface* a_intfc) const;
 
     // Current save name for file naming
     std::string m_currentSaveName = "default";
@@ -485,11 +470,6 @@ private:
     
     // XP Settings
     XPSettings m_xpSettings;
-
-    // Pending fits' session state: a tree sync running (pending counts held), a tree applied this session
-    // (SettlePendingTrackerFits ran: a load's pending fits settle at EndLoad; the tree's numbers survive a
-    // revert, so this does too)
-    ProgressionMath::TreeSyncState m_treeSync;
 
     // Mastery ranks: the settings (config.json "mastery") and each tree spell's raw mastery XP.
     // Cleared by ClearAllProgress (load, revert), apart from m_spellProgress (SLMX is its own record)

@@ -109,7 +109,6 @@ float ProgressionManager::AddSourcedXPImpl(RE::FormID targetId, float amount, co
     if (!builtIn && !internalCaller && !AcceptExternalSourceName(sourceName)) return 0.0f;
 
     auto& progress = EnsureProgress(targetId);
-    ProgressionMath::SettlePendingFit(progress);   // counts from an older save, no tree applied yet
 
     // Already mastered
     if (progress.unlocked && progress.progressPercent >= 1.0f) return 0.0f;
@@ -118,32 +117,30 @@ float ProgressionManager::AddSourcedXPImpl(RE::FormID targetId, float amount, co
     const XPGainRates rates = GetGainRates(targetId);
     float adjustedAmount = amount * rates.globalMultiplier;
 
-    // Built-in sources
+    // Built-in sources: the cap is a share of the required XP, the count the share given so far
     if (builtIn) {
-        float maxFromSource = 0.0f;
-        float currentFromSource = 0.0f;
+        float capShare = ProgressionMath::kNoCapPercent / 100.0f;
+        float trackedShare = 0.0f;
 
         if (sourceName == "any") {
             adjustedAmount *= rates.multiplierAny;
-            maxFromSource = progress.requiredXP * (rates.capAny / 100.0f);
-            currentFromSource = progress.xpFromAny;
+            capShare = rates.capAny / 100.0f;
+            trackedShare = progress.shareAny;
         } else if (sourceName == "school") {
             adjustedAmount *= rates.multiplierSchool;
-            maxFromSource = progress.requiredXP * (rates.capSchool / 100.0f);
-            currentFromSource = progress.xpFromSchool;
+            capShare = rates.capSchool / 100.0f;
+            trackedShare = progress.shareSchool;
         } else if (sourceName == "direct") {
             adjustedAmount *= rates.multiplierDirect;
-            maxFromSource = progress.requiredXP * (rates.capDirect / 100.0f);
-            currentFromSource = progress.xpFromDirect;
+            capShare = rates.capDirect / 100.0f;
+            trackedShare = progress.shareDirect;
         } else {  // "self" - no cap
             // Self-casting uses the direct multiplier — casting the target spell IS direct interaction
             adjustedAmount *= rates.multiplierDirect;
-            maxFromSource = progress.requiredXP * (ProgressionMath::kNoCapPercent / 100.0f);
-            currentFromSource = progress.xpFromSelf;
+            trackedShare = progress.shareSelf;
         }
 
-        float remaining = maxFromSource - currentFromSource;
-        adjustedAmount = (std::min)(adjustedAmount, (std::max)(0.0f, remaining));
+        adjustedAmount = (std::min)(adjustedAmount, ProgressionMath::CapRoom(capShare, trackedShare, progress.requiredXP));
     }
     // Modded sources
     else {
@@ -155,8 +152,8 @@ float ProgressionManager::AddSourcedXPImpl(RE::FormID targetId, float amount, co
             return 0.0f;
         }
         // A spell keeps at most kMaxModdedSources sources: the co-save reads no more
-        if (!progress.xpFromModded.contains(sourceName) &&
-            progress.xpFromModded.size() >= ProgressionCoSave::kMaxModdedSources) {
+        if (!progress.shareModded.contains(sourceName) &&
+            progress.shareModded.size() >= ProgressionCoSave::kMaxModdedSources) {
             return 0.0f;
         }
 
@@ -167,10 +164,10 @@ float ProgressionManager::AddSourcedXPImpl(RE::FormID targetId, float amount, co
         // modded defaults (cap 25%) cut passive's per-tier caps short at 25%
         if (!srcConfig.internal) {
             adjustedAmount *= (srcConfig.multiplier / 100.0f);
-            const float maxFromSource = progress.requiredXP * (srcConfig.cap / 100.0f);
-            const auto tracked = progress.xpFromModded.find(sourceName);
-            adjustedAmount = ProgressionMath::GrantWithinCap(adjustedAmount, maxFromSource,
-                                                             tracked != progress.xpFromModded.end() ? tracked->second : 0.0f);
+            const auto tracked = progress.shareModded.find(sourceName);
+            const float trackedShare = tracked != progress.shareModded.end() ? tracked->second : 0.0f;
+            adjustedAmount = ProgressionMath::GrantWithinCap(
+                adjustedAmount, ProgressionMath::CapRoom(srcConfig.cap / 100.0f, trackedShare, progress.requiredXP), 0.0f);
         }
     }
 
@@ -185,11 +182,12 @@ float ProgressionManager::AddSourcedXPImpl(RE::FormID targetId, float amount, co
                       sourceName, targetId);
         return 0.0f;
     }
-    if (sourceName == "any")         progress.xpFromAny += added;
-    else if (sourceName == "school") progress.xpFromSchool += added;
-    else if (sourceName == "direct") progress.xpFromDirect += added;
-    else if (sourceName == "self")   progress.xpFromSelf += added;
-    else                             progress.xpFromModded[sourceName] += added;
+    const float addedShare = progress.ShareOfXP(added);
+    if (sourceName == "any")         progress.shareAny += addedShare;
+    else if (sourceName == "school") progress.shareSchool += addedShare;
+    else if (sourceName == "direct") progress.shareDirect += addedShare;
+    else if (sourceName == "self")   progress.shareSelf += addedShare;
+    else                             progress.shareModded[sourceName] += addedShare;
     // BookXP's source reads as "book" in the log; any other mod's by its id
     LogXPGrant(sourceName == "book_reading" ? std::string("book") : "source " + sourceName, targetId, added,
                std::format("{:.2f} asked", amount));

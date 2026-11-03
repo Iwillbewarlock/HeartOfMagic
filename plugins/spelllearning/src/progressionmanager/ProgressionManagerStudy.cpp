@@ -35,8 +35,9 @@ float ProgressionManager::AddXPNoGrant(const std::string& formIdStr, float amoun
     const float threshold = SpellEffectivenessHook::GetSingleton()->GetSettings().unlockThreshold / 100.0f;
     // A spell studied before 2026-10-17 has no count yet and starts from 0: its
     // study so far is not told apart from its cast XP
-    const auto counted = progress.xpFromModded.find(kStudySource);
-    float studied = counted != progress.xpFromModded.end() ? counted->second : 0.0f;
+    // (kept as a share of the required XP, like every per-source count)
+    const auto counted = progress.shareModded.find(kStudySource);
+    float studied = progress.XPOfShare(counted != progress.shareModded.end() ? counted->second : 0.0f);
     const float granted = ProgressionMath::StudyGrant(amount, progress.requiredXP, threshold, studied);
 
     const float oldXP = progress.GetCurrentXP();
@@ -44,7 +45,7 @@ float ProgressionManager::AddXPNoGrant(const std::string& formIdStr, float amoun
     const float added = (std::max)(0.0f, progress.GetCurrentXP() - oldXP);
     if (added > 0.0f) {
         studied += added;
-        progress.xpFromModded[kStudySource] = studied;  // only once something was studied
+        progress.shareModded[kStudySource] = progress.ShareOfXP(studied);  // only once something was studied
     }
     m_dirty = true;
     SpellEffectivenessHook::GetSingleton()->SyncProgress(formId, progress.progressPercent);

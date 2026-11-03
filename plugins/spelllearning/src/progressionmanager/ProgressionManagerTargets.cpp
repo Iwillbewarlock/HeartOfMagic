@@ -504,12 +504,11 @@ void ProgressionManager::RelockSpell(RE::FormID formId)
     SpellProgress& progress = it->second;
     progress.unlocked = false;
     progress.progressPercent = 0.0f;
-    progress.xpFromAny = 0.0f;
-    progress.xpFromSchool = 0.0f;
-    progress.xpFromDirect = 0.0f;
-    progress.xpFromSelf = 0.0f;
-    progress.xpFromModded.clear();
-    progress.fitPending = false;
+    progress.shareAny = 0.0f;
+    progress.shareSchool = 0.0f;
+    progress.shareDirect = 0.0f;
+    progress.shareSelf = 0.0f;
+    progress.shareModded.clear();
     m_dirty = true;
 
     logger::info("ProgressionManager: Relocked {:08X} - progress cleared", formId);

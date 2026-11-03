@@ -916,7 +916,8 @@ read their records (a record whose reader threw is skipped; `GetNextRecordInfo` 
 |---|---|---|---|
 | `SLTR` | ProgressionManager | 2 (1 has the same layout) | count, then per target: school length, school, formId |
 | `SLPR` | ProgressionManager | 2, as 1.5.0 (reads 1-3) | count, then per spell: formId, progress (0..1), unlocked u8; v2 + the modded sources' XP (count, then name length, name, xp); v3 (read only, a 2026-10-17 development build wrote it) + `xpFromAny`, `xpFromSchool`, `xpFromDirect`, `xpFromSelf` |
-| `SLPX` | ProgressionManager | 2 (reads 1-2) | count, then per spell with anything counted (built-in or modded): formId, `xpFromAny`, `xpFromSchool`, `xpFromDirect`, `xpFromSelf` (f32); v2 (2026-11-04) + `requiredXP` (f32), the required XP all the spell's counts (these and SLPR's modded ones) were made against. A v1 record reads with it unknown (the counts kept as saved); an older version skips a v2 record (its counts 0 there) |
+| `SLPX` | ProgressionManager | 1 | count, then per spell with a built-in count: formId, `xpFromAny`, `xpFromSchool`, `xpFromDirect`, `xpFromSelf` (f32). 1.7.0's layout, still written (XP = share x the required XP at the save) so going back to 1.7.0 keeps the counts; read only from a save without `SLPS` |
+| `SLPS` | ProgressionManager | 1 | count, then per spell with any count: formId u32, `shareAny`, `shareSchool`, `shareDirect`, `shareSelf` (f32, shares of the required XP), moddedCount u32, then per modded source nameLen u32, name, share f32 (2026-11-04; 1.7.0 skips it). What a load uses; the values are held to 0..1 and finite (`CleanShare`) |
 | `SLEL` | SpellEffectivenessHook | 2 (reads 1-2) | count, then the early-learned spells' formIds; v2 + count, then the ones ISL holds (`IsHeldForISL`; not tied to the early set) |
 | `SLTX` | SpellTomeHook | 1 | count, then the spells a tome already gave XP (`HasGrantedTomeXP`) |
 | `SLMX` | ProgressionManager (mastery ranks) | 1 | count, then per spell with mastery XP: formId u32, raw mastery XP f32 (`MasteryMath.h`; the rank is worked out from it). Written by its own `CoSave` step (`SaveMasteryRecord`), apart from `SLPR`; read in `ReadRecord` (values not positive, finite and reachable - `MasteryMath::IsValidSavedXP` - and unresolved ids dropped, two ids on one spell keep the larger); cleared on revert and at the start of a load (`ClearAllProgress`); `EndLoad` drops ids that are no spell and moves every entry under its tree spell (`RekeyMasteryToTree`, also after each tree's prerequisites are applied: two ids on one spell keep the larger XP). Not tied to an `SLPR` entry: a spell learned outside the tree keeps it. A save without it (before 2026-11-03) starts every spell at 0; an older version saving again drops it |
@@ -924,7 +925,7 @@ read their records (a record whose reader threw is skipped; `GetNextRecordInfo` 
 | `DEST` | DESTIntegration | 1 | CommonLib `RegistrationSet`: count (size_t), then the VM handles of the aliases registered for `OnSpellTomeRead`. Read by `LoadChecked` (a subclass of CommonLib's set): the count must match the length before any handle is read, every read size-checked (CommonLib's own `Load` checks nothing it reads); a save without it (before 2026-10-27) starts with none. Cleared on revert; `AutoRegisterISLAliases` (`OnPostLoadGame`) adds ISL's aliases on every load as before |
 
 - The layouts are `include/ProgressionCoSave.h` (header only, no game types, templated on the stream);
-  `tools/progression-check --self-test` writes and reads `SLTR`, `SLPR` v1-v3, `SLPX`, `SLEL` v1-v2, `SLTX`, `SLSM` and `SLMX`
+  `tools/progression-check --self-test` writes and reads `SLTR`, `SLPR` v1-v3, `SLPX`, `SLPS`, `SLEL` v1-v2, `SLTX`, `SLSM` and `SLMX`
   records in byte buffers. Every field is read with its size checked (`ReadRecordData` returns the bytes read: a
   form id cut to 3 of its 4 bytes used to pass as read and name another spell); `SLTR` through
   `ProgressionCoSave::ReadTargets`, `SLEL`'s lists through `ReadFormIds`.
@@ -932,8 +933,9 @@ read their records (a record whose reader threw is skipped; `GetNextRecordInfo` 
   required XP) count against, was not saved, so the caps opened again on every load. It is a record of its own
   rather than an `SLPR` v3: 1.5.0 skips a record it does not know ("no owner") but would skip an `SLPR` of an
   unknown version - all progress - so going back to 1.5.0 now loses only these counters. Read entries wait in
-  `m_pendingCapTrackers` and `EndLoad` puts them onto the entries `SLPR` made, whatever order the records came
-  in (`ProgressionCoSave::ApplyCapEntries`); a spell with no progress entry gets none made. A save without
+  `m_pendingCapTrackers` and `EndLoad` puts them onto the absolute counts `SLPR` brought, whatever order the records
+  came in (`ProgressionCoSave::ApplyCapEntries`), and converts those to shares only for a save without `SLPS`
+  ("Per-source counts" below); a spell with no progress entry gets none made. A save without
   `SLPX` loads with the counters at 0, as before. The required XP is not saved. Three kinds of number are
   kept apart (`include/RequiredXPTable.h`, `m_requiredXP`): the tree's (`SetRequiredXP(..., Kind::kTree)` from
   `LoadSpellTree`) and the player's per-spell XP overrides from the settings (`xpOverrides` in config.json,
@@ -1640,29 +1642,30 @@ The same holds for a cast (`OnSpellCast`): the per-source count takes what the c
 the other schools hold (SetXPSettings logs a warning with their count); the next target set in single mode clears
 them.
 
-**The per-source counts against the required XP** (review 2026-11-04). The counts are shares of the required XP,
-as the progress is, and follow it both ways: a required XP change from R to R' (`SetRequiredXP`: the tree's
-number, this character's from the panel, `SetRequiredXPOverrides`) scales every count, built-in and modded, by
-R'/R (`ProgressionMath::RescaleTrackers`), so a number lowered then raised gives them back, and the progress's XP
-moves by the same factor (their sum stays within it). The save keeps the R they were made against (`SLPX` v2);
-`EndLoad` scales them from it to the R it works out. That R can be passing - this character's numbers are cleared
-at revert and come back from the panel, the tree's may arrive after the load (`SkipStartupTree`) - and the next
-`SetRequiredXP` scales them again, so a load never reopens a cap (before, `EndLoad` shrank them against the passing
-R and nothing grew them back). Only a lowered progress (`SetSpellXP`: cheat mode, the API, Papyrus) shrinks them to
-the XP held (`FitTrackersToXP`, fix A). A v1 save's counts (1.7: absolute XP, no basis, maybe still stuck above
-the XP held by a cheat-mode lowering from before fix A) are marked at `EndLoad` (`MarkFitPending`, `SpellProgress::fitPending`)
-and fitted once to the XP held (`SettlePendingFit`) as soon as the required XP is final in that session: at
-`EndLoad` itself when a tree was already applied this session (`LoadEndFit`, `m_treeSync.treeApplied`:
-a tree read at the main menu, then the save loaded - no tree read follows); else after the tree's numbers are in
-(`SettlePendingTrackerFits` at the end of `SyncRequiredXPFromTree`, both the game start tree and the panel's tree
-load, and after the panel's `SetTreePrerequisites` - its load, Apply and Import, which sync no required XP); at the first required XP change outside a tree sync
-(`RescaleSettlingFirst`: fitted at the
-number before the change, then scaled - a change is never left unscaled, which reopened a cap: 100 -> 200 kept
-5/15 where 10/30 is the share; only while a tree sync is running (`TreeRequiredSyncScope` around `SyncRequiredXPFromTree`'s `SetRequiredXP` calls,
-`m_treeSync.HoldsPending()`), a change leaves the pending counts alone and the sync's end fits them once at the tree's number - fitting at the
-passing tier number and scaling up would lift a saved sum between the two above what was saved); or at the
-spell's first XP (the cast loop, `AddSourcedXP` - mods, BookXP, passive learning). Until then a save writes basis 0
-for them (`BasisToSave`: the next load marks them again); `SetSpellXP` and a relock clear the mark.
+**Per-source counts** (redesign 2026-11-04). Each source's count (any, school, direct, self, every modded or
+internal source - BookXP, passive learning, ISL study) is kept as the SHARE of the spell's required XP it has
+given (0..1, as the progress is; `SpellProgress::shareAny` ... `shareModded`). The cap check is
+share + gain / required <= cap share (`ProgressionMath::CapRoom`, `ShareOf`): a required XP change - the tree's
+number, an override, the known-higher share, this character's number back from the panel, a load's first number -
+needs nothing done to the counts, in any order, and can neither reopen nor close a cap. Only a lowered progress
+(`SetSpellXP`: cheat mode, the API, Papyrus) shrinks them, to the progress (`FitSharesToProgress`, fix A). A required
+XP that is not finite or not positive is refused where it comes in (`IsUsableRequiredXP`: `SetRequiredXP` keeps the
+last good value; the panel's `SetLearningTarget` / `SetRequiredXP` requests, the tree sync, the config's tier values
+and XP overrides check it too) and never reaches a share division.
+
+The save writes the shares in `SLPS` and, for 1.7.0, the same counts as absolute XP in its layouts (`SLPX` v1,
+`SLPR`'s modded XP: share x the required XP at the save). A load with `SLPS` takes the shares as saved. A save
+without it (1.7 and before) has only absolute XP, converted once at `EndLoad` against the required XP worked out
+then (`BaseRequiredXP`: override, tree, tier and the known-higher share; this character's panel numbers are not in
+yet) and held to the progress (`SharesFromAbsolute`) - which also puts right a cap stuck by a cheat-mode lowering
+before fix A. **This is an approximation:** the 1.7 save does not say what required XP its counts were made
+against. When that number and the one at the load are the same (no override or tree number changed since, the same
+known-higher share), the conversion is exact. When the save's number was a share s of the load's (a spell learned
+downward whose share the panel had set, 30% - 80% by default, while the load has the full number), each count comes
+out s times its true share: a capped source gets (1 - s) of its cap back once - for the any cap (5%) between 1% and
+3.5% of the required XP, school (15%) 3% - 10.5%, direct (50%) 10% - 35%. When the load's number is the smaller one,
+the counts come out larger and are held to the progress: a capped source may close a few percent early once. From
+the next save on, `SLPS` keeps the shares exactly.
 
 **For C++ plugins:** Use `SpellLearningAPI.h` — either SKSE messaging (fire-and-forget) or request the `ISpellLearningAPI` interface pointer.
 
@@ -2573,7 +2576,7 @@ HeartOfMagic/
 │   │   │   ├── ElapsedMs.h                  ✅ MsSince: the one elapsed-milliseconds helper of the timing lines
 │   │   │   ├── MainMenuWatch.h              ✅ the one MainMenu opening sink: the panel's task, then the scan's
 │   │   │   ├── CoSave.h                     ✅ SKSE serialization callbacks (save, load, revert)
-│   │   │   ├── ProgressionCoSave.h          ✅ SLPR (writes v2, reads v1-v3), SLPX (writes v2, reads v1-v2), SLTX, SLSM and SLMX record layouts, templated on the stream (no game types)
+│   │   │   ├── ProgressionCoSave.h          ✅ SLPR (writes v2, reads v1-v3), SLPX v1, SLPS, SLTX, SLSM and SLMX record layouts, templated on the stream (no game types)
 │   │   │   ├── MasteryMath.h / MasteryConfig.h  ✅ mastery ranks: costs, ranks, skill factor, gain; config.json "mastery" reader
 │   │   │   ├── ProgressionManager.h         ✅ XP tracking header
 │   │   │   ├── ProgressionMath.h            ✅ XP cap, study, SetSpellXP clamp and mastery arithmetic (no game types)

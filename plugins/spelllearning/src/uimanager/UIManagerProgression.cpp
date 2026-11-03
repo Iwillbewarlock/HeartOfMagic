@@ -4,6 +4,7 @@
 #include "uimanager/UIManagerInternal.h"
 #include "uimanager/StartupState.h"
 #include "ProgressionManager.h"
+#include "ProgressionMath.h"
 #include "SpellEffectivenessHook.h"
 #include "ThreadUtils.h"
 
@@ -64,7 +65,7 @@ void UIManager::OnSetLearningTarget(const char* argument)
             // Set requiredXP from tree data if provided (syncs JS tree XP to C++)
             if (request.contains("requiredXP") && request["requiredXP"].is_number()) {
                 float requiredXP = request["requiredXP"].get<float>();
-                if (requiredXP > 0) {
+                if (ProgressionMath::IsUsableRequiredXP(requiredXP)) {   // a number too large for a float is inf
                     pm->SetRequiredXP(formId, requiredXP, RequiredXP::Kind::kCharacter);
                     logger::info("UIManager: Set requiredXP for {:08X} to {:.0f} (from tree)", formId, requiredXP);
                 }
@@ -457,7 +458,7 @@ void UIManager::OnSetRequiredXP(const char* argument)
             const auto parsedId = formIdStr.empty() ? std::optional<RE::FormID>(0) : ParsePanelFormId(formIdStr, "SetRequiredXP");
             if (!parsedId) return;
             const RE::FormID formId = *parsedId;
-            if (formId == 0 || requiredXP <= 0.0f) return;
+            if (formId == 0 || !ProgressionMath::IsUsableRequiredXP(requiredXP)) return;   // inf from a huge number too
             ProgressionManager::GetSingleton()->SetRequiredXP(formId, requiredXP, RequiredXP::Kind::kCharacter);
             GetSingleton()->NotifyProgressUpdate(formIdStr);
         } catch (const std::exception& e) {
@@ -497,9 +498,6 @@ void UIManager::OnSetTreePrerequisites(const char* argument)
 
             dataApply = true;
             ApplyTreePrerequisiteEntries(request);
-            // The panel's tree (its load, Apply, Import): counts from an older save still pending are fitted now
-            // and the tree counts as applied this session (no SyncRequiredXPFromTree on Apply or Import)
-            ProgressionManager::GetSingleton()->SettlePendingTrackerFits();
             // The tree game start applied against the panel's (once, after the saved tree's load)
             TreeParity::AfterPanelApply(nullptr);
         } catch (const std::exception& e) {

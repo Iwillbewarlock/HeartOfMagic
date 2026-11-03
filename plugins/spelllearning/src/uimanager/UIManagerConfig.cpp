@@ -9,6 +9,7 @@
 #include "uimanager/UIManagerInternal.h"
 #include "FormIdText.h"
 #include "ProgressionManager.h"
+#include "ProgressionMath.h"
 #include "SpellScanner.h"
 #include "SpellEffectivenessHook.h"
 #include "SpellTomeHook.h"
@@ -70,12 +71,17 @@ ProgressionManager::XPSettings ReadXPSettingsFromConfig(const nlohmann::json& co
     xpSettings.capAny = SafeJsonValue<float>(config, "xpCapAny", 5.0f);
     xpSettings.capSchool = SafeJsonValue<float>(config, "xpCapSchool", 15.0f);
     xpSettings.capDirect = SafeJsonValue<float>(config, "xpCapDirect", 50.0f);
-    // Tier XP requirements
-    xpSettings.xpNovice = SafeJsonValue<float>(config, "xpNovice", 100.0f);
-    xpSettings.xpApprentice = SafeJsonValue<float>(config, "xpApprentice", 200.0f);
-    xpSettings.xpAdept = SafeJsonValue<float>(config, "xpAdept", 400.0f);
-    xpSettings.xpExpert = SafeJsonValue<float>(config, "xpExpert", 800.0f);
-    xpSettings.xpMaster = SafeJsonValue<float>(config, "xpMaster", 1500.0f);
+    // Tier XP requirements: a value that is not a positive finite number (0, negative, too large for a float)
+    // is the default - no required XP may be one a share is taken against (ProgressionMath::IsUsableRequiredXP)
+    const auto tierXP = [&](const char* key, float fallback) {
+        const float value = SafeJsonValue<float>(config, key, fallback);
+        return ProgressionMath::IsUsableRequiredXP(value) ? value : fallback;
+    };
+    xpSettings.xpNovice = tierXP("xpNovice", 100.0f);
+    xpSettings.xpApprentice = tierXP("xpApprentice", 200.0f);
+    xpSettings.xpAdept = tierXP("xpAdept", 400.0f);
+    xpSettings.xpExpert = tierXP("xpExpert", 800.0f);
+    xpSettings.xpMaster = tierXP("xpMaster", 1500.0f);
     ReadReverseUnlockSettings(config, xpSettings);
     return xpSettings;
 }
@@ -133,7 +139,7 @@ static RequiredXP::Table::Map ReadXPOverrides(const nlohmann::json& config)
             } else if (const auto parsed = FormIdText::Parse(key)) {
                 formId = *parsed;
             }
-            if (formId == 0 || !(xp > 0.0f)) {
+            if (formId == 0 || !ProgressionMath::IsUsableRequiredXP(xp)) {
                 ++skipped;
                 continue;
             }

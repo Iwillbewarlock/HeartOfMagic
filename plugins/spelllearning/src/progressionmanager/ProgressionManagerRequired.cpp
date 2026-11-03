@@ -90,17 +90,18 @@ float ProgressionManager::GetReverseUnlockXPShare(const std::string& tier) const
 
 void ProgressionManager::SetRequiredXP(RE::FormID formId, float required, RequiredXP::Kind kind)
 {
-    if (required <= 0.0f) {
-        logger::warn("ProgressionManager: SetRequiredXP called with non-positive value {:.1f} for {:08X}, clamping to 1.0", required, formId);
-        required = 1.0f;
+    // Not finite or not positive: refused, the last good value kept (a share is never taken against it)
+    if (!ProgressionMath::IsUsableRequiredXP(required)) {
+        logger::warn("ProgressionManager: SetRequiredXP {:08X} with {} refused (not a positive finite number) - kept "
+                     "{:.1f}", formId, required, GetRequiredXP(formId));
+        return;
     }
     m_requiredXP.Set(kind, formId, required);
     // A tree number counts only where this character and the overrides have none
+    // The per-source counts are shares of it: nothing to do for them (ProgressionMath, "Per-source counts")
     auto& progress = EnsureProgress(formId);
-    const float before = progress.requiredXP;
-    progress.requiredXP = kind == RequiredXP::Kind::kCharacter ? required : BaseRequiredXP(formId);
-    // The per-source counts keep their share of the required XP, both ways (ProgressionMath::RescaleTrackers)
-    ProgressionMath::RescaleSettlingFirst(progress, before, progress.requiredXP, m_treeSync.HoldsPending());
+    const float next = kind == RequiredXP::Kind::kCharacter ? required : BaseRequiredXP(formId);
+    if (ProgressionMath::IsUsableRequiredXP(next)) progress.requiredXP = next;
 }
 
 void ProgressionManager::SetRequiredXPOverrides(RequiredXP::Table::Map overrides)
@@ -109,26 +110,10 @@ void ProgressionManager::SetRequiredXPOverrides(RequiredXP::Table::Map overrides
     std::size_t updated = 0;
     for (auto& [formId, progress] : m_spellProgress) {
         if (m_requiredXP.HasCharacterValue(formId)) continue;
-        const float before = progress.requiredXP;
-        progress.requiredXP = BaseRequiredXP(formId);
-        ProgressionMath::RescaleSettlingFirst(progress, before, progress.requiredXP, m_treeSync.HoldsPending());
+        const float next = BaseRequiredXP(formId);
+        if (ProgressionMath::IsUsableRequiredXP(next)) progress.requiredXP = next;
         ++updated;
     }
     logger::info("ProgressionManager: {} per-spell XP overrides from the settings ({} entries sized again)",
                  m_requiredXP.OverrideCount(), updated);
-}
-
-void ProgressionManager::SettlePendingTrackerFits()
-{
-    // From now on this session's loads settle at their end (EndLoad): no tree read follows them
-    m_treeSync.treeApplied = true;
-    std::size_t fitted = 0;
-    for (auto& [formId, progress] : m_spellProgress) {
-        if (ProgressionMath::SettlePendingFit(progress)) ++fitted;
-    }
-    if (fitted > 0) {
-        m_dirty = true;
-        logger::info("ProgressionManager: per-source XP counts of {} spells from an older save fitted to the XP they hold",
-                     fitted);
-    }
 }

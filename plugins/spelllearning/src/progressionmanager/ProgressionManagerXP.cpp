@@ -66,9 +66,8 @@ void ProgressionManager::SetSpellXP(RE::FormID formId, float xp)
     // (current XP = progress x required) start above the requirement.
     auto& progress = EnsureProgress(formId);
     progress.progressPercent = ProgressionMath::ProgressForXP(xp, progress.requiredXP);
-    // The per-source counts follow a lowered XP down (a source at its cap gives again)
-    ProgressionMath::FitTrackersToXP(progress, progress.GetCurrentXP());
-    progress.fitPending = false;   // fitted just now
+    // The per-source shares follow a lowered progress down (a source at its cap gives again)
+    ProgressionMath::FitSharesToProgress(progress, progress.progressPercent);
     // A spell no longer mastered (not unlocked, below 100%, no copy mastered) loses its mastery XP; one
     // that stays unlocked keeps its full power and its ranks
     if (!IsMasteredForRanks(MasteryKeyOf(formId))) ClearMastery(formId);
@@ -154,8 +153,8 @@ void ProgressionManager::OnSpellCast(const std::string& school, RE::FormID castS
         float multiplier = 0.0f;
         float capPercent = ProgressionMath::kNoCapPercent;
         auto& progRef = EnsureProgress(targetId);
-        ProgressionMath::SettlePendingFit(progRef);   // counts from an older save, no tree applied yet
-        float* tracked = &progRef.xpFromSelf;
+        float* tracked = &progRef.shareSelf;   // the source's share of the required XP
+
         switch (source) {
             case CastSource::kSelf:
                 multiplier = rates.multiplierDirect;
@@ -166,17 +165,17 @@ void ProgressionManager::OnSpellCast(const std::string& school, RE::FormID castS
             case CastSource::kDirect:
                 multiplier = rates.multiplierDirect;
                 capPercent = rates.capDirect;
-                tracked = &progRef.xpFromDirect;
+                tracked = &progRef.shareDirect;
                 break;
             case CastSource::kSchool:
                 multiplier = rates.multiplierSchool;
                 capPercent = rates.capSchool;
-                tracked = &progRef.xpFromSchool;
+                tracked = &progRef.shareSchool;
                 break;
             case CastSource::kAny:
                 multiplier = rates.multiplierAny;
                 capPercent = rates.capAny;
-                tracked = &progRef.xpFromAny;
+                tracked = &progRef.shareAny;
                 break;
         }
         const char* sourceName = ProgressionMath::CastSourceName(source);
@@ -192,8 +191,9 @@ void ProgressionManager::OnSpellCast(const std::string& school, RE::FormID castS
         // Memory guides practice: Spell Research archetypes remembered at the spell's rank (1.0 when skipped)
         xpGain *= Librarian::SpellResearchMemory::PracticeMultiplier(targetId);
 
-        // The source's cap: at most capPercent of the required XP from this kind of cast
-        const float remainingCap = progRef.requiredXP * (capPercent / 100.0f) - *tracked;
+        // The source's cap: at most capPercent of the required XP from this kind of cast (shares, so a
+        // required XP change moves nothing)
+        const float remainingCap = ProgressionMath::CapRoom(capPercent / 100.0f, *tracked, progRef.requiredXP);
         if (remainingCap <= 0.0f) {
             logger::trace("ProgressionManager: Source cap reached for {:08X} (source: {}, cap: {:.1f}%)", targetId,
                           sourceName, capPercent);
@@ -212,7 +212,7 @@ void ProgressionManager::OnSpellCast(const std::string& school, RE::FormID castS
         const float added = AddXPMeasured(targetId, grant);
         if (!(added > 0.0f) && wasUnlocked == progRef.unlocked) continue;
         credited.push_back(targetId);
-        *tracked += added;
+        *tracked += progRef.ShareOfXP(added);
         // Practice becomes memory: each 15% boundary (and 100%) crossed pays Spell Research archetype XP
         Librarian::SpellResearchMemory::OnPracticeProgress(targetId, progressBefore, progRef.progressPercent);
         totalXP += added;

@@ -7,7 +7,7 @@
 #include <vector>
 
 // =============================================================================
-// PROGRESSION CO-SAVE - byte layout of the progress (SLPR), cap tracker (SLPX),
+// PROGRESSION CO-SAVE - byte layout of the progress (SLPR), cap tracker (SLPX), shares (SLPS),
 // tome XP (SLTX), memory paid (SLSM) and mastery XP (SLMX) records
 // =============================================================================
 //
@@ -27,10 +27,9 @@
 //
 // SLPX v1: count u32, then per spell formId u32 and xpFromAny, xpFromSchool,
 // xpFromDirect, xpFromSelf (f32) - what the built-in sources' caps count against.
-// SLPX v2 (2026-11-04): + requiredXP f32 per spell, the required XP all the spell's counts (these four and
-// SLPR's modded ones) were made against, so a load scales them to the required XP it works out
-// (ProgressionMath::RescaleTrackers) instead of reading absolute XP against another number. Written for
-// every spell with any count, built-in or modded. v1 is still read (requiredXP 0: the counts as saved).
+// Written in this layout for 1.7.0 (which reads it): XP = share x the required XP at the save.
+// The shares themselves are in SLPS (below); a load uses SLPS and reads SLPX / SLPR's modded XP only
+// for a save without it (1.7 and before), converted once (ProgressionMath::SharesFromAbsolute).
 // A record of its own, not an SLPR v3: a build that does not know SLPX skips it
 // and still reads SLPR, so going back to 1.5.0 loses these counters, not the progress.
 //
@@ -44,13 +43,18 @@
 // back to an older version loses the mastery XP only. Values that are not positive, finite and reachable are
 // dropped by the reader's caller (MasteryMath::IsValidSavedXP).
 //
+// SLPS v1 (2026-11-04): count u32, then per spell with any count formId u32, shareAny, shareSchool,
+// shareDirect, shareSelf (f32), moddedCount u32, then per modded source nameLen u32, name bytes, share f32
+// - every per-source count as a share of the required XP (0..1). 1.7.0 does not know it and skips it.
+//
 // SLTR v1-v2 (one layout): count u32, then per learning target schoolLen u32,
 // school bytes, formId u32.
 namespace ProgressionCoSave
 {
     inline constexpr std::uint32_t kProgressVersion = 2;         // SLPR as written
     inline constexpr std::uint32_t kMaxProgressReadVersion = 3;  // SLPR as read
-    inline constexpr std::uint32_t kCapTrackersVersion = 2;   // SLPX as written; 1 and 2 read
+    inline constexpr std::uint32_t kCapTrackersVersion = 1;   // SLPX, 1.7.0's layout
+    inline constexpr std::uint32_t kSharesVersion = 1;        // SLPS
     inline constexpr std::uint32_t kTomeXPVersion = 1;
     inline constexpr std::uint32_t kMaxNameLength = 4096;
     inline constexpr std::uint32_t kMaxModdedSources = 4096;
@@ -76,15 +80,26 @@ namespace ProgressionCoSave
         float xpFromSchool = 0.0f;
         float xpFromDirect = 0.0f;
         float xpFromSelf = 0.0f;
-        float requiredXP = 0.0f;   // v2: what the counts were made against; 0 = not known (v1)
 
         [[nodiscard]] bool IsEmpty() const noexcept
         {
             return xpFromAny == 0.0f && xpFromSchool == 0.0f && xpFromDirect == 0.0f && xpFromSelf == 0.0f;
         }
     };
-    inline constexpr std::uint32_t kCapEntrySizeV1 = sizeof(std::uint32_t) + 4 * sizeof(float);
-    inline constexpr std::uint32_t kCapEntrySize = kCapEntrySizeV1 + sizeof(float);   // v2, as written
+    inline constexpr std::uint32_t kCapEntrySize = sizeof(std::uint32_t) + 4 * sizeof(float);
+
+    // One SLPS entry: a spell's per-source counts as shares of its required XP
+    struct ShareEntry
+    {
+        std::uint32_t formId = 0;
+        float shareAny = 0.0f;
+        float shareSchool = 0.0f;
+        float shareDirect = 0.0f;
+        float shareSelf = 0.0f;
+        std::vector<std::pair<std::string, float>> modded;
+    };
+    // The smallest SLPS entry: formId, four shares, a modded count of 0
+    inline constexpr std::uint32_t kMinShareEntrySize = sizeof(std::uint32_t) + 4 * sizeof(float) + sizeof(std::uint32_t);
 
     // One SLSM entry (Spell Research practice and memory): the 15% boundaries the spell has already paid
     // into SR's memory, one bit each (SpellResearchMemoryMath::PaidMask)
@@ -228,7 +243,7 @@ namespace ProgressionCoSave
         return ReadResult::Ok;
     }
 
-    // SLPX: count, then the entries, in the v2 layout. False when a write failed.
+    // SLPX: count, then the entries (1.7.0's layout). False when a write failed.
     template <class Stream>
     [[nodiscard]] bool WriteCapEntries(Stream& out, const std::vector<CapEntry>& entries)
     {
@@ -237,33 +252,87 @@ namespace ProgressionCoSave
         for (const auto& e : entries) {
             ok = ok && Detail::Write(out, e.formId) && Detail::Write(out, e.xpFromAny) &&
                  Detail::Write(out, e.xpFromSchool) && Detail::Write(out, e.xpFromDirect) &&
-                 Detail::Write(out, e.xpFromSelf) && Detail::Write(out, e.requiredXP);
+                 Detail::Write(out, e.xpFromSelf);
         }
         return ok;
     }
 
-    // SLPX v1 or v2: a count the record cannot hold is refused before anything is
+    // SLPX: a count the record cannot hold is refused before anything is
     // allocated. On a short read the whole entries read so far are kept.
     template <class Stream>
-    [[nodiscard]] ReadResult ReadCapEntries(Stream& in, std::uint32_t version, std::uint32_t recordLength,
-                                            std::vector<CapEntry>& entries)
+    [[nodiscard]] ReadResult ReadCapEntries(Stream& in, std::uint32_t recordLength, std::vector<CapEntry>& entries)
     {
         entries.clear();
-        const bool withRequired = version >= 2;
         std::uint32_t count = 0;
         if (!Detail::Read(in, count)) return ReadResult::ShortRead;
-        if (!Detail::CountFits(count, withRequired ? kCapEntrySize : kCapEntrySizeV1, sizeof(count), recordLength)) {
-            return ReadResult::CountTooLarge;
-        }
+        if (!Detail::CountFits(count, kCapEntrySize, sizeof(count), recordLength)) return ReadResult::CountTooLarge;
         entries.reserve(count);
         for (std::uint32_t i = 0; i < count; ++i) {
             CapEntry e;
             if (!Detail::Read(in, e.formId) || !Detail::Read(in, e.xpFromAny) || !Detail::Read(in, e.xpFromSchool) ||
-                !Detail::Read(in, e.xpFromDirect) || !Detail::Read(in, e.xpFromSelf) ||
-                (withRequired && !Detail::Read(in, e.requiredXP))) {
+                !Detail::Read(in, e.xpFromDirect) || !Detail::Read(in, e.xpFromSelf)) {
                 return ReadResult::ShortRead;
             }
             entries.push_back(e);
+        }
+        return ReadResult::Ok;
+    }
+
+    // SLPS: count, then the entries. A modded source the reader would refuse (a name over kMaxNameLength,
+    // past kMaxModdedSources) is left out, as WriteEntry does. False when a write failed.
+    template <class Stream>
+    [[nodiscard]] bool WriteShareEntries(Stream& out, const std::vector<ShareEntry>& entries)
+    {
+        const auto count = static_cast<std::uint32_t>(entries.size());
+        bool ok = Detail::Write(out, count);
+        for (const auto& e : entries) {
+            std::vector<const std::pair<std::string, float>*> sources;
+            for (const auto& source : e.modded) {
+                if (IsWritableSourceName(source.first) && sources.size() < kMaxModdedSources) sources.push_back(&source);
+            }
+            const auto moddedCount = static_cast<std::uint32_t>(sources.size());
+            ok = ok && Detail::Write(out, e.formId) && Detail::Write(out, e.shareAny) && Detail::Write(out, e.shareSchool) &&
+                 Detail::Write(out, e.shareDirect) && Detail::Write(out, e.shareSelf) && Detail::Write(out, moddedCount);
+            for (const auto* source : sources) {
+                const auto length = static_cast<std::uint32_t>(source->first.size());
+                ok = ok && Detail::Write(out, length) &&
+                     (length == 0 || out.WriteRecordData(source->first.data(), length)) && Detail::Write(out, source->second);
+            }
+        }
+        return ok;
+    }
+
+    // SLPS: a count the record cannot hold refused before anything is allocated; a name over the limit or
+    // too many sources refused (the record ends there); on a short read the whole entries read so far kept.
+    // The values are as saved: the caller drops ones that are not finite or not in 0..1 (ProgressionMath).
+    template <class Stream>
+    [[nodiscard]] ReadResult ReadShareEntries(Stream& in, std::uint32_t recordLength, std::vector<ShareEntry>& entries)
+    {
+        entries.clear();
+        std::uint32_t count = 0;
+        if (!Detail::Read(in, count)) return ReadResult::ShortRead;
+        if (!Detail::CountFits(count, kMinShareEntrySize, sizeof(count), recordLength)) return ReadResult::CountTooLarge;
+        entries.reserve(count);
+        for (std::uint32_t i = 0; i < count; ++i) {
+            ShareEntry e;
+            std::uint32_t moddedCount = 0;
+            if (!Detail::Read(in, e.formId) || !Detail::Read(in, e.shareAny) || !Detail::Read(in, e.shareSchool) ||
+                !Detail::Read(in, e.shareDirect) || !Detail::Read(in, e.shareSelf) || !Detail::Read(in, moddedCount)) {
+                return ReadResult::ShortRead;
+            }
+            if (moddedCount > kMaxModdedSources) return ReadResult::TooManySources;
+            for (std::uint32_t m = 0; m < moddedCount; ++m) {
+                std::uint32_t length = 0;
+                if (!Detail::Read(in, length)) return ReadResult::ShortRead;
+                if (length > kMaxNameLength) return ReadResult::NameTooLong;
+                std::string name(length, '\0');
+                float share = 0.0f;
+                if ((length > 0 && in.ReadRecordData(name.data(), length) != length) || !Detail::Read(in, share)) {
+                    return ReadResult::ShortRead;
+                }
+                e.modded.emplace_back(std::move(name), share);
+            }
+            entries.push_back(std::move(e));
         }
         return ReadResult::Ok;
     }

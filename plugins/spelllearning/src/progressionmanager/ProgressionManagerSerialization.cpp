@@ -51,14 +51,15 @@ void ProgressionManager::OnGameSaved(SKSE::SerializationInterface* a_intfc)
     a_intfc->WriteRecordData(&numProgress, sizeof(numProgress));
 
     // Each entry in the v2 layout 1.5.0 reads (ProgressionCoSave.h): percent,
-    // unlocked, the modded sources' XP. The built-in sources' XP goes in SLPX below.
+    // unlocked, the modded sources' XP (share x required XP, as 1.7.0 reads it; the shares go in SLPS).
+    // The built-in sources' XP goes in SLPX below.
     uint32_t skippedSources = 0;
     for (auto& [formId, progress] : m_spellProgress) {
         ProgressionCoSave::Entry entry;
         entry.formId = formId;
         entry.progressPercent = progress.progressPercent;
         entry.unlocked = progress.unlocked;
-        entry.modded.assign(progress.xpFromModded.begin(), progress.xpFromModded.end());
+        for (const auto& [name, share] : progress.shareModded) entry.modded.emplace_back(name, progress.XPOfShare(share));
         uint32_t skipped = 0;
         if (!ProgressionCoSave::WriteEntry(*a_intfc, entry, &skipped)) {
             logger::error("ProgressionManager: Failed to write progress entry {:08X}", formId);
@@ -73,33 +74,47 @@ void ProgressionManager::OnGameSaved(SKSE::SerializationInterface* a_intfc)
 
     logger::info("ProgressionManager: Saved {} spell progress entries to co-save (version {})", numProgress,
                  ProgressionCoSave::kProgressVersion);
-    WriteCapTrackers(a_intfc);
+    WriteCounterRecords(a_intfc);
     m_dirty = false;
 }
 
-void ProgressionManager::WriteCapTrackers(SKSE::SerializationInterface* a_intfc) const
+void ProgressionManager::WriteCounterRecords(SKSE::SerializationInterface* a_intfc) const
 {
-    // Only spells with something counted, built-in or modded (a zero entry reads the same as none), each
-    // with the required XP its counts were made against (v2: the load scales them to its own)
-    std::vector<ProgressionCoSave::CapEntry> entries;
+    // SLPX in 1.7.0's layout (absolute XP = share x required XP), so going back to 1.7.0 keeps the counts;
+    // SLPS with the shares themselves, which this version reads. Only spells with something counted: a
+    // zero entry reads the same as none
+    std::vector<ProgressionCoSave::CapEntry> absolute;
+    std::vector<ProgressionCoSave::ShareEntry> shares;
     for (const auto& [formId, progress] : m_spellProgress) {
-        const ProgressionCoSave::CapEntry e{ formId, progress.xpFromAny, progress.xpFromSchool, progress.xpFromDirect,
-                                             progress.xpFromSelf, ProgressionMath::BasisToSave(progress) };
-        const bool modded = std::ranges::any_of(progress.xpFromModded, [](const auto& s) { return s.second != 0.0f; });
-        if (!e.IsEmpty() || modded) entries.push_back(e);
+        const ProgressionCoSave::CapEntry e{ formId, progress.XPOfShare(progress.shareAny), progress.XPOfShare(progress.shareSchool),
+                                             progress.XPOfShare(progress.shareDirect), progress.XPOfShare(progress.shareSelf) };
+        if (!e.IsEmpty()) absolute.push_back(e);
+        ProgressionCoSave::ShareEntry share{ formId, progress.shareAny, progress.shareSchool, progress.shareDirect,
+                                             progress.shareSelf, {} };
+        for (const auto& [name, value] : progress.shareModded) {
+            if (value != 0.0f) share.modded.emplace_back(name, value);
+        }
+        const bool any = share.shareAny != 0.0f || share.shareSchool != 0.0f || share.shareDirect != 0.0f ||
+                         share.shareSelf != 0.0f || !share.modded.empty();
+        if (any) shares.push_back(std::move(share));
     }
     if (!a_intfc->OpenRecord(kCapTrackersRecord, ProgressionCoSave::kCapTrackersVersion) ||
-        !ProgressionCoSave::WriteCapEntries(*a_intfc, entries)) {
-        logger::error("ProgressionManager: Failed to write the cap tracker record ({} spells)", entries.size());
+        !ProgressionCoSave::WriteCapEntries(*a_intfc, absolute)) {
+        logger::error("ProgressionManager: Failed to write the cap tracker record ({} spells)", absolute.size());
+    }
+    if (!a_intfc->OpenRecord(kSharesRecord, ProgressionCoSave::kSharesVersion) ||
+        !ProgressionCoSave::WriteShareEntries(*a_intfc, shares)) {
+        logger::error("ProgressionManager: Failed to write the per-source shares record ({} spells)", shares.size());
         return;
     }
-    logger::info("ProgressionManager: Saved cap trackers for {} spells", entries.size());
+    logger::info("ProgressionManager: Saved per-source counts for {} spells (SLPS; SLPX for 1.7.0: {})", shares.size(),
+                 absolute.size());
 }
 
-bool ProgressionManager::ReadCapTrackers(SKSE::SerializationInterface* a_intfc, uint32_t version, uint32_t length)
+bool ProgressionManager::ReadCapTrackers(SKSE::SerializationInterface* a_intfc, uint32_t length)
 {
     std::vector<ProgressionCoSave::CapEntry> saved;
-    const auto result = ProgressionCoSave::ReadCapEntries(*a_intfc, version, length, saved);
+    const auto result = ProgressionCoSave::ReadCapEntries(*a_intfc, length, saved);
     if (result != ProgressionCoSave::ReadResult::Ok) {
         // Whole entries read before the failure are good
         logger::error("ProgressionManager: cap tracker record unreadable ({}), {} entries read before it kept",
@@ -115,56 +130,71 @@ bool ProgressionManager::ReadCapTrackers(SKSE::SerializationInterface* a_intfc, 
     return true;
 }
 
+bool ProgressionManager::ReadShares(SKSE::SerializationInterface* a_intfc, uint32_t length)
+{
+    std::vector<ProgressionCoSave::ShareEntry> saved;
+    const auto result = ProgressionCoSave::ReadShareEntries(*a_intfc, length, saved);
+    if (result != ProgressionCoSave::ReadResult::Ok) {
+        logger::error("ProgressionManager: per-source shares record unreadable ({}), {} entries read before it kept",
+                      ProgressionCoSave::Describe(result), saved.size());
+    }
+    for (auto& e : saved) {
+        RE::FormID resolvedId = 0;
+        if (a_intfc->ResolveFormID(e.formId, resolvedId)) {
+            e.formId = resolvedId;
+            m_pendingShares.insert_or_assign(resolvedId, std::move(e));
+        }
+    }
+    return true;
+}
+
 void ProgressionManager::BeginLoad()
 {
     logger::info("ProgressionManager: Loading from co-save...");
     ClearAllProgress();
     m_pendingCapTrackers.clear();
+    m_pendingAbsolute.clear();
+    m_pendingShares.clear();
 }
 
 void ProgressionManager::EndLoad()
 {
-    // SLPX onto the entries SLPR made; a save without SLPX (1.5.0 and before)
-    // keeps the counters at 0, a spell without an entry gets none made
-    const auto applied = ProgressionCoSave::ApplyCapEntries(m_pendingCapTrackers, m_spellProgress);
-    // The required XP each spell's counts were made against (SLPX v2; none from a v1 save)
-    std::unordered_map<RE::FormID, float> savedRequired;
-    for (const auto& e : m_pendingCapTrackers) {
-        if (e.requiredXP > 0.0f) savedRequired.insert_or_assign(e.formId, e.requiredXP);
-    }
-    if (!m_pendingCapTrackers.empty()) {
-        logger::info("ProgressionManager: Applied cap trackers to {} of {} spells ({} without a progress entry)",
-                     applied, m_pendingCapTrackers.size(), m_pendingCapTrackers.size() - applied);
-    }
+    // A 1.7 save's absolute counts: SLPX onto SLPR's entries (a spell without one gets none)
+    ProgressionCoSave::ApplyCapEntries(m_pendingCapTrackers, m_pendingAbsolute);
     m_pendingCapTrackers.clear();
     EndLoadMastery();
 
-    // Every entry's required XP now that the whole save is in (ReadRecord's was
-    // worked out before the records after SLPR). The per-source counts keep their share of it: scaled
-    // from the required XP they were saved against (SLPX v2) to this one, both ways. Never shrunk to the
-    // XP held here: this number may be passing (this character's numbers come back from the panel, the
-    // tree's may arrive after the load) and SetRequiredXP scales them again when the real one arrives, so
-    // a load never reopens a cap. A v1 save's counts stay as saved (the number they were made against is
-    // not known).
-    // Counts with no saved basis (v1) are marked: fitted once to the XP held when the required XP is
-    // no longer this passing number - here when the tree's numbers were applied this session already
-    // (LoadEndFit), else SettlePendingTrackerFits, a required XP change or the spell's first XP
-    std::size_t rescaled = 0;
-    std::size_t pending = 0;
+    // Every entry's required XP now that the whole save is in (ReadRecord's was worked out before the
+    // records after SLPR), then its per-source counts: the save's shares (SLPS) as they are; a save without
+    // them (1.7 and before) has absolute XP, converted once against this required XP and held to the
+    // progress (ProgressionMath::SharesFromAbsolute) - an approximation, the save does not say what required
+    // XP they were counted against (docs/ARCHITECTURE.md, "Per-source counts")
+    std::size_t fromShares = 0;
+    std::size_t converted = 0;
     for (auto& [formId, progress] : m_spellProgress) {
         progress.requiredXP = BaseRequiredXP(formId);
-        const auto saved = savedRequired.find(formId);
-        if (saved != savedRequired.end()) {
-            progress.fitPending = false;
-            if (ProgressionMath::RescaleTrackers(progress, saved->second, progress.requiredXP)) ++rescaled;
-        } else if (ProgressionMath::LoadEndFit(progress, m_treeSync.treeApplied)) {
-            ++pending;
+        if (const auto shares = m_pendingShares.find(formId); shares != m_pendingShares.end()) {
+            progress.shareAny = ProgressionMath::CleanShare(shares->second.shareAny);
+            progress.shareSchool = ProgressionMath::CleanShare(shares->second.shareSchool);
+            progress.shareDirect = ProgressionMath::CleanShare(shares->second.shareDirect);
+            progress.shareSelf = ProgressionMath::CleanShare(shares->second.shareSelf);
+            progress.shareModded.clear();
+            for (const auto& [name, value] : shares->second.modded) {
+                if (const float share = ProgressionMath::CleanShare(value); share > 0.0f) progress.shareModded[name] = share;
+            }
+            ++fromShares;
+        } else if (m_pendingShares.empty()) {
+            if (const auto absolute = m_pendingAbsolute.find(formId); absolute != m_pendingAbsolute.end()) {
+                ProgressionMath::SharesFromAbsolute(progress, absolute->second, progress.requiredXP, progress.progressPercent);
+                ++converted;
+            }
         }
     }
-    logger::info("ProgressionManager: Co-save load complete ({} entries, {} tree required XP values, {} with "
-                 "per-source XP counts scaled to their required XP, {} with counts from an older save {})",
-                 m_spellProgress.size(), m_requiredXP.TreeCount(), rescaled, pending,
-                 m_treeSync.treeApplied ? "fitted now (the tree's numbers are in)" : "to fit");
+    m_pendingAbsolute.clear();
+    m_pendingShares.clear();
+    logger::info("ProgressionManager: Co-save load complete ({} entries, {} tree required XP values, per-source counts: "
+                 "{} from shares, {} converted from a 1.7 save's XP)",
+                 m_spellProgress.size(), m_requiredXP.TreeCount(), fromShares, converted);
 }
 
 bool ProgressionManager::ReadRecord(SKSE::SerializationInterface* a_intfc,
@@ -173,14 +203,17 @@ bool ProgressionManager::ReadRecord(SKSE::SerializationInterface* a_intfc,
     // Not ours: say so before looking at the version, or a record belonging to
     // another owner would be rejected here for a version it never claimed.
     if (type == kMasteryRecord) return ReadMasteryRecord(a_intfc, version, length);
-    if (type != kTargetsRecord && type != kProgressRecord && type != kCapTrackersRecord) return false;
+    if (type != kTargetsRecord && type != kProgressRecord && type != kCapTrackersRecord && type != kSharesRecord) {
+        return false;
+    }
 
     // Every version written so far is read: SLTR 1-2 (one layout), SLPR 1-3 (v3
-    // from a 2026-10-17 development build only), SLPX 1-2
+    // from a 2026-10-17 development build only), SLPX 1, SLPS 1
     bool readable = false;
     switch (type) {
         case kTargetsRecord: readable = version >= 1 && version <= kTargetsVersion; break;
         case kProgressRecord: readable = ProgressionCoSave::IsReadableProgressVersion(version); break;
+        case kSharesRecord: readable = version >= 1 && version <= ProgressionCoSave::kSharesVersion; break;
         default: readable = version >= 1 && version <= ProgressionCoSave::kCapTrackersVersion; break;
     }
     if (!readable) {
@@ -189,7 +222,8 @@ bool ProgressionManager::ReadRecord(SKSE::SerializationInterface* a_intfc,
         return true;
     }
 
-    if (type == kCapTrackersRecord) return ReadCapTrackers(a_intfc, version, length);
+    if (type == kCapTrackersRecord) return ReadCapTrackers(a_intfc, length);
+    if (type == kSharesRecord) return ReadShares(a_intfc, length);
 
     switch (type) {
         case kTargetsRecord: {
@@ -250,13 +284,9 @@ bool ProgressionManager::ReadRecord(SKSE::SerializationInterface* a_intfc,
                 SpellProgress progress;
                 progress.progressPercent = entry.progressPercent;
                 progress.unlocked = entry.unlocked;
-                progress.xpFromModded.insert(entry.modded.begin(), entry.modded.end());
-                // What the built-in caps count against: from a v3 record only; a
-                // v2 one has them in SLPX, put on in EndLoad (0 from an older save)
-                progress.xpFromAny = entry.xpFromAny;
-                progress.xpFromSchool = entry.xpFromSchool;
-                progress.xpFromDirect = entry.xpFromDirect;
-                progress.xpFromSelf = entry.xpFromSelf;
+                // The per-source counts as absolute XP (the modded sources here, the built-in ones from a v3
+                // record or SLPX): kept for EndLoad, which takes SLPS's shares instead when the save has them
+                m_pendingAbsolute.insert_or_assign(resolvedId, entry);
                 // The co-save keeps only the percent: the required XP is the panel's
                 // number, else the tier's - worked out again in EndLoad, once every
                 // record is in (the reverse unlock share reads the other spells'
