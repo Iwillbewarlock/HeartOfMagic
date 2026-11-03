@@ -37,23 +37,26 @@ working. The HoM block still reads its keys from `MagicMenuRewrite.ini`, which M
 
 ## Install order: what happens and how to fix it
 
+Rows marked "(미확인 / not tested)" depend on how MO2 or Vortex behaves (the FOMOD's file test on a DLL, Replace /
+Merge, the conflict view, priority); they follow from the files and the FOMOD but were not run in a mod manager. The
+other rows rest on the zips (`release-zips-check.js`), the layout check or the code.
 "MMR 1.2.0" below means a clean install or an update that replaces the old files (MO2: Replace, Vortex: the normal
 update). "1.1.0 left over" means MMR 1.1.0's `MagicMenuRewrite_HoM.dll` is still in the MMR mod folder (MO2: an
 update installed with Merge, or a hand copy).
 
 | Case | Result | Fix |
 |---|---|---|
-| MMR 1.2.0 first, then HoM 1.9.0 | The HoM installer finds `SKSE\Plugins\MagicMenuRewrite.dll`: the "Magic Menu Rewrite" option is picked (Recommended). The block works. | - |
-| HoM 1.9.0 first, then MMR 1.2.0 | At HoM's install MMR was not there: the option was not picked (Optional). No HoM block in the menu; the preview and spell card work. | Reinstall HoM 1.9.0 (MO2: Reinstall) and pick "Heart of Magic block for Magic Menu Rewrite". |
-| HoM 1.9.0 first while MMR 1.1.0 is installed, then MMR 1.2.0 | MMR 1.1.0's DLL counted: the option was picked. The block works after the MMR update. | - |
+| MMR 1.2.0 first, then HoM 1.9.0 | The HoM installer finds `SKSE\Plugins\MagicMenuRewrite.dll`: the "Magic Menu Rewrite" option is picked (Recommended). The block works. (미확인 / not tested) | - |
+| HoM 1.9.0 first, then MMR 1.2.0 | At HoM's install MMR was not there: the option was not picked (Optional). No HoM block in the menu; the preview and spell card work. (미확인 / not tested) | Reinstall HoM 1.9.0 (MO2: Reinstall) and pick "Heart of Magic block for Magic Menu Rewrite". |
+| HoM 1.9.0 first while MMR 1.1.0 is installed, then MMR 1.2.0 | MMR 1.1.0's DLL counted: the option was picked. The block works after the MMR update. (미확인 / not tested) | - |
 | MMR 1.2.0 + HoM older than 1.9.0 | The HoM block is gone (MMR 1.2.0 no longer ships it). Its place in the layout and its hidden setting are kept (`magic-menu-layout-check`, "a block away and back"). | Update HoM to 1.9.0 with the option. |
-| HoM 1.9.0 with the option, MMR 1.2.0, MO2 priority HoM above (left pane higher) or below MMR | No file in common: priority does not matter. | - |
-| 1.1.0 left over, HoM 1.9.0 with the option, HoM below MMR (HoM wins) | HoM 1.9.0's block is loaded; MO2 shows the conflict. | Optional: delete the leftover from the MMR mod folder (reinstall MMR 1.2.0 with Replace). |
-| 1.1.0 left over, HoM 1.9.0 with the option, HoM above MMR (MMR wins) | MMR 1.1.0's copy of the block is loaded (the same code as HoM 1.9.0's today); a later HoM fix to the block would not reach the game. | Reinstall MMR 1.2.0 with Replace, or put HoM below MMR. |
-| 1.1.0 left over, HoM 1.9.0 without the option | The 1.1.0 copy keeps working until it is removed. | Reinstall HoM 1.9.0 with the option, then reinstall MMR 1.2.0 with Replace. |
+| HoM 1.9.0 with the option, MMR 1.2.0, MO2 priority HoM above (left pane higher) or below MMR | No file in common: priority does not matter. (미확인 / not tested) | - |
+| 1.1.0 left over, HoM 1.9.0 with the option, HoM below MMR (HoM wins) | HoM 1.9.0's block is loaded; MO2 shows the conflict. (미확인 / not tested) | Optional: delete the leftover from the MMR mod folder (reinstall MMR 1.2.0 with Replace). |
+| 1.1.0 left over, HoM 1.9.0 with the option, HoM above MMR (MMR wins) | MMR 1.1.0's copy of the block is loaded (the same code as HoM 1.9.0's today); a later HoM fix to the block would not reach the game. (미확인 / not tested) | Reinstall MMR 1.2.0 with Replace, or put HoM below MMR. |
+| 1.1.0 left over, HoM 1.9.0 without the option | The 1.1.0 copy keeps working until it is removed. (미확인 / not tested) | Reinstall HoM 1.9.0 with the option, then reinstall MMR 1.2.0 with Replace. |
 | HoM 1.9.0 option not picked, no leftover | No HoM block; nothing else changes. The layout keeps its place. | Reinstall HoM 1.9.0 with the option. |
 | HoM option picked without MMR (or MMR's `bEnabled=0`) | The block DLL loads and does nothing: `MagicMenuRewrite_HoM.log` says "MagicMenuRewrite did not listen (not installed, or bEnabled=0) - no block ...". | Install MMR, or uncheck the option. |
-| Vortex | The same files; Vortex asks for a rule only when the 1.1.0 copy is still deployed: let Heart of Magic Librarian win. | - |
+| Vortex | A guess, not tested (추측 / not tested): the same files; when the 1.1.0 copy is still deployed Vortex should report a file conflict - let Heart of Magic Librarian win. | - |
 
 The Spell Research block was never in an MMR release, so it has no leftover cases: it comes with Spell Research -
 Prisma UI 2 and needs Magic Menu Rewrite to show anything.

@@ -18,9 +18,10 @@
   - the keys U (the next learnable spell) and G (learn the selected spell next), `[Keys] iNext` / `iSetTarget`;
   - its English and Korean texts.
 
-  The block's file names, block ids and settings are the ones Magic Menu Rewrite 1.1.0 installed: this copy may
-  overwrite that one, its keys stay in `MagicMenuRewrite.ini`, and a saved block layout and hidden blocks keep their
-  places. Without Magic Menu Rewrite, leave the option unchecked: nothing else in Heart of Magic needs it. Install
+  The block's file names, block ids and settings are the ones Magic Menu Rewrite 1.1.0 installed: if that copy is
+  still installed, the two conflict - let Heart of Magic Librarian win, or remove that copy (reinstall Magic Menu
+  Rewrite 1.2.0 so it replaces the old files); its keys stay in `MagicMenuRewrite.ini`, and a saved block layout and
+  hidden blocks keep their places. Without Magic Menu Rewrite, leave the option unchecked: nothing else in Heart of Magic needs it. Install
   order and what to do in each case: `docs/magicmenu/BLOCKS_MOVE.md`.
 
 ## Magic Menu Rewrite 1.2.0

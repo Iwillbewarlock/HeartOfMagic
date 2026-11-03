@@ -128,7 +128,7 @@ Adds Heart of Magic Librarian's windows to the magic menu of Magic Menu Rewrite:
 
 Needs Magic Menu Rewrite (1.2.0 or later recommended). Without it this block does nothing. Picked by default when Magic Menu Rewrite is installed.
 
-Magic Menu Rewrite 1.1.0 shipped this block itself, under the same file name (SKSE\Plugins\MagicMenuRewrite_HoM.dll): this copy may overwrite that one. Your block layout and its settings in MagicMenuRewrite.ini stay as they are.
+Magic Menu Rewrite 1.1.0 shipped this block itself, under the same file name (SKSE\Plugins\MagicMenuRewrite_HoM.dll). If that copy is still installed, this one conflicts with it: let Heart of Magic Librarian win (or remove that copy, for example by reinstalling Magic Menu Rewrite 1.2.0 so it replaces the old files). Your block layout and its settings in MagicMenuRewrite.ini stay as they are.
                             </description>
                             <files>
                                 <folder source="optional\MagicMenuRewriteBlocks\SKSE" destination="SKSE" priority="0"/>
