@@ -224,6 +224,7 @@ namespace
         }
         case SKSE::MessagingInterface::kPreLoadGame:
         case SKSE::MessagingInterface::kNewGame:
+            Spells::Clear();         // another save's HoM state: not drawn, not remembered as a last target
             HomAddon::OnGameLoad();  // the progress card's last targets were another save's
             break;
         case SKSE::MessagingInterface::kDataLoaded: {

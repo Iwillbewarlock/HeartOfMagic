@@ -50,10 +50,13 @@ namespace HomAddon
             if (!content.IsDisplayObject()) return std::nullopt;
             const auto metrics = Metrics();
             auto& log = menu.textLog;
+            // 2026-11-03: the registered height grew for the next-spell rows (ProgressRegisteredHeight); the target and the messages keep
+            // the ini rect's height as their room, as before (the plan: the card with a target stays as it is)
             const double fullH = RegisteredHeight(BlockKind::kProgress);
+            const double iniH = std::min(fullH, HomSettings::BlockHeights(HomSettings::Get()).progress);
             const double w = a_boxW - 2 * kPad;
 
-            const double titleSize = Size(kSchoolSize), hintSize = Size(kHintSize), bottom = fullH - kCardBottom;
+            const double titleSize = Size(kSchoolSize), hintSize = Size(kHintSize), bottom = iniH - kCardBottom;
             auto title = TextFit::FitLine(metrics, log, a_movie, content, "school", 0, kCardTop, w, titleSize,
                 Fill(Str::kProgressTitle, { { "{school}", SchoolText(session.school) } }), kTitleColor);
             double y = kCardTop + FieldH(titleSize);
@@ -122,7 +125,7 @@ namespace HomAddon
             const auto pct = std::format("{:.0f}", state.percent);
             // where each line goes and what gives way (LayoutMath::PlanProgress: the hint shrinks, then the hint goes, then the
             // title; the same function tools/magic-menu-hom-block-check runs); no row-2 offset (HoM add-on design)
-            const LayoutMath::ProgressIn planIn{ fullH, kCardTop, kCardBottom, titleSize, kTargetSize, kXpSize, kBarH, hintSize, TextFit::kMinFitSize,
+            const LayoutMath::ProgressIn planIn{ iniH, kCardTop, kCardBottom, titleSize, kTargetSize, kXpSize, kBarH, hintSize, TextFit::kMinFitSize,
                 TextFit::kFitStep, 0.0 };
             const auto plan = LayoutMath::PlanProgress(TextFit::LayoutMetrics(metrics), planIn);
             if (!plan.title && title.IsDisplayObject()) dropTitle(plan.targetH + plan.barRowH, "the learning target and its bar");

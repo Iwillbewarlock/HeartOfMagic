@@ -383,6 +383,14 @@ namespace Spells
         return g_current;
     }
 
+    void Clear()
+    {
+        auto empty = std::make_shared<Snapshot>();  // contentHash 0: the next refresh is a change even with the same content
+        const std::scoped_lock lock(g_currentLock);
+        empty->epoch = g_current->epoch + 1;
+        g_current = std::move(empty);
+    }
+
     void RequestRefresh(const std::vector<std::string>& a_schools)
     {
         {

@@ -350,9 +350,18 @@ namespace HomAddon
         CardSharedFrame(BlockKind::kProgress, a_context);
         const int node = ProgressChoicesFrame(a_movie, a_content, a_context);
         if (node < 0 || !Spells::Get() || node >= static_cast<int>(Data().tree.nodes.size())) return;
+        // review 2026-11-03: a row still on screen after the state moved on (a target set by G meanwhile, the spell no longer a
+        // candidate) is ignored - it neither moves the tree nor replaces the new target
+        const auto snapshot = Spells::Current();
+        const auto& school = TheSession().school;
+        if (snapshot->Target(school) != 0 || !std::ranges::contains(SchoolInfoOf(*snapshot).candidates, node)) {
+            logger::info("HoM block: progress card row {} ignored - {} has a learning target now or the spell is no longer a candidate",
+                Spells::NodeName(node), school);
+            return;
+        }
         logger::info("HoM block: progress card row {} {:08X} clicked - picked and set as the learning target", Spells::NodeName(node), Data().gameIds[node]);
         PickByKey(node);
-        SetTargetIfChosen(false, true, *Spells::Current(), "the progress card's row");
+        SetTargetIfChosen(false, true, *snapshot, "the progress card's row");
         SendRedraws();
     }
 

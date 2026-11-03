@@ -182,6 +182,10 @@ Contract changes made during the implementation (each in BlockApi.h's header com
   card fits its content as before. The rows fit the card's registered height and `Context::columnRoom` (the column's
   visible room, unscrolled); at least one row. Pure parts: `ChoiceRules.h` (magic-menu-hom-block-check: order, rows,
   rooms at 16:9 / 16:10 / 21:9 / 4:3). SelfTest C1 logs whether the rows ended inside the room.
+- Review fixes (reviewer agent + GPT, 2026-11-03): a game load or new game empties the HoM snapshot (`Spells::Clear`, a new
+  epoch) so the last save's targets are neither drawn nor remembered as `lastTarget`; a row release is ignored when the
+  school has a target meanwhile or the spell is no longer a candidate; the column room is not taken in the layout mode;
+  the card with a target and the messages keep the ini rect's height as their room (only the rows use the raised one).
 - Not done from the plan: rule (2), "the same element or technique as the last target", has no data in the add-on (the
   tree file has no tags; HoM's API v2 has no tag query; spell_catalog.json would be a new file dependency).
 

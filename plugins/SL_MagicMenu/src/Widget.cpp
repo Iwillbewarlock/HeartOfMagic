@@ -3029,9 +3029,6 @@ namespace Widget
             for (const auto& [id, height] : requests) {
                 const auto* addon = KnownAddon(id, "height request ('SLMH')");
                 if (!addon) continue;
-                // 2026-11-03: a block opened at its session height takes its first request at once (BlockRules::FirstAskAtOnce); a held
-                // shrink comes back here only for a block that asked already
-                const bool atOnce = BlockRules::FirstAskAtOnce(g_menu.openedAtSession.contains(id), g_menu.heightAsked.insert(id).second);
                 const auto current = g_menu.fitHeight.find(id);
                 const auto verdict = BlockRules::JudgeHeight(height, addon->height,
                     current != g_menu.fitHeight.end() ? std::optional{ current->second } : std::nullopt);
@@ -3042,6 +3039,9 @@ namespace Widget
                     }
                     continue;
                 }
+                // 2026-11-03: a block opened at its session height takes its first request at once (BlockRules::FirstAskAtOnce; a refused
+                // one does not count); a held shrink comes back here only for a block that asked already
+                const bool atOnce = BlockRules::FirstAskAtOnce(g_menu.openedAtSession.contains(id), g_menu.heightAsked.insert(id).second);
                 if (verdict == BlockRules::HeightVerdict::kUnchanged) {
                     g_menu.heldShrink.erase(id);
                     continue;

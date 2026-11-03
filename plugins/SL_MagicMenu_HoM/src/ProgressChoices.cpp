@@ -209,7 +209,8 @@ namespace HomAddon
     {
         auto& menu = Menu();
         // the column's room: the rows are drawn again when it changed (a block above refitted, another layout); never from the scroll
-        if (a_context.structSize >= BlockApi::kContextColumnRoomNeeded) {
+        // not in the layout mode: it lays the blocks out at their registered heights, so the room there is not the menu's
+        if (a_context.structSize >= BlockApi::kContextColumnRoomNeeded && !a_context.layoutMode) {
             menu.progressRoom = static_cast<double>(a_context.columnRoom);
             TheSession().progressRoom = menu.progressRoom;
             if (menu.choicesShown && ChoiceRules::RedrawForRoom(menu.choicesDrawnRoom, menu.progressRoom)) {

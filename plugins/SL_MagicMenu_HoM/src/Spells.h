@@ -76,6 +76,10 @@ namespace Spells
     /// The newest snapshot (never null).
     std::shared_ptr<const Snapshot> Current();
 
+    /// A game load or new game (main thread): the snapshot becomes an empty one with a new epoch, so nothing of the last save's
+    /// state is drawn or remembered (the progress card's last targets) until the next refresh reads this save's
+    void Clear();
+
     /// Asks for HoM's state of these schools' spells (and their prerequisites), read on the main thread by an
     /// SKSE task; requests made before it runs are merged into one task.
     void RequestRefresh(const std::vector<std::string>& a_schools);
