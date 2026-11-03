@@ -490,6 +490,7 @@ int main(int argc, char** argv)
     ProgressionCheck::RequiredXPCases();
     ProgressionCheck::XPFixCases();
     ProgressionCheck::MemoryCases();
+    ProgressionCheck::MasteryCases();
     using ProgressionCheck::g_cases;
     using ProgressionCheck::g_failures;
     std::printf("%d of %d cases passed\n", g_cases - g_failures, g_cases);

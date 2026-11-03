@@ -8,7 +8,7 @@
 
 // =============================================================================
 // PROGRESSION CO-SAVE - byte layout of the progress (SLPR), cap tracker (SLPX),
-// tome XP (SLTX) and memory paid (SLSM) records
+// tome XP (SLTX), memory paid (SLSM) and mastery XP (SLMX) records
 // =============================================================================
 //
 // Templated on the stream so the plugin passes SKSE::SerializationInterface as it
@@ -34,6 +34,11 @@
 //
 // SLSM v1: count u32, then per spell formId u32 and paid u8 - the 15% boundaries the spell has
 // paid into Spell Research's memory, one bit each (SpellResearchMemory.h, practice and memory).
+//
+// SLMX v1: count u32, then per spell formId u32 and xp f32 - the raw mastery XP past 100% (MasteryMath.h;
+// the rank is worked out from it). A record of its own: a build that does not know it skips it, so going
+// back to an older version loses the mastery XP only. Values that are not positive, finite and reachable are
+// dropped by the reader's caller (MasteryMath::IsValidSavedXP).
 //
 // SLTR v1-v2 (one layout): count u32, then per learning target schoolLen u32,
 // school bytes, formId u32.
@@ -84,6 +89,15 @@ namespace ProgressionCoSave
         std::uint8_t paid = 0;
     };
     inline constexpr std::uint32_t kPaidEntrySize = sizeof(std::uint32_t) + sizeof(std::uint8_t);
+
+    // One SLMX entry (mastery ranks): a spell's raw mastery XP
+    inline constexpr std::uint32_t kMasteryVersion = 1;
+    struct MasteryEntry
+    {
+        std::uint32_t formId = 0;
+        float xp = 0.0f;
+    };
+    inline constexpr std::uint32_t kMasteryEntrySize = sizeof(std::uint32_t) + sizeof(float);
 
     enum class ReadResult
     {
@@ -268,6 +282,36 @@ namespace ProgressionCoSave
         for (std::uint32_t i = 0; i < count; ++i) {
             PaidEntry e;
             if (!Detail::Read(in, e.formId) || !Detail::Read(in, e.paid)) return ReadResult::ShortRead;
+            entries.push_back(e);
+        }
+        return ReadResult::Ok;
+    }
+
+    // SLMX: count, then formId u32 + xp f32 per spell. False when a write failed.
+    template <class Stream>
+    [[nodiscard]] bool WriteMasteryEntries(Stream& out, const std::vector<MasteryEntry>& entries)
+    {
+        const auto count = static_cast<std::uint32_t>(entries.size());
+        bool ok = Detail::Write(out, count);
+        for (const auto& e : entries) {
+            ok = ok && Detail::Write(out, e.formId) && Detail::Write(out, e.xp);
+        }
+        return ok;
+    }
+
+    // SLMX: a count the record cannot hold is refused before anything is allocated. On a short read the
+    // whole entries read so far are kept. The values are as saved: the caller drops the bad ones.
+    template <class Stream>
+    [[nodiscard]] ReadResult ReadMasteryEntries(Stream& in, std::uint32_t recordLength, std::vector<MasteryEntry>& entries)
+    {
+        entries.clear();
+        std::uint32_t count = 0;
+        if (!Detail::Read(in, count)) return ReadResult::ShortRead;
+        if (!Detail::CountFits(count, kMasteryEntrySize, sizeof(count), recordLength)) return ReadResult::CountTooLarge;
+        entries.reserve(count);
+        for (std::uint32_t i = 0; i < count; ++i) {
+            MasteryEntry e;
+            if (!Detail::Read(in, e.formId) || !Detail::Read(in, e.xp)) return ReadResult::ShortRead;
             entries.push_back(e);
         }
         return ReadResult::Ok;

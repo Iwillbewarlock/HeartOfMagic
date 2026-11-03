@@ -248,6 +248,7 @@ add_executable(progression-check
     progression-check.cpp
     progression-check-math.cpp
     progression-check-memory.cpp
+    progression-check-mastery.cpp
 )
 
 target_compile_features(progression-check PRIVATE cxx_std_23)
