@@ -128,9 +128,9 @@ node -e "var en=require('./lang/en.json'),x=require('./lang/fr.json');console.lo
 
 `details.masteryRank` ("Mastery rank {{rank}}/{{ranks}}", the spell card), `hud.masteryRankUp` (the corner message
 above), `settings.progression.masteryRanks`, `settings.progression.masteryEnable` and
-`settings.progression.masteryEnableDesc` (Settings > Learning > Mastery Ranks). They are in `en.json` and `ko.json`;
-the other eleven languages show the English text until they are translated (keep `{{rank}}`, `{{ranks}}`,
-`{{spell}}` and the `config.json, "mastery"` name as they are).
+`settings.progression.masteryEnableDesc` (Settings > Learning > Mastery Ranks). They are in all 13 language files
+(en and ko with the feature, the other eleven since 2026-11-04). A translation keeps `{{rank}}`, `{{ranks}}`,
+`{{spell}}` and the `config.json, "mastery"` name as they are.
 
 ## Generating the Preload File
 

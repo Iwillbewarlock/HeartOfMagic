@@ -9,8 +9,8 @@
  *    progress) taken whole there, so it never becomes a 0 XP learning entry;
  *  - MasterySetting: on by default, loaded from mastery.enabled (anything not a boolean is on), saved as
  *    mastery.enabled only (the hand-written numbers stay), Reset to Defaults on;
- *  - markup and languages: the card row and the setting's switch in index.html with their scripts, the keys in en
- *    and ko.
+ *  - markup and languages: the card row and the setting's switch in index.html with their scripts, the keys in all 13
+ *    language files.
  *
  * Depends on: spellCardMastery.js, progressUpdates.js, masterySetting.js, each run in a sandbox of its own with a fake
  * document (PanelLayoutTest's helpers).
@@ -187,7 +187,11 @@ var SpellCardMasteryTest = {
         var keys = ['details.masteryRank', 'hud.masteryRankUp', 'settings.progression.masteryRanks',
             'settings.progression.masteryEnable', 'settings.progression.masteryEnableDesc'];
         var self = this;
-        ['en', 'ko'].forEach(function(loc) {
+        var langs = require('fs').readdirSync(require('path').join(__dirname, '../lang')).filter(function(f) {
+            return /\.json$/.test(f) && f.charAt(0) !== '_';
+        }).map(function(f) { return f.replace(/\.json$/, ''); });
+        this.check(langs.length === 13, 'Languages: 13 language files (' + langs.length + ')');
+        langs.forEach(function(loc) {
             var lang = JSON.parse(self._file('../lang/' + loc + '.json'));
             var missing = keys.filter(function(k) { return typeof lang[k] !== 'string' || !lang[k]; });
             var placeholders = lang['details.masteryRank'] && lang['details.masteryRank'].indexOf('{{rank}}') !== -1 &&

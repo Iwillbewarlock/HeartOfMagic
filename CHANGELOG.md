@@ -15,7 +15,7 @@
   rank (Papyrus `SpellLearning.GetMasteryRank`, the C++ API version 3) and listen for `SpellLearning_MasteryRankUp`.
   Saved with the game in a record of its own: a save from before starts every spell at 0, and **saving again with an
   older version of Heart of Magic drops the mastery XP** (everything else stays). The card's and the setting's text
-  is in English and Korean; the other languages show English for now.
+  is in all 13 panel languages.
 
 - **Spell Research: practice and memory.** With Spell Research installed and imported, casting a spell you are
   learning now also teaches Spell Research: every 15% of progress a cast crosses (and mastery) adds a short
