@@ -5,7 +5,7 @@ A rebuild of [url=https://www.nexusmods.com/skyrimspecialedition/mods/171146]Hea
 released with the original author's permission to improve and re-release it.[/center]
 [center][color=#ffff00][size=6]PLZ read change log. [/size][/color]
 [/center]
-[center]Source code: [url=https://github.com/Iwillbewarlock/HeartOfMagic/tree/v1.8.0]https://github.com/Iwillbewarlock/HeartOfMagic/tree/v1.8.0[/url][/center]
+[center]Source code: [url=https://github.com/Iwillbewarlock/HeartOfMagic/tree/v1.9.0]https://github.com/Iwillbewarlock/HeartOfMagic/tree/v1.9.0[/url][/center]
 [center][youtube]fyMM1G6eWow[/youtube]
 
 [img][img]https://staticdelivery.nexusmods.com/mods/1704/images/193381/193381-1790651548-1806132487.png[/img][/img][/center]
@@ -22,6 +22,16 @@ No spell lists to maintain and no patches per spell mod: the tree is built from 
 
 [line]
 
+[size=5][b]New in 1.9.0[/b][/size]
+[list]
+[*][b]Magic Menu Rewrite block now included:[/b] The Heart of Magic block for Magic Menu Rewrite's magic menu (`MagicMenuRewrite_HoM.dll`), which was an installer option in Magic Menu Rewrite up to 1.1.0, is now part of Heart of Magic Librarian on its own "Magic Menu Rewrite" installer page and is picked by default when Magic Menu Rewrite is installed. It needs Magic Menu Rewrite (1.2.0 or later recommended, as 1.2.0 no longer ships the block). Without Magic Menu Rewrite, leave the option unchecked since nothing else in Heart of Magic needs it.
+[*][b]Spell tree, learning progress, and node cards in the magic menu:[/b] The block adds the spell tree window (showing where the selected spell sits in the tree and the spells around it, its description on hover, and clicking any spell, including spells you have not learned yet, to show it on the cards and in the 3D box), the learning progress card (showing each school's learning target and progress and the spells you can learn now, or when a school has no learning target, the spells you can learn next with those after the spell you just mastered listed first so you can click one to make it your learning target, controlled by `[Progress] iMaxChoices` for 1-8 rows with "N more" under them), and the node card (showing the selected spell's state, prerequisites, and a button to make it your learning target). It also includes the keys U (the next learnable spell) and G (learn the selected spell next) via `[Keys] iNext` / `iSetTarget`, along with its English and Korean texts.
+[*][b]Same settings and layout compatibility:[/b] The block uses the same file names, block ids, and settings that Magic Menu Rewrite 1.1.0 installed. Its keys stay in `MagicMenuRewrite.ini`, and a saved block layout and hidden blocks keep their places. If the copy from Magic Menu Rewrite 1.1.0 is still installed, the two conflict, so let Heart of Magic Librarian win or remove that copy by reinstalling Magic Menu Rewrite 1.2.0 so it replaces the old files.
+[/list]
+[b]After updating:[/b] your saves keep working with no tree rebuild needed, and your saved block layout, hidden blocks, and keys in `MagicMenuRewrite.ini` stay in place. If you use Magic Menu Rewrite, update it to 1.2.0 on the same day and pick the "Magic Menu Rewrite" option in this installer; if the block from Magic Menu Rewrite 1.1.0 is still installed, let Heart of Magic Librarian win the file conflict.
+
+[spoiler]
+
 [size=5][b]New in 1.8.0[/b][/size]
 [list]
 [*][b]Mastery ranks:[/b] A spell you have mastered keeps growing as you cast it, earning mastery XP toward three mastery ranks shown on its spell card ("Mastery rank 1/3" and a bar, in all 13 panel languages) with a corner message at each rank. Ranks cost more for higher-level spells (Novice 100 XP ... Master 1500 XP by default), and higher school skill gives up to twice as much XP per cast at 100, and making a skill Legendary later never takes a rank away. Only casting the mastered spell itself counts (the cast that masters it earns none); relocking or dropping a spell below 100% while not unlocked clears its ranks, while cheat mode lowering an unlocked spell's XP keeps them. The ranks have no effect on the spell yet - a later version builds on them - and can be turned off under Settings > Learning > Mastery Ranks (numbers in `config.json`, `"mastery"`, with Papyrus `SpellLearning.GetMasteryRank`, C++ API version 3 and `SpellLearning_MasteryRankUp` for mods).
@@ -31,8 +41,6 @@ No spell lists to maintain and no patches per spell mod: the tree is built from 
 [*][b]Learning and XP fixes:[/b] Per-spell casting XP caps (any spell, same school, direct link) are now stored as shares of required XP so lowering a spell's progress lowers the cap counts with it (clearing them at 0 XP), and changing required XP neither reopens nor closes a cap. Casting a copy of a linked spell (the same spell carried by another plugin) now earns its direct-link XP, as the copy already counted for requirements; a target at 100% waiting for Unlock or ISL no longer wastes a skill book in BookXP or uses up a cast in single learning mode (grants and mod XP calls report only the XP actually added); and having multiple targets left in "single" mode now credits the closest match (the spell cast itself, a direct link, the same school, then any other) instead of whichever came first in memory.
 [/list]
 [b]After updating:[/b] your saves and saved tree keep working with no tree rebuild needed, and requirements are the same as before (SKSE, Address Library, PrismaUI). Saves from earlier versions start mastery XP and Spell Research practice steps at 0, and 1.7.0 casting XP cap counts are converted on load (with the default settings this may once give back up to 3.5% any-spell, 10.5% same-school or 35% direct-link XP of a spell, or close a cap a few percent early); going back to 1.7.0 keeps your cap counts, though saving again with an older version drops mastery XP.
-
-[spoiler]
 
 [size=5][b]New in 1.7.0[/b][/size]
 [list]

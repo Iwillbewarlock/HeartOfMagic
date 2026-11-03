@@ -1,0 +1,6 @@
+Magic Menu Rewrite 1.2.0 - Changelogs tab lines for the Nexus upload (first draft by Gemini Argon from CHANGELOG 1.2.0, checked against it). Page edits: docs/magicmenu/NEXUS_PAGE_EN.bbcode / _KO.bbcode (KO lines reviewed by Argon, one rewritten). Release together with Heart of Magic Librarian 1.9.0.
+
+Changed: Add-on blocks now ship with their own mods instead of Magic Menu Rewrite, and the installer's "Add-on blocks" page is gone (Magic Menu Rewrite is the magic menu, the layout mode, and the Block API that other mods add blocks with).
+Changed: The Heart of Magic block (the spell tree, the learning progress card, and the node card) now comes with Heart of Magic Librarian 1.9.0 as an option in its installer, and the Spell Research block will come with Spell Research - Prisma UI 2.
+Changed: Update both on the same day if you use Heart of Magic Librarian; with Magic Menu Rewrite 1.2.0 and Heart of Magic Librarian older than 1.9.0, the Heart of Magic block is gone from the menu unless the 1.1.0 copy is still installed, though a saved layout keeps the block's place while it is away.
+Changed: MagicMenuRewrite.ini keeps the Heart of Magic block's keys for the block to read, and its header now says where the block comes from.

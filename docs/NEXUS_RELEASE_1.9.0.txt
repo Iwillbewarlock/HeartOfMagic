@@ -1,0 +1,24 @@
+Heart of Magic Librarian 1.9.0 - text for the Nexus upload
+(The page: docs/NEXUS_PAGE.bbcode, "New in 1.9.0". Full list: CHANGELOG.md. First draft by Gemini Argon from CHANGELOG 1.9.0, checked against it; two lines corrected ("overwrite the 1.1.0 copy" -> let Heart of Magic Librarian win the file conflict). Release together with Magic Menu Rewrite 1.2.0.)
+
+=====================================================================
+1. Files tab - main file
+=====================================================================
+
+Name: Heart of Magic Librarian
+Version: 1.9.0
+
+Description:
+Adds the Heart of Magic block for Magic Menu Rewrite (`MagicMenuRewrite_HoM.dll`, including the spell tree window, learning progress card, node card, U and G keys, and English and Korean texts) on a new optional installer page "Magic Menu Rewrite", picked by default when Magic Menu Rewrite is installed. If you use Magic Menu Rewrite, update it to 1.2.0 as well (if the 1.1.0 block is still installed, let Heart of Magic Librarian win the file conflict); your saved block layout, hidden blocks, and `MagicMenuRewrite.ini` keys stay in place. Existing saves keep working with no tree rebuild needed.
+
+Debug Symbols file description (same version):
+Optional. Puts function names into Crash Logger reports. Install it only if you want to send a crash log.
+
+
+=====================================================================
+2. Changelogs tab - version 1.9.0 (one line per entry)
+=====================================================================
+
+New: The Magic Menu Rewrite block (MagicMenuRewrite_HoM.dll) now comes with Heart of Magic Librarian on a new "Magic Menu Rewrite" installer page, picked by default when Magic Menu Rewrite is installed (needs Magic Menu Rewrite, 1.2.0 or later recommended; leave unchecked if you do not use Magic Menu Rewrite).
+New: What the block does is now part of Heart of Magic Librarian, including the spell tree window (where the selected spell sits in the tree and surrounding spells, hover description, and clicking learned or unlearned spells to show them on the cards and in the 3D box), the learning progress card (each school's learning target, progress, and learnable spells, or next learnable spells with those after the spell you just mastered first when a school has no target, clickable to set as your target, with [Progress] iMaxChoices for 1-8 rows and "N more" under them), the node card (selected spell state, prerequisites, and button to make it your learning target), the keys U and G ([Keys] iNext / iSetTarget), and its English and Korean texts.
+Changed: Keeps the same file names, block ids, and settings in MagicMenuRewrite.ini as the Magic Menu Rewrite 1.1.0 copy so saved block layouts and hidden blocks keep their places (let Heart of Magic Librarian win over the 1.1.0 copy or reinstall Magic Menu Rewrite 1.2.0 to replace the old files).
