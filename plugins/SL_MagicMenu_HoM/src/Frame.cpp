@@ -111,9 +111,23 @@ namespace HomAddon
             if (menu.selected != selectedBefore || menu.notInTree != notInTreeBefore) menu.dirty = true;
         }
 
-        void DoNext(const Spells::Snapshot& a_snapshot)
+        // bug G1: a key pick counts as chosen (Selection::Chosen) - the tree centres on it, the node card shows it and G acts on it; no
+        // 'SLMS' (the 3D and the host's card stay on the list). Made after this frame's list change (WatchSelection), under its form.
+        // The U key's pick and, since 2026-11-03, a progress card row's
+        void PickByKey(int a_node)
         {
             auto& menu = Menu();
+            SetCentre(a_node);
+            const auto pick = Selection::PickAfterFrame({ menu.selected, menu.selectedByKey }, false, a_node);
+            menu.selected = pick.node;
+            menu.selectedByKey = pick.byKey;
+            menu.pickShown = menu.shown;
+            menu.notInTree = false;  // the tree shows the picked node: no longer dimmed (review v7 round 1)
+            menu.dirty = true;
+        }
+
+        void DoNext(const Spells::Snapshot& a_snapshot)
+        {
             const auto& session = TheSession();
             if (!Spells::Get() || session.school.empty()) {
                 logger::info("HoM block: next learnable - no school yet");
@@ -130,15 +144,7 @@ namespace HomAddon
             auto next = nodes.front();
             const auto here = std::ranges::find(nodes, session.centre);
             if (here != nodes.end() && std::next(here) != nodes.end()) next = *std::next(here);
-            SetCentre(next);
-            // bug G1: the pick counts as chosen (Selection::Chosen) - the node card shows it and G acts on it; no 'SLMS' (the 3D
-            // and the host's card stay on the list). Made after this frame's list change (WatchSelection), under its form
-            const auto pick = Selection::PickAfterFrame({ menu.selected, menu.selectedByKey }, false, next);
-            menu.selected = pick.node;
-            menu.selectedByKey = pick.byKey;
-            menu.pickShown = menu.shown;
-            menu.notInTree = false;  // the tree shows the next candidate: no longer dimmed (review v7 round 1)
-            menu.dirty = true;
+            PickByKey(next);
             logger::info("HoM block: next learnable in {} ({} of them): {} {:08X}", session.school, nodes.size(), Spells::NodeName(next),
                 Data().gameIds[next]);
         }
@@ -161,11 +167,11 @@ namespace HomAddon
 
         // review I8: nothing chosen - nothing on the node card to act on (G1: a key pick is chosen). Task 6 review 1: the G key and
         // the node card's button in one frame are one request (f83dc6f3 W:8186-8189)
-        void SetTargetIfChosen(bool a_key, bool a_button, const Spells::Snapshot& a_snapshot)
+        void SetTargetIfChosen(bool a_key, bool a_button, const Spells::Snapshot& a_snapshot, const char* a_buttonName = "the node card's button")
         {
             if (!a_key && !a_button) return;
             const auto& menu = Menu();
-            const char* source = a_key && a_button ? "the key and the node card's button" : a_key ? "the key" : "the node card's button";
+            const std::string source = a_key && a_button ? std::format("the key and {}", a_buttonName) : a_key ? std::string("the key") : std::string(a_buttonName);
             if (Selection::SetTargetRequests(a_key, a_button, Selection::SetTargetActs(menu.shown, KeyPick())) == 0) {
                 logger::info("HoM block: set target ({}) - nothing chosen", source);
                 return;
@@ -209,6 +215,19 @@ namespace HomAddon
             logger::warn("HoM block: no HoM state for {} after {} frames (HoM API {}, a refresh asked every {} frames) - the progress card says the "
                          "data did not arrive",
                 school, kNoDataFrames, Hom::Ready() ? "ready" : "NOT ready", kPollFrames);
+        }
+
+        // 2026-11-03: each school's learning target a snapshot shows, kept for the session (Session::lastTarget): once it is mastered
+        // (HoM clears the target) the progress card lists its tree children first
+        void RememberTargets(const Spells::Snapshot& a_snapshot)
+        {
+            auto& last = TheSession().lastTarget;
+            for (const auto& [school, state] : a_snapshot.schools) {
+                if (state.target && last[school] != state.target) {
+                    last[school] = state.target;
+                    logger::info("HoM block: {} learning target {:08X} remembered for the next-spell rows", school, state.target);
+                }
+            }
         }
 
         void RequestState()
@@ -286,6 +305,7 @@ namespace HomAddon
                 menu.dirty = true;
                 SettleProvisionalCentre(a_snapshot);
                 LogAvailability(a_snapshot);
+                RememberTargets(a_snapshot);
             }
             WatchSnapshotCover(a_snapshot);
             SyncProgressShown();
@@ -322,9 +342,18 @@ namespace HomAddon
         SendRedraws();
     }
 
-    void ProgressFrame(RE::GFxMovieView*, RE::GFxValue&, RE::GFxValue*, const BlockApi::Context& a_context, void*)
+    // The progress card's frame: the shared per-frame work when it is this frame's first HoM call (fix round 1 I1), then its next-spell
+    // rows' part (2026-11-03): a released row is picked as the U key picks (the tree centres on it, the node card shows it) and set as
+    // the learning target by the node card button's request (DoSetTarget: only a spell that can be learned now)
+    void ProgressFrame(RE::GFxMovieView* a_movie, RE::GFxValue& a_content, RE::GFxValue*, const BlockApi::Context& a_context, void*)
     {
         CardSharedFrame(BlockKind::kProgress, a_context);
+        const int node = ProgressChoicesFrame(a_movie, a_content, a_context);
+        if (node < 0 || !Spells::Get() || node >= static_cast<int>(Data().tree.nodes.size())) return;
+        logger::info("HoM block: progress card row {} {:08X} clicked - picked and set as the learning target", Spells::NodeName(node), Data().gameIds[node]);
+        PickByKey(node);
+        SetTargetIfChosen(false, true, *Spells::Current(), "the progress card's row");
+        SendRedraws();
     }
 
     // U and G (the core's Input.cpp at f83dc6f3 queued them for the frame handler; the host hands us the key on the frame, before

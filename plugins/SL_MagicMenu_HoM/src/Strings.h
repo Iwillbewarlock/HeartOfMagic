@@ -91,6 +91,10 @@ namespace HomStrings
         // 2026-10-31: the block's key hints in SkyUI's key-hint strip ('SLMK'; the key is its icon there)
         kHintNext,
         kHintSetTarget,
+        // 2026-11-03: the progress card's next-spell rows with no learning target (ProgressChoices.cpp)
+        kProgressPickHeading,
+        kProgressChoice,
+        kProgressChoicesMore,
         kCount
     };
 
@@ -163,6 +167,10 @@ namespace HomStrings
         // 2026-10-31: the block's key hints in SkyUI's key-hint strip ('SLMK'; the key is its icon there)
         { Str::kHintNext, "hint_next", "Next spell" },
         { Str::kHintSetTarget, "hint_set_target", "Set learning target" },
+        // 2026-11-03: the progress card's next-spell rows with no learning target (ProgressChoices.cpp)
+        { Str::kProgressPickHeading, "progress_pick_heading", "No learning target · Click a spell to learn next" },
+        { Str::kProgressChoice, "progress_choice", "{spell} · {level}" },
+        { Str::kProgressChoicesMore, "progress_choices_more", "{n} more · {key} to step through" },
     });
 
     consteval bool StringsInOrder()

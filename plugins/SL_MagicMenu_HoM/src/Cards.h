@@ -4,6 +4,8 @@
 #include "Strings.h"
 
 #include <cstdint>
+#include <functional>
+#include <optional>
 #include <string>
 
 // =============================================================================
@@ -11,7 +13,8 @@
 // (ProgressCard.cpp, NodeCard.cpp: the core's W:7119-7337 and W:7414-7603 at
 // f83dc6f3, ported as unchanged as they could be), drawn by the host's
 // drawSelection into the content clip it lends; the node card's set-target
-// button has its own AS2 handler (kFlagOwnMouse).
+// button and the progress card's next-spell rows (ProgressChoices.cpp, 2026-11-03)
+// have their own AS2 handlers (kFlagOwnMouse).
 // =============================================================================
 
 namespace HomAddon
@@ -22,6 +25,31 @@ namespace HomAddon
         HomStrings::Str id;
         std::string text;
     };
+
+    /// The progress card's base text sizes (the reading size is at least the list's row size): the school title, the hint lines,
+    /// the next-spell rows
+    inline constexpr double kProgressSchoolSize = 11.0, kProgressHintSize = 13.0;
+
+    /// The progress block's registered height: the ini rect's a_iniH, or more for a_maxChoices next-spell rows and their "more" line at
+    /// the fallback metrics (ChoiceRules::RegisteredHeight; ProgressChoices.cpp)
+    double ProgressRegisteredHeight(double a_iniH, int a_maxChoices);
+
+    /// Where the next-spell rows go in the progress card (card coordinates): its width, the top under the school title, its full
+    /// height; the title shown, and how to drop it (it returns the new top)
+    struct ChoicesArea
+    {
+        double w{}, y{}, fullH{};
+        bool titleShown{};
+        std::function<double(double)> dropTitle;
+    };
+
+    /// The next-spell rows in place of the "no learning target" line (ProgressChoices.cpp): a heading, the rows, an "N more" line;
+    /// the card's needed height
+    std::optional<double> DrawChoices(RE::GFxMovieView* a_movie, RE::GFxValue& a_card, const ChoicesArea& a_area, const SchoolInfo& a_info);
+
+    /// The progress block's frame part of the rows (ProgressChoices.cpp): the column's room (the rows drawn again when it changed), the
+    /// hover dropped in the layout mode, a row release judged against the visible part - the node to pick and set, -1 for none
+    int ProgressChoicesFrame(RE::GFxMovieView* a_movie, RE::GFxValue& a_content, const BlockApi::Context& a_context);
 
     /// The progress card's block: drawSelection (Block API v2/v3)
     void DrawProgressBlock(RE::GFxMovieView* a_movie, RE::GFxValue& a_clip, float a_width, float a_height, std::uint32_t a_shown, void* a_user);

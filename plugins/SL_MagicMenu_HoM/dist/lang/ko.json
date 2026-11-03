@@ -54,5 +54,8 @@
   "tree_locked": "잠김",
   "empty_choose": "주문을 고르면 표시됩니다",
   "hint_next": "다음 주문",
-  "hint_set_target": "학습 목표 지정"
+  "hint_set_target": "학습 목표 지정",
+  "progress_pick_heading": "학습 목표 없음 · 다음에 배울 주문을 누르세요",
+  "progress_choice": "{spell} · {level}",
+  "progress_choices_more": "외 {n}개 · {key}로 넘기기"
 }

@@ -32,15 +32,6 @@ namespace HomAddon
         TreeRules::MaskCount g_mask;
         std::uint32_t g_lastRequestId = 0;  // the add-on's last 'SLMS' number (TreeRules::NextRequestId; 0 = none yet)
 
-        std::optional<std::pair<double, double>> RootMouse(RE::GFxMovie* a_movie)
-        {
-            RE::GFxValue x, y;
-            if (!a_movie || !a_movie->GetVariable(&x, "_root._xmouse") || !x.IsNumber() || !a_movie->GetVariable(&y, "_root._ymouse") || !y.IsNumber()) {
-                return std::nullopt;
-            }
-            return std::pair{ x.GetNumber(), y.GetNumber() };
-        }
-
         // Clicks only record (the frame acts, so no clip is removed inside its own handler); the place is judged in the frame
         class NodeClick final : public RE::GFxFunctionHandler
         {

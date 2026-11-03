@@ -9,6 +9,7 @@
 #include "BlockRulesV3.h"
 #include "ChoiceRules.h"
 #include "HomSettings.h"
+#include "Strings.h"
 
 #include <optional>
 #include <set>
@@ -192,8 +193,20 @@ namespace HomBlockCheck
         }
     }
 
+    void ChoiceStrings()
+    {
+        std::printf("choices: the rows' texts (built-in English)\n");
+        using namespace HomStrings;
+        Expect(Fill(Str::kProgressChoice, { { "{spell}", "Flames" }, { "{level}", "Novice" } }) == "Flames · Novice", "a row: Flames · Novice");
+        Expect(Fill(Str::kProgressChoicesMore, { { "{n}", "3" }, { "{key}", KeyLabel(22) } }) == "3 more · [U] to step through",
+            "the more line: 3 more · [U] to step through");
+        Expect(std::string_view(Key(Str::kProgressPickHeading)) == "progress_pick_heading" && std::string_view(Key(Str::kProgressChoicesMore)) == "progress_choices_more",
+            "keys progress_pick_heading, progress_choices_more");
+    }
+
     void Choices()
     {
+        ChoiceStrings();
         Order();
         RowPlans();
         Rooms();

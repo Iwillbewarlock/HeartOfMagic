@@ -13,6 +13,7 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <map>
 #include <optional>
 #include <set>
 #include <string>
@@ -85,6 +86,11 @@ namespace HomAddon
         // stood in for its learning target. Picked again once a snapshot covers the school; a centre the user chose (list
         // selection, tree click, the next-learnable key) is never provisional.
         std::string provisionalSchool;
+        // 2026-11-03 (the progress card's next-spell rows): per school, the last learning target a snapshot showed this game session
+        // (cleared at a game load) - with no target now, most likely the spell just mastered; its tree children are listed first
+        std::map<std::string, RE::FormID> lastTarget;
+        // the column's visible room under the progress card (Context::columnRoom) last measured: the next menu's first draw uses it
+        std::optional<double> progressRoom;
     };
 
     // Reset on every menu open (EnsureMenu)
@@ -139,6 +145,20 @@ namespace HomAddon
         int tooltipFails = 0;                     // fix round 1 M3: frames the tooltip's making failed (one warning at kTooltipFailWarnFrames)
         std::vector<TreeData::PlacedNode> drawn;      // every node of the last tree draw
         std::vector<TreeData::PlacedNode> clickable;  // the clickable ones
+        // the progress card's next-spell rows (2026-11-03, ProgressChoices.cpp): the column's room this menu (Context::columnRoom;
+        // the session's last one until the first frame), the room the rows were last drawn with, a row released since the frame
+        // (its node and _root's mouse at the release), the row under the mouse, the C1 self-test line logged
+        std::optional<double> progressRoom;
+        std::optional<double> choicesDrawnRoom;
+        bool choicesShown = false;
+        struct ChoiceClick
+        {
+            int node = -1;
+            std::optional<std::pair<double, double>> rootAt;
+        };
+        std::optional<ChoiceClick> choiceClick;
+        int choiceHover = -1;
+        std::set<std::string> choicesLogged;
         std::pair<double, double> treeOrigin{};   // the drawing's 0,0 in the tree box (TreeContent's centre)
         std::pair<double, double> treeBox{};      // the tree box's size at the last draw (the content clip + pad and title strip)
         TreeRules::Inset treeInset;               // the tree's content clip in its box, read at its draw (fix round 1 M1)
@@ -156,6 +176,9 @@ namespace HomAddon
 
     /// The menu sink (any thread): a new open - EnsureMenu resets the per-menu state at the next callback; HoM's style is read again
     void OnMenuOpen();
+
+    /// SKSE's game load / new game (main thread): the session's last targets are cleared at the next callback (another save's)
+    void OnGameLoad();
 
     /// The menu sink at the close: SelfTest L2 mask clicks (TreeInput.cpp)
     void OnMenuClose();
@@ -228,6 +251,9 @@ namespace HomAddon
     void Q2State(HomStrings::Str a_id, const std::string& a_intended, const RE::GFxValue* a_field = nullptr);
 
     // ---- AS2 helpers ----
+
+    /// _root's mouse position (stage units), nullopt when it cannot be read
+    std::optional<std::pair<double, double>> RootMouse(RE::GFxMovie* a_movie);
 
     std::optional<double> Number(const RE::GFxValue& a_object, const char* a_member);
     RE::GFxValue Child(RE::GFxValue& a_parent, const char* a_name);

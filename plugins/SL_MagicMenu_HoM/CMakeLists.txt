@@ -40,6 +40,7 @@ add_commonlibsse_plugin(${PROJECT_NAME}
         src/AddonState.cpp
         src/Frame.cpp
         src/ProgressCard.cpp
+        src/ProgressChoices.cpp
         src/NodeCard.cpp
         src/TreeMarks.cpp
         src/TreeDraw.cpp

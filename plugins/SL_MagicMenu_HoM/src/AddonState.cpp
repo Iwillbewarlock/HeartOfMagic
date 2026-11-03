@@ -19,6 +19,8 @@ namespace HomAddon
         Session g_session;
         MenuState g_menu;
         std::atomic<std::uint64_t> g_openGeneration{ 0 };
+        std::atomic<std::uint64_t> g_loadGeneration{ 0 };  // bumped at each game load (OnGameLoad)
+        std::uint64_t g_loadSeen = 0;                       // the load the session's last targets belong to (UI thread)
         std::atomic<bool> g_buttonPressed{ false };
         // fix round 1 I1: [Blocks] sHidden hides the tree and the node card this menu - the progress card's frame is the only one left
         // to do the shared work, so it never hides itself (Selection::ProgressHides)
@@ -69,12 +71,22 @@ namespace HomAddon
         ReadHomStyle();
     }
 
+    void OnGameLoad()
+    {
+        ++g_loadGeneration;
+    }
+
     void EnsureMenu()
     {
         const auto generation = g_openGeneration.load();
         if (g_menu.generation == generation) return;
         g_menu = MenuState{};
         g_menu.generation = generation;
+        if (const auto load = g_loadGeneration.load(); load != g_loadSeen) {
+            g_loadSeen = load;
+            g_session.lastTarget.clear();  // another save's targets
+        }
+        g_menu.progressRoom = g_session.progressRoom;
     }
 
     void PressButton()
@@ -295,6 +307,15 @@ namespace HomAddon
     void Q2State(HomStrings::Str a_id, const std::string& a_intended, const RE::GFxValue* a_field)
     {
         Q2State(HomStrings::Key(a_id), a_intended, a_field);
+    }
+
+    std::optional<std::pair<double, double>> RootMouse(RE::GFxMovie* a_movie)
+    {
+        RE::GFxValue x, y;
+        if (!a_movie || !a_movie->GetVariable(&x, "_root._xmouse") || !x.IsNumber() || !a_movie->GetVariable(&y, "_root._ymouse") || !y.IsNumber()) {
+            return std::nullopt;
+        }
+        return std::pair{ x.GetNumber(), y.GetNumber() };
     }
 
     std::optional<double> Number(const RE::GFxValue& a_object, const char* a_member)

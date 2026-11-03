@@ -35,7 +35,7 @@ namespace HomAddon
         // reading size, so the card's last line keeps room at large list rows. The bar is a thin line (UI polish 2026-10-29):
         // kBarBack behind (a neutral grey: kPanelEdge would read as the card's rule lines at 0%), kTitleColor for the share learned
         constexpr std::uint32_t kBarBack = 0x4A4A4A;
-        constexpr double kSchoolSize = 11.0, kTargetSize = 19.0, kBarH = 2.0, kXpW = 120.0, kXpSize = 12.0, kHintSize = 13.0;
+        constexpr double kSchoolSize = kProgressSchoolSize, kTargetSize = 19.0, kBarH = 2.0, kXpW = 120.0, kXpSize = 12.0, kHintSize = kProgressHintSize;
         constexpr int kMessageLines = 2;
 
         // The progress card's lines, laid out top-down in its FULL height (user 2026-10-30: the rooms never depend on its fitted
@@ -44,6 +44,7 @@ namespace HomAddon
         {
             auto& menu = Menu();
             const auto& session = TheSession();
+            menu.choicesShown = false;  // DrawChoices sets it: the rows are in this draw
             if (session.school.empty()) return std::nullopt;
             auto content = CardClip(a_content);
             if (!content.IsDisplayObject()) return std::nullopt;
@@ -102,7 +103,15 @@ namespace HomAddon
             }
             const auto& info = SchoolInfoOf(a_snapshot);
             const auto& state = it->second;
-            if (!state.target) return message(NextStepLine(info, false));
+            if (!state.target) {
+                // 2026-11-03: spells to pick from - their rows (ProgressChoices.cpp) in place of the "no learning target" line
+                if (info.candidates.empty()) return message(NextStepLine(info, false));
+                const ChoicesArea area{ w, y, fullH, title.IsDisplayObject(), [&](double a_need) {
+                                           dropTitle(a_need, "the next-spell rows");
+                                           return kCardTop;
+                                       } };
+                return DrawChoices(a_movie, content, area, info);
+            }
 
             // the learning target: name and share, the bar with its XP, and the next step under it
             const int targetNode = Spells::FindNode(state.target, session.school);

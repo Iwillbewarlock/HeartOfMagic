@@ -54,5 +54,8 @@
   "tree_locked": "Locked",
   "empty_choose": "Select a spell to view",
   "hint_next": "Next spell",
-  "hint_set_target": "Set learning target"
+  "hint_set_target": "Set learning target",
+  "progress_pick_heading": "No learning target · Click a spell to learn next",
+  "progress_choice": "{spell} · {level}",
+  "progress_choices_more": "{n} more · {key} to step through"
 }

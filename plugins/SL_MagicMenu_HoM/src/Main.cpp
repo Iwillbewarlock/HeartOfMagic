@@ -146,7 +146,7 @@ namespace
             reg.drawSelection = HomAddon::DrawProgressBlock;
             reg.frame = HomAddon::ProgressFrame;  // fix round 1 I1: the shared per-frame work when the tree is hidden
             reg.pad = static_cast<float>(HomAddon::kCardPad);
-            reg.flags = kFlagKeepWhenEmpty;
+            reg.flags = kFlagOwnMouse | kFlagKeepWhenEmpty;  // 2026-11-03: the next-spell rows' own handlers
             break;
         case BlockKind::kNodeCard:
             reg.drawSelection = HomAddon::DrawNodeCardBlock;
@@ -191,7 +191,13 @@ namespace
         auto* messaging = SKSE::GetMessagingInterface();
         if (!messaging) return false;
         const auto heights = HomSettings::BlockHeights(HomSettings::Get());
-        g_heights = { heights.tree, heights.progress, heights.nodeCard };
+        // 2026-11-03: the progress card's most also fits [Progress] iMaxChoices next-spell rows (it fits its content at each draw)
+        const double progress = HomAddon::ProgressRegisteredHeight(heights.progress, HomSettings::Get().maxChoices);
+        if (progress > heights.progress) {
+            logger::info("MagicMenuRewrite_HoM: the progress block registers {:.0f} high (the ini's {:.0f}) for {} next-spell rows", progress,
+                heights.progress, HomSettings::Get().maxChoices);
+        }
+        g_heights = { heights.tree, progress, heights.nodeCard };
         g_treeTitle = HomStrings::Text(HomStrings::Str::kTreeTitle);
         // the tree block carries the keys and their hints (and is the first to do the shared frame work): without it no card is registered
         if (!RegisterOne(messaging, HomAddon::BlockKind::kTree)) {
@@ -216,6 +222,10 @@ namespace
                 hom ? "yes" : "no (not loaded?)");
             break;
         }
+        case SKSE::MessagingInterface::kPreLoadGame:
+        case SKSE::MessagingInterface::kNewGame:
+            HomAddon::OnGameLoad();  // the progress card's last targets were another save's
+            break;
         case SKSE::MessagingInterface::kDataLoaded: {
             // user 2026-10-30 (design Q3): without Heart of Magic's API there is no block at all
             if (!Hom::Ready()) {
