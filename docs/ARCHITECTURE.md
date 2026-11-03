@@ -1562,7 +1562,14 @@ amount → × source multiplier (0-200%) → × global multiplier
        → clamped to: requiredXP × source cap %
        → minus already-tracked XP from this source
        → result added to spell progress
+       → what it really added (at most what the spell still lacks; 0 at 100%) is
+         tracked, logged, sent as SpellLearning_XPGained and returned
 ```
+The same holds for a cast (`OnSpellCast`): the per-source count takes what the cast really added
+(`AddXPMeasured`, `ProgressionMath::ActualRise`), and in single mode a cast that changed nothing (a target at
+100% waiting for Unlock) does not use up the one target it may credit. The counts never stay above the XP a
+spell holds: SetSpellXP, SetRequiredXP, the settings' overrides and a save load scale them down to it
+(`ProgressionMath::FitTrackersToXP`).
 
 **For C++ plugins:** Use `SpellLearningAPI.h` — either SKSE messaging (fire-and-forget) or request the `ISpellLearningAPI` interface pointer.
 

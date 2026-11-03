@@ -98,6 +98,18 @@ namespace ProgressionMath
         return (std::min)(newXP / requiredXP, 1.0f);
     }
 
+    // The XP a grant really added: the progress it moved times the required XP. A grant asked
+    // at 99% that stops at 100% added 1% of the required XP; one on a spell already at 100%
+    // (ready, not unlocked) added nothing. Never negative; 0 for NaN or no required XP. What
+    // AddSourcedXP returns and counts, and what a cast counts, so BookXP keeps a book that
+    // added nothing for later.
+    [[nodiscard]] constexpr float ActualRise(float oldProgress, float newProgress, float requiredXP) noexcept
+    {
+        if (!(requiredXP > 0.0f)) return 0.0f;
+        const float moved = newProgress - oldProgress;
+        return moved > 0.0f ? moved * requiredXP : 0.0f;
+    }
+
     // ISL study: one session's XP, cut so that all study XP of a spell stays
     // within its share of the required XP (the early unlock threshold). Swapping
     // books restarts ISL's own count, not this one.

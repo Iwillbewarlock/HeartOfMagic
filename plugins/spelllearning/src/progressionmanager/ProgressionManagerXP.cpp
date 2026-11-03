@@ -229,30 +229,32 @@ void ProgressionManager::OnSpellCast(const std::string& school, RE::FormID castS
             continue;  // Skip this target, cap reached
         }
 
-        float actualXPGain = (std::min)(xpGain, remainingCap);
-
-        credited.push_back(targetId);
+        const float grant = (std::min)(xpGain, remainingCap);
         const char* sourceName = source == XPSource::Any ? "any" : source == XPSource::School ? "school" :
                                  source == XPSource::Direct ? "direct" : "self";
-
-        // Track XP by source
-        switch (source) {
-            case XPSource::Any:    progRef.xpFromAny += actualXPGain; break;
-            case XPSource::School: progRef.xpFromSchool += actualXPGain; break;
-            case XPSource::Direct: progRef.xpFromDirect += actualXPGain; break;
-            case XPSource::Self:   progRef.xpFromSelf += actualXPGain; break;
-        }
 
         // In "single" mode, only the first learning target gets XP
         // In "perSchool" mode, each school's target gets XP independently.
         // Per target at debug level: the cast's one info line follows the loop
         const float progressBefore = progRef.progressPercent;   // by value: AddXP may clear the target
-        AddXP(targetId, actualXPGain);
+        const bool wasUnlocked = progRef.unlocked;
+        // What the cast really added (less than the grant at the top, 0 on a spell already at 100%):
+        // counted against the source's cap, logged, and in single mode a cast that changed nothing
+        // (a target at 100% waiting for Unlock) does not use up the one target it may credit
+        const float added = AddXPMeasured(targetId, grant);
+        if (!(added > 0.0f) && wasUnlocked == progRef.unlocked) continue;
+        credited.push_back(targetId);
+        switch (source) {
+            case XPSource::Any:    progRef.xpFromAny += added; break;
+            case XPSource::School: progRef.xpFromSchool += added; break;
+            case XPSource::Direct: progRef.xpFromDirect += added; break;
+            case XPSource::Self:   progRef.xpFromSelf += added; break;
+        }
         // Practice becomes memory: each 15% boundary (and 100%) crossed pays Spell Research archetype XP
-        Librarian::SpellResearchMemory::OnPracticeProgress(targetId, progressBefore, GetProgress(targetId).progressPercent);
-        totalXP += actualXPGain;
+        Librarian::SpellResearchMemory::OnPracticeProgress(targetId, progressBefore, progRef.progressPercent);
+        totalXP += added;
         const bool single = m_xpSettings.learningMode == "single";
-        LogXPGrant(a_path, targetId, actualXPGain,
+        LogXPGrant(a_path, targetId, added,
                    single ? std::format("cast {} ({:08X}), {} rate, single mode", castName, castSpellId, sourceName)
                           : std::format("cast {} ({:08X}), {} rate, {} target", castName, castSpellId, sourceName,
                                         targetSchool),
@@ -412,6 +414,15 @@ bool ProgressionManager::TryEarlyGrant(RE::FormID spellId, float oldProgress, fl
     // TargetChanged did for this spell (its target key), not the costliest effect's
     SendModEvent("SpellLearning_SpellEarlyGranted", EventSchoolOf(spellId), newProgress * 100.0f, spell);
     return true;
+}
+
+float ProgressionManager::AddXPMeasured(RE::FormID targetSpellId, float amount)
+{
+    const float before = GetProgressPercent(targetSpellId);
+    AddXP(targetSpellId, amount);
+    const auto it = m_spellProgress.find(targetSpellId);
+    if (it == m_spellProgress.end()) return 0.0f;
+    return ProgressionMath::ActualRise(before, it->second.progressPercent, it->second.requiredXP);
 }
 
 void ProgressionManager::AddXP(const std::string& formIdStr, float amount)

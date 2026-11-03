@@ -84,7 +84,9 @@ ProgressionManager::AddSourcedXP()
   -> Enforce cap: remaining = (requiredXP x cap/100) - xpFromModded["mymod_training"]
   -> AddXP(targetId, clampedAmount)
   -> UIManager::NotifyProgressUpdate()
-  -> SendModEvent("SpellLearning_XPGained", "mymod_training", ...)
+  -> what AddXP really added (less near 100%, 0 on a spell at 100% waiting for Unlock):
+     tracked against the cap, sent as SendModEvent("SpellLearning_XPGained", "mymod_training", added)
+     and returned - 0 means the spell took nothing (BookXP keeps such a book for later)
 ```
 
 ### C++ Data Structures

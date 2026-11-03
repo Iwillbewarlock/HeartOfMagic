@@ -336,6 +336,10 @@ private:
     // SpellLearning_SpellEarlyGranted. True when it granted. Early learning must be on.
     bool TryEarlyGrant(RE::FormID spellId, float oldProgress, float newProgress, float thresholdFraction);
 
+    // AddXP, then the XP it really added (ProgressionMath::ActualRise): less than asked at the
+    // top, 0 on a spell already at 100%. What a cast and AddSourcedXP count and report.
+    float AddXPMeasured(RE::FormID targetSpellId, float amount);
+
     // AddSourcedXP / AddInternalSourcedXP: internalCaller lets the internal names through
     float AddSourcedXPImpl(RE::FormID targetId, float amount, const std::string& sourceName, bool internalCaller);
     // An external source name the co-save can carry (length) and not reserved; logs once

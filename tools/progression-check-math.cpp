@@ -282,5 +282,16 @@ namespace ProgressionCheck
               "direct link: a copy of a listed spell counts (its group holds the listed one)");
         Check(!PM::SpellOrCopyMatches(0x0002'B96B, none, listed) && !PM::SpellOrCopyMatches(0x0002'B96B, flamesCopies, listed),
               "direct link: an unlisted spell with no copy listed is not one");
+
+        // C: what a grant really added (the progress AddXP moved), not what was asked
+        const float at99 = PM::ProgressAfterXP(0.99f, 5.0f, 100.0f);
+        Check(Near(PM::ActualRise(0.99f, at99, 100.0f), 1.0f), "real XP: 99% + 5 of 100 adds 1, not 5");
+        Check(Near(PM::ActualRise(0.2f, PM::ProgressAfterXP(0.2f, 10.0f, 100.0f), 100.0f), 10.0f),
+              "real XP: under the top the whole grant counts (20% + 10)");
+        Check(Near(PM::ActualRise(1.0f, PM::ProgressAfterXP(1.0f, 15.0f, 100.0f), 100.0f), 0.0f),
+              "real XP: a spell at 100% not unlocked takes nothing (BookXP keeps the book)");
+        Check(Near(PM::ActualRise(0.5f, 0.3f, 100.0f), 0.0f) && Near(PM::ActualRise(0.2f, 0.4f, 0.0f), 0.0f) &&
+                  Near(PM::ActualRise(nan, 0.4f, 100.0f), 0.0f),
+              "real XP: a lowered progress, no required XP or NaN is 0, never negative");
     }
 }

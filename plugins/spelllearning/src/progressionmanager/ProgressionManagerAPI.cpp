@@ -143,13 +143,6 @@ float ProgressionManager::AddSourcedXPImpl(RE::FormID targetId, float amount, co
 
         float remaining = maxFromSource - currentFromSource;
         adjustedAmount = (std::min)(adjustedAmount, (std::max)(0.0f, remaining));
-
-        if (adjustedAmount > 0.0f) {
-            if (sourceName == "any")         progress.xpFromAny += adjustedAmount;
-            else if (sourceName == "school") progress.xpFromSchool += adjustedAmount;
-            else if (sourceName == "direct") progress.xpFromDirect += adjustedAmount;
-            else                             progress.xpFromSelf += adjustedAmount;
-        }
     }
     // Modded sources
     else {
@@ -174,25 +167,33 @@ float ProgressionManager::AddSourcedXPImpl(RE::FormID targetId, float amount, co
         if (!srcConfig.internal) {
             adjustedAmount *= (srcConfig.multiplier / 100.0f);
             const float maxFromSource = progress.requiredXP * (srcConfig.cap / 100.0f);
+            const auto tracked = progress.xpFromModded.find(sourceName);
             adjustedAmount = ProgressionMath::GrantWithinCap(adjustedAmount, maxFromSource,
-                                                             progress.xpFromModded[sourceName]);
-        }
-
-        if (adjustedAmount > 0.0f) {
-            progress.xpFromModded[sourceName] += adjustedAmount;
+                                                             tracked != progress.xpFromModded.end() ? tracked->second : 0.0f);
         }
     }
 
-    if (adjustedAmount > 0.0f) {
-        AddXP(targetId, adjustedAmount);
-        // BookXP's source reads as "book" in the log; any other mod's by its id
-        LogXPGrant(sourceName == "book_reading" ? std::string("book") : "source " + sourceName, targetId, adjustedAmount,
-                   std::format("{:.2f} asked", amount));
-        SendModEvent("SpellLearning_XPGained", sourceName, adjustedAmount,
-                      RE::TESForm::LookupByID(targetId));
-    }
+    if (!(adjustedAmount > 0.0f)) return 0.0f;
 
-    return adjustedAmount;
+    // What the grant really added (less at the top, 0 on a spell already at 100% waiting for Unlock):
+    // the count against the source's cap, the log, the event and the answer all take it, so BookXP
+    // does not mark a book read for a spell that took nothing from it
+    const float added = AddXPMeasured(targetId, adjustedAmount);
+    if (!(added > 0.0f)) {
+        logger::debug("XP: {:.2f} from source {} to {:08X} added nothing (the spell is at 100%)", adjustedAmount,
+                      sourceName, targetId);
+        return 0.0f;
+    }
+    if (sourceName == "any")         progress.xpFromAny += added;
+    else if (sourceName == "school") progress.xpFromSchool += added;
+    else if (sourceName == "direct") progress.xpFromDirect += added;
+    else if (sourceName == "self")   progress.xpFromSelf += added;
+    else                             progress.xpFromModded[sourceName] += added;
+    // BookXP's source reads as "book" in the log; any other mod's by its id
+    LogXPGrant(sourceName == "book_reading" ? std::string("book") : "source " + sourceName, targetId, added,
+               std::format("{:.2f} asked", amount));
+    SendModEvent("SpellLearning_XPGained", sourceName, added, RE::TESForm::LookupByID(targetId));
+    return added;
 }
 
 float ProgressionManager::AddRawXP(RE::FormID targetId, float amount)

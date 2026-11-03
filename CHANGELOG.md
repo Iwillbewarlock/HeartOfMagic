@@ -25,6 +25,11 @@
 - **Casting a copy of a linked spell.** When two plugins carry the same spell, the tree keeps one; a copy you
   learned before (or elsewhere) now counts as that spell for the direct-link XP of the spells next to it in the
   tree, as it already did for their requirements. It counted as a same-school cast only.
+- **Book XP spent on a spell that could not take it.** A learning target at 100% that is not unlocked yet (waiting
+  for Unlock, or for ISL to teach it) took a skill book's XP as if it counted, so BookXP marked the book read and
+  it gave nothing later. A grant now counts only what it really added (near the top, 99% plus 5 XP is 1 XP), mods'
+  XP calls get that amount back, and the book stays unread for a spell that took nothing. In single learning
+  mode a cast no longer spends its one target on such a spell.
 
 - **Don't Eat Spell Tomes and the mods that use it.** With the real Don't Eat Spell Tomes installed (LoreRim, for
   Rite of Arcana), Heart of Magic no longer takes over its script functions: it did, so a mod that asked for spell
