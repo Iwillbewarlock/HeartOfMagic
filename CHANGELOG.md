@@ -1,5 +1,44 @@
 # Changelog
 
+## Heart of Magic Librarian 1.9.0
+
+### New
+
+- **The Magic Menu Rewrite block now comes with Heart of Magic Librarian.** The Heart of Magic block for Magic Menu
+  Rewrite's magic menu (`MagicMenuRewrite_HoM.dll`) was an option of Magic Menu Rewrite's installer up to its 1.1.0; it
+  is now an option of this installer, on its own page "Magic Menu Rewrite", picked by default when Magic Menu Rewrite is
+  installed. It needs Magic Menu Rewrite (1.2.0 or later recommended; 1.2.0 no longer ships the block). What the block
+  does is now part of Heart of Magic Librarian:
+  - the spell tree window: where the selected spell sits in the tree and the spells around it, its description on
+    hover, a click shows a spell on the cards and in the 3D box, spells you have not learned yet included;
+  - the learning progress card: each school's learning target and progress, and the spells you can learn now; with no
+    learning target in a school, the spells you can learn next (those after the spell you just mastered first; click
+    one to make it your learning target; `[Progress] iMaxChoices`, 1-8 rows, "N more" under them);
+  - the node card: the selected spell's state and prerequisites, and its button to make it your learning target;
+  - the keys U (the next learnable spell) and G (learn the selected spell next), `[Keys] iNext` / `iSetTarget`;
+  - its English and Korean texts.
+
+  The block's file names, block ids and settings are the ones Magic Menu Rewrite 1.1.0 installed: this copy may
+  overwrite that one, its keys stay in `MagicMenuRewrite.ini`, and a saved block layout and hidden blocks keep their
+  places. Without Magic Menu Rewrite, leave the option unchecked: nothing else in Heart of Magic needs it. Install
+  order and what to do in each case: `docs/magicmenu/BLOCKS_MOVE.md`.
+
+## Magic Menu Rewrite 1.2.0
+
+### Changed
+
+- **The blocks now ship with their mods.** Magic Menu Rewrite is the magic menu, the layout mode and the Block API
+  that other mods add blocks with; it no longer installs a block for another mod. The Heart of Magic block (the spell
+  tree, the learning progress card and the node card) comes with Heart of Magic Librarian 1.9.0, an option of its
+  installer; the Spell Research block comes with Spell Research - Prisma UI 2. The installer's "Add-on blocks" page is
+  gone.
+- **Update both on the same day.** With Magic Menu Rewrite 1.2.0 and Heart of Magic Librarian older than 1.9.0, the
+  Heart of Magic block is gone from the menu unless the 1.1.0 copy is still installed; install Heart of Magic
+  Librarian 1.9.0 with its "Magic Menu Rewrite" option. A saved layout keeps the block's place while it is away
+  (`docs/magicmenu/BLOCKS_MOVE.md`).
+- `MagicMenuRewrite.ini` keeps the Heart of Magic block's keys (the block still reads them there); its header says
+  where the block now comes from.
+
 ## Heart of Magic Librarian 1.8.0
 
 ### New
