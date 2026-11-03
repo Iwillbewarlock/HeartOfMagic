@@ -7,10 +7,12 @@
 #include "RequiredXPTable.h"
 #include "uimanager/ConfigRenames.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <limits>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 #include <nlohmann/json.hpp>
 
@@ -267,5 +269,18 @@ namespace ProgressionCheck
         inStep.xpFromModded["passive"] = 5.0005f;   // 20.0005 counted on 20 held
         Check(!PM::FitTrackersToXP(inStep, 20.0f) && Near(inStep.xpFromSchool, 15.0f),
               "trackers: counts a float hair over the XP held are not touched");
+
+        // B: a cast of another plugin's copy of a linked spell is a direct cast
+        const std::vector<std::uint32_t> targetPrereqs{ 0x0001'2FCD, 0x0001'2FD0 };   // Flames, Frostbite
+        const auto listed = [&](std::uint32_t id) {
+            return std::find(targetPrereqs.begin(), targetPrereqs.end(), id) != targetPrereqs.end();
+        };
+        const std::vector<std::uint32_t> flamesCopies{ 0xFE00'0801 };   // a patch's Flames
+        const std::vector<std::uint32_t> none;
+        Check(PM::SpellOrCopyMatches(0x0001'2FCD, none, listed), "direct link: the listed spell itself");
+        Check(PM::SpellOrCopyMatches(0xFE00'0801, std::vector<std::uint32_t>{ 0x0001'2FCD }, listed),
+              "direct link: a copy of a listed spell counts (its group holds the listed one)");
+        Check(!PM::SpellOrCopyMatches(0x0002'B96B, none, listed) && !PM::SpellOrCopyMatches(0x0002'B96B, flamesCopies, listed),
+              "direct link: an unlisted spell with no copy listed is not one");
     }
 }

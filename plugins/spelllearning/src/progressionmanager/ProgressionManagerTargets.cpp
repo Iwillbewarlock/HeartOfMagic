@@ -156,35 +156,7 @@ void ProgressionManager::ClearLearningTargetForSpell(RE::FormID formId)
 // DIRECT PREREQUISITE CHECKING
 // =============================================================================
 
-bool ProgressionManager::IsDirectPrerequisite(RE::FormID targetSpellId, RE::FormID castSpellId) const
-{
-    auto it = m_targetPrerequisites.find(targetSpellId);
-    if (it != m_targetPrerequisites.end() &&
-        std::find(it->second.begin(), it->second.end(), castSpellId) != it->second.end()) {
-        return true;
-    }
-
-    // The tree's own prerequisites too: a target set from a spell tome comes with
-    // no prerequisite list (SetLearningTargetFromTome), but its tree links still count
-    auto reqIt = m_prereqRequirements.find(targetSpellId);
-    if (reqIt == m_prereqRequirements.end()) {
-        return false;
-    }
-    const auto& reqs = reqIt->second;
-    return std::find(reqs.hardPrereqs.begin(), reqs.hardPrereqs.end(), castSpellId) != reqs.hardPrereqs.end() ||
-           std::find(reqs.softPrereqs.begin(), reqs.softPrereqs.end(), castSpellId) != reqs.softPrereqs.end();
-}
-
-bool ProgressionManager::IsDirectChild(RE::FormID targetSpellId, RE::FormID castSpellId) const
-{
-    auto it = m_prereqRequirements.find(castSpellId);
-    if (it == m_prereqRequirements.end()) {
-        return false;
-    }
-    const auto& reqs = it->second;
-    return std::find(reqs.hardPrereqs.begin(), reqs.hardPrereqs.end(), targetSpellId) != reqs.hardPrereqs.end() ||
-           std::find(reqs.softPrereqs.begin(), reqs.softPrereqs.end(), targetSpellId) != reqs.softPrereqs.end();
-}
+// IsDirectPrerequisite and IsDirectChild: ProgressionManagerCopies.cpp (a copy of a linked spell counts)
 
 void ProgressionManager::SetTargetPrerequisites(RE::FormID targetSpellId, const std::vector<RE::FormID>& prereqs)
 {

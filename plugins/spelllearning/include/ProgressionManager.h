@@ -67,9 +67,10 @@ public:
     // "" when neither is one of the five magic schools.
     static std::string TargetSchoolOf(RE::SpellItem* spell);
     
-    // Direct prerequisite checking (for XP bonuses)
+    // Direct prerequisite checking (for XP bonuses). A cast of another plugin's copy of a
+    // linked spell (SpellScanner::DuplicateGroupOf) counts as that spell (ProgressionManagerCopies.cpp)
     bool IsDirectPrerequisite(RE::FormID targetSpellId, RE::FormID castSpellId) const;
-    // True when the cast spell lists the target as a prerequisite: the spell above
+    // True when the cast spell (or a copy of it) lists the target as a prerequisite: the spell above
     // it that opened it, for a spell learned downward (see XPSettings::reverseUnlock)
     bool IsDirectChild(RE::FormID targetSpellId, RE::FormID castSpellId) const;
     void SetTargetPrerequisites(RE::FormID targetSpellId, const std::vector<RE::FormID>& prereqs);

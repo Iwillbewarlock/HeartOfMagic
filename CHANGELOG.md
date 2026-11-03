@@ -22,6 +22,9 @@
   mode, a mod or a smaller required XP lowered the spell's progress, so a source at its cap gave nothing again.
   The counts now follow the progress down (scaled to the XP the spell still holds, all cleared at 0 XP), also
   for saves made before, when they load.
+- **Casting a copy of a linked spell.** When two plugins carry the same spell, the tree keeps one; a copy you
+  learned before (or elsewhere) now counts as that spell for the direct-link XP of the spells next to it in the
+  tree, as it already did for their requirements. It counted as a same-school cast only.
 
 - **Don't Eat Spell Tomes and the mods that use it.** With the real Don't Eat Spell Tomes installed (LoreRim, for
   Rite of Arcana), Heart of Magic no longer takes over its script functions: it did, so a mod that asked for spell

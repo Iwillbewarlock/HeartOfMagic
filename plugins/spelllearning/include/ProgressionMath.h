@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cstdint>
 
 // =============================================================================
 // PROGRESSION MATH - the XP cap, study and mastery arithmetic
@@ -145,6 +146,19 @@ namespace ProgressionMath
     {
         if (newProgress < 1.0f || (earlyLearned && !playerHasSpell)) return false;
         return oldProgress < 1.0f || (!unlocked && earlyLearned);
+    }
+
+    // A cast of another plugin's copy of a tree spell (SpellScanner::DuplicateGroupOf) is that spell
+    // to the tree: true when `matches` holds for the cast spell or any of its copies. Used for the
+    // direct link of a cast (IsDirectPrerequisite, IsDirectChild). O(copies).
+    template <class Ids, class Pred>
+    [[nodiscard]] bool SpellOrCopyMatches(std::uint32_t spellId, const Ids& copies, Pred&& matches)
+    {
+        if (matches(spellId)) return true;
+        for (const auto copyId : copies) {
+            if (matches(copyId)) return true;
+        }
+        return false;
     }
 
     // =========================================================================
