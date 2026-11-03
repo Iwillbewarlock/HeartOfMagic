@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstddef>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 // =============================================================================
@@ -186,6 +187,25 @@ namespace MasteryMath
     [[nodiscard]] constexpr float ReportedXP(bool masteredNow, float storedXP) noexcept
     {
         return masteredNow && storedXP > 0.0f ? storedXP : 0.0f;
+    }
+
+    // Each entry of a formId -> XP map moved to keyOf(formId) (the tree's record of its copy group);
+    // two entries landing on one key keep the larger XP. Returns how many entries changed key.
+    // A save from before the tree changed (or a copy keyed before the tree was in) ends up under the
+    // key every read and the relock use. O(n).
+    template <class Map, class KeyOf>
+    std::size_t RekeyKeepLarger(Map& xpById, KeyOf&& keyOf)
+    {
+        Map out;
+        std::size_t moved = 0;
+        for (const auto& [id, xp] : xpById) {
+            const auto key = keyOf(id);
+            if (key != id) ++moved;
+            const auto [it, inserted] = out.try_emplace(key, xp);
+            if (!inserted && xp > it->second) it->second = xp;
+        }
+        xpById = std::move(out);
+        return moved;
     }
 
     // What decides whether a cast earns mastery XP (MasteryKeyForCast fills it in)

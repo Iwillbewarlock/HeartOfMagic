@@ -111,6 +111,8 @@ int ApplyTreePrerequisiteEntriesImpl(const Json& request)
     // The new tree's nodes decide which spell a copy's tome counts for
     // (TreeSpellForTome): answers cached before they arrived start over
     if (auto* tomeHook = SpellTomeHook::GetSingleton()) tomeHook->InvalidateTomeInventoryCache();
+    // ... and which record of a copy group holds its mastery XP
+    pm->RekeyMasteryToTree();
     logger::info("UIManager: Set tree prerequisites for {} spells in {:.0f} ms (game thread)", count, MsSince(started));
     return count;
 }

@@ -12,6 +12,7 @@
 #include <cstring>
 #include <limits>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include <nlohmann/json.hpp>
@@ -157,6 +158,29 @@ namespace ProgressionCheck
                   "mastery: tier names in any case; an unknown tier is Novice");
         }
 
+        void RekeyCases()
+        {
+            constexpr std::uint32_t kTree = 0x0001'2FCD;   // the tree's record
+            constexpr std::uint32_t kCopy = 0xFE00'0801;   // a patch's copy of it
+            constexpr std::uint32_t kOther = 0x0002'B96B;
+            const auto keyOf = [](std::uint32_t id) { return id == kCopy ? kTree : id; };
+            std::unordered_map<std::uint32_t, float> xp{ { kCopy, 120.0f }, { kTree, 40.0f }, { kOther, 7.0f } };
+            const auto moved = MX::RekeyKeepLarger(xp, keyOf);
+            Check(moved == 1 && xp.size() == 2 && Near(xp[kTree], 120.0f) && Near(xp[kOther], 7.0f),
+                  "mastery rekey: a copy's entry moves to the tree's record, the larger XP kept on the collision");
+            std::unordered_map<std::uint32_t, float> lone{ { kCopy, 30.0f } };
+            Check(MX::RekeyKeepLarger(lone, keyOf) == 1 && lone.size() == 1 && Near(lone[kTree], 30.0f),
+                  "mastery rekey: a copy alone moves whole");
+            std::unordered_map<std::uint32_t, float> settled{ { kTree, 55.0f }, { kOther, 7.0f } };
+            std::unordered_map<std::uint32_t, float> none;
+            Check(MX::RekeyKeepLarger(settled, keyOf) == 0 && settled.size() == 2 && Near(settled[kTree], 55.0f) &&
+                      MX::RekeyKeepLarger(none, keyOf) == 0 && none.empty(),
+                  "mastery rekey: entries already on their key, and an empty map, change nothing");
+            std::unordered_map<std::uint32_t, float> smaller{ { kCopy, 10.0f }, { kTree, 90.0f } };
+            MX::RekeyKeepLarger(smaller, keyOf);
+            Check(smaller.size() == 1 && Near(smaller[kTree], 90.0f), "mastery rekey: the tree record's larger XP wins over a copy's");
+        }
+
         void SettingsCases()
         {
             using json = nlohmann::json;
@@ -266,6 +290,7 @@ namespace ProgressionCheck
     {
         RankCases();
         GainCases();
+        RekeyCases();
         SettingsCases();
         CoSaveCases();
     }

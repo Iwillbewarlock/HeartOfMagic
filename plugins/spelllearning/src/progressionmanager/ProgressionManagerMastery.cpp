@@ -251,6 +251,15 @@ void ProgressionManager::EndLoadMastery()
         return RE::TESForm::LookupByID<RE::SpellItem>(entry.first) == nullptr;
     });
     if (dropped > 0) logger::info("ProgressionManager: {} mastery entries dropped at load end (not a spell)", dropped);
+    RekeyMasteryToTree();
+}
+
+void ProgressionManager::RekeyMasteryToTree()
+{
+    const auto moved = MasteryMath::RekeyKeepLarger(m_masteryXP, [this](RE::FormID id) { return MasteryKeyOf(id); });
+    if (moved == 0) return;
+    m_dirty = true;
+    logger::info("ProgressionManager: {} mastery entries moved to their tree spell (a copy, or the tree changed)", moved);
 }
 
 // =============================================================================

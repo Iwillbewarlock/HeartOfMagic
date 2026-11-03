@@ -350,6 +350,9 @@ public:
     // Back to no mastery XP: RelockSpell, and SetSpellXP leaving the spell no longer mastered
     // (IsMasteredForRanks false)
     void ClearMastery(RE::FormID spellId);
+    // Every mastery entry under MasteryKeyOf (two on one key keep the larger XP): at load end and after
+    // a tree's prerequisites are applied (the tree decides which copy is its record)
+    void RekeyMasteryToTree();
     // SLMX, an owner step of its own in CoSave.cpp (independent of SLPR's write)
     void SaveMasteryRecord(SKSE::SerializationInterface* a_intfc) const;
     // Self-test only: a spell's raw mastery XP (an invalid value, 0 included, removes it)
