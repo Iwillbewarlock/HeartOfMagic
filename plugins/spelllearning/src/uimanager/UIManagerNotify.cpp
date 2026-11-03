@@ -158,9 +158,9 @@ void UIManager::NotifyProgressUpdate(RE::FormID formId, float currentXP, float r
     // Mastery ranks: where the spell's mastery XP stands; masteryOnly when it has no learning
     // progress (known from outside the tree), so the panel takes only the mastery part
     auto* progression = ProgressionManager::GetSingleton();
-    if (progression->GetMasteryXP(formId) > 0.0f) {
+    if (const float masteryXP = progression->GetMasteryXP(formId); masteryXP > 0.0f) {
         const auto where = progression->GetMasteryProgress(formId);
-        update["mastery"] = { {"xp", progression->GetMasteryXP(formId)}, {"rank", where.rank}, {"ranks", where.ranks},
+        update["mastery"] = { {"xp", masteryXP}, {"rank", where.rank}, {"ranks", where.ranks},
                               {"floor", where.floor}, {"next", where.next} };
     }
     update["masteryOnly"] = !progression->HasProgressRecord(formId);

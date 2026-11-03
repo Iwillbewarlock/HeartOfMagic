@@ -131,9 +131,13 @@ void ProgressionManager::OnMasteredCast(RE::FormID masteryKey, RE::FormID castSp
         SendModEvent("SpellLearning_MasteryRankUp", EventSchoolOf(masteryKey), static_cast<float>(rankAfter), spell);
     }
     // The panel's card follows (UIManager::NotifyProgressUpdate carries the mastery fields)
+    // (the entry's own required XP when it has one: GetRequiredXP walks the known-higher-spell links)
     const auto progress = m_spellProgress.find(masteryKey);
-    const float currentXP = progress != m_spellProgress.end() ? progress->second.GetCurrentXP() : 0.0f;
-    ProgressionNotify::Progress(masteryKey, currentXP, GetRequiredXP(masteryKey));
+    if (progress != m_spellProgress.end() && progress->second.requiredXP > 0.0f) {
+        ProgressionNotify::Progress(masteryKey, progress->second.GetCurrentXP(), progress->second.requiredXP);
+    } else {
+        ProgressionNotify::Progress(masteryKey, 0.0f, GetRequiredXP(masteryKey));
+    }
 }
 
 void ProgressionManager::ClearMastery(RE::FormID spellId)

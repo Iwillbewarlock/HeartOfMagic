@@ -23,8 +23,9 @@
 //                 pairing included): the spell must hold exactly one cast's mastery XP, worked out
 //                 here from MasteryMath (Magicka cost / 10 at least 1, xpRate, the base school skill's
 //                 factor), at the rank MasteryMath gives; and the panel's progress reply must carry it
-//                 in spellMastery. A second cast reported the same way later (outside the pairing
-//                 window: a new time) adds a second one, held at the ranks' total.
+//                 in spellMastery. A second cast reported the same way 2 s apart (outside the pairing
+//                 window; dated in the past, so nothing is left pending for a real cast to pair with)
+//                 adds a second one, held at the ranks' total.
 //   mastery-gate  A spell the player knows that is not a tree spell earns no mastery XP
 //                 (MasteryKeyForCast 0). SKIP without one.
 //   Not covered here: the cast event's own thread hop (ProcessEvent posts the same handler as a task),
@@ -43,9 +44,10 @@ namespace Environment::SelfTest
         constexpr float kMinBaseXP = 1.0f;          // SpellCastHandler: max(1, cost / 10)
         constexpr float kCostPerXP = 10.0f;
         constexpr float kTolerance = 1e-3f;
-        // Two reports of one cast are paired within SpellCastHandler's 0.1 s window: a second
-        // cast this far later is a cast of its own
-        constexpr auto kLaterCast = std::chrono::seconds(2);
+        // Two reports of one cast are paired within SpellCastHandler's 0.1 s window: a cast this far
+        // apart is a cast of its own. Dated this far in the past, not the future: a future time left in
+        // the handler's pending list could pair with (and swallow) a real hook report of the spell then
+        constexpr auto kOtherCast = std::chrono::seconds(2);
 
         class MasteryRestore
         {
@@ -128,7 +130,7 @@ namespace Environment::SelfTest
             const float expectedOnce = (std::min)(gain, total);
             const int rank = pm->GetMasteryRank(id);
             const float reply = ReplyXP(pm, id);
-            handler->HandleCastForSelfTest(id, false, castAt + kLaterCast);   // a cast of its own
+            handler->HandleCastForSelfTest(id, false, castAt - kOtherCast);   // a cast of its own
             const float twice = pm->GetMasteryXP(id);
             const float expectedTwice = (std::min)(2.0f * gain, total);
 
