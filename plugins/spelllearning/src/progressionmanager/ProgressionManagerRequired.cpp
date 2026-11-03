@@ -7,6 +7,7 @@
 #include "ProgressionManager.h"
 #include "AsciiText.h"
 #include "FormIdText.h"
+#include "ProgressionMath.h"
 #include "SpellScanner.h"
 
 // =============================================================================
@@ -95,7 +96,10 @@ void ProgressionManager::SetRequiredXP(RE::FormID formId, float required, Requir
     }
     m_requiredXP.Set(kind, formId, required);
     // A tree number counts only where this character and the overrides have none
-    EnsureProgress(formId).requiredXP = kind == RequiredXP::Kind::kCharacter ? required : BaseRequiredXP(formId);
+    auto& progress = EnsureProgress(formId);
+    progress.requiredXP = kind == RequiredXP::Kind::kCharacter ? required : BaseRequiredXP(formId);
+    // A smaller required XP holds less XP: the per-source counts follow it down
+    ProgressionMath::FitTrackersToXP(progress, progress.GetCurrentXP());
 }
 
 void ProgressionManager::SetRequiredXPOverrides(RequiredXP::Table::Map overrides)
@@ -105,6 +109,7 @@ void ProgressionManager::SetRequiredXPOverrides(RequiredXP::Table::Map overrides
     for (auto& [formId, progress] : m_spellProgress) {
         if (m_requiredXP.HasCharacterValue(formId)) continue;
         progress.requiredXP = BaseRequiredXP(formId);
+        ProgressionMath::FitTrackersToXP(progress, progress.GetCurrentXP());
         ++updated;
     }
     logger::info("ProgressionManager: {} per-spell XP overrides from the settings ({} entries sized again)",

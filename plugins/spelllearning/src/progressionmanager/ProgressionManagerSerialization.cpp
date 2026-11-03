@@ -5,6 +5,7 @@
 #include "ProgressionManager.h"
 #include "FormIdText.h"
 #include "ProgressionCoSave.h"
+#include "ProgressionMath.h"
 #include "SpellEffectivenessHook.h"
 #include "JsonText.h"
 #include "SKSE/SKSE.h"
@@ -132,11 +133,16 @@ void ProgressionManager::EndLoad()
 
     // Every entry's required XP now that the whole save is in (ReadRecord's was
     // worked out before the records after SLPR)
+    // The per-source counts at most the XP the entry holds: a save made while a lowered progress
+    // kept them at their caps (before 2026-11-03) gets them back in step
+    std::size_t fitted = 0;
     for (auto& [formId, progress] : m_spellProgress) {
         progress.requiredXP = BaseRequiredXP(formId);
+        if (ProgressionMath::FitTrackersToXP(progress, progress.GetCurrentXP())) ++fitted;
     }
-    logger::info("ProgressionManager: Co-save load complete ({} entries, {} tree required XP values)",
-                 m_spellProgress.size(), m_requiredXP.TreeCount());
+    logger::info("ProgressionManager: Co-save load complete ({} entries, {} tree required XP values, {} with "
+                 "per-source XP counts cut to the XP they hold)",
+                 m_spellProgress.size(), m_requiredXP.TreeCount(), fitted);
 }
 
 bool ProgressionManager::ReadRecord(SKSE::SerializationInterface* a_intfc,

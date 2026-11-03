@@ -146,4 +146,40 @@ namespace ProgressionMath
         if (newProgress < 1.0f || (earlyLearned && !playerHasSpell)) return false;
         return oldProgress < 1.0f || (!unlocked && earlyLearned);
     }
+
+    // =========================================================================
+    // Per-source XP counts (the caps) against the XP the spell holds
+    // =========================================================================
+
+    // The counts may be a hair over the XP from float sums; only more than this share is cut
+    inline constexpr float kTrackerSlack = 1e-4f;
+
+    // What every per-source count is multiplied by so that their sum is at most the XP the
+    // spell holds now: 1 when it already is, 0 when the spell holds nothing (or NaN). Without it
+    // a progress lowered by cheat mode, SetSpellXP or a smaller required XP kept the counts where
+    // they were, so a source at its cap stayed there and gave nothing again.
+    [[nodiscard]] constexpr float TrackerScale(float currentXP, float trackedTotal) noexcept
+    {
+        if (!(currentXP > 0.0f)) return 0.0f;
+        if (!(trackedTotal > currentXP * (1.0f + kTrackerSlack))) return 1.0f;
+        return currentXP / trackedTotal;
+    }
+
+    // TrackerScale applied to a progress entry (any struct with xpFromAny, xpFromSchool,
+    // xpFromDirect, xpFromSelf and a name -> XP map xpFromModded). True when it changed.
+    template <class Progress>
+    bool FitTrackersToXP(Progress& progress, float currentXP)
+    {
+        float total = progress.xpFromAny + progress.xpFromSchool + progress.xpFromDirect + progress.xpFromSelf;
+        for (const auto& source : progress.xpFromModded) total += source.second;
+        if (total == 0.0f) return false;
+        const float scale = TrackerScale(currentXP, total);
+        if (scale >= 1.0f) return false;
+        progress.xpFromAny *= scale;
+        progress.xpFromSchool *= scale;
+        progress.xpFromDirect *= scale;
+        progress.xpFromSelf *= scale;
+        for (auto& source : progress.xpFromModded) source.second *= scale;
+        return true;
+    }
 }

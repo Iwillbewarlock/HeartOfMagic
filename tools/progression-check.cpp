@@ -488,6 +488,7 @@ int main(int argc, char** argv)
     CoSaveCases();
     ProgressionCheck::MathCases();
     ProgressionCheck::RequiredXPCases();
+    ProgressionCheck::XPFixCases();
     ProgressionCheck::MemoryCases();
     using ProgressionCheck::g_cases;
     using ProgressionCheck::g_failures;

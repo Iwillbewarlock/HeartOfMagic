@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <limits>
 #include <string>
+#include <unordered_map>
 
 #include <nlohmann/json.hpp>
 
@@ -225,5 +226,46 @@ namespace ProgressionCheck
         table.Set(Kind::kCharacter, 0x0300'0D62, -5.0f);
         Check(Near(table.For(0x0300'0D62, kTier, false, 1.0f), kTier) && !table.HasCharacterValue(0x0300'0D62),
               "required XP: a non-positive number counts as none");
+    }
+
+    // The XP fixes of 2026-11-03 (the four losses before 100%)
+    void XPFixCases()
+    {
+        // A: the per-source counts never stay over the XP the spell holds
+        struct FakeProgress
+        {
+            float xpFromAny = 0.0f;
+            float xpFromSchool = 0.0f;
+            float xpFromDirect = 0.0f;
+            float xpFromSelf = 0.0f;
+            std::unordered_map<std::string, float> xpFromModded;
+        };
+        const float nan = std::numeric_limits<float>::quiet_NaN();
+        Check(Near(PM::TrackerScale(40.0f, 30.0f), 1.0f) && Near(PM::TrackerScale(40.0f, 40.0f), 1.0f),
+              "trackers: counts at or under the XP held are left alone");
+        Check(Near(PM::TrackerScale(40.0f, 80.0f), 0.5f), "trackers: counts of 80 on 40 XP held scale by 0.5");
+        Check(Near(PM::TrackerScale(0.0f, 50.0f), 0.0f) && Near(PM::TrackerScale(-5.0f, 50.0f), 0.0f) &&
+                  Near(PM::TrackerScale(nan, 50.0f), 0.0f),
+              "trackers: no XP held (0, negative, NaN) clears every count");
+        FakeProgress lowered;   // cheat mode set 75 of 100 XP back to 10: any and school were at their caps
+        lowered.xpFromAny = 5.0f;
+        lowered.xpFromSchool = 15.0f;
+        lowered.xpFromSelf = 55.0f;
+        lowered.xpFromModded["book_reading"] = 0.0f;
+        Check(PM::FitTrackersToXP(lowered, 10.0f) && Near(lowered.xpFromAny, 5.0f * 10.0f / 75.0f) &&
+                  Near(lowered.xpFromSchool, 15.0f * 10.0f / 75.0f) && Near(lowered.xpFromSelf, 55.0f * 10.0f / 75.0f) &&
+                  Near(lowered.xpFromAny + lowered.xpFromSchool + lowered.xpFromSelf, 10.0f),
+              "trackers: 75 counted on 10 XP held -> each count scaled, the sum 10, the any cap open again");
+        FakeProgress cleared;
+        cleared.xpFromDirect = 50.0f;
+        cleared.xpFromModded["isl_study"] = 25.0f;
+        Check(PM::FitTrackersToXP(cleared, 0.0f) && Near(cleared.xpFromDirect, 0.0f) &&
+                  Near(cleared.xpFromModded["isl_study"], 0.0f),
+              "trackers: SetSpellXP 0 clears the built-in and modded counts");
+        FakeProgress inStep;
+        inStep.xpFromSchool = 15.0f;
+        inStep.xpFromModded["passive"] = 5.0005f;   // 20.0005 counted on 20 held
+        Check(!PM::FitTrackersToXP(inStep, 20.0f) && Near(inStep.xpFromSchool, 15.0f),
+              "trackers: counts a float hair over the XP held are not touched");
     }
 }

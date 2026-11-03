@@ -17,6 +17,12 @@
 
 ### Fixed
 
+- **XP that stopped coming after a spell's progress was lowered.** Each kind of casting XP (any spell, same
+  school, a direct link) has a cap per spell; the XP counted against those caps stayed where it was when cheat
+  mode, a mod or a smaller required XP lowered the spell's progress, so a source at its cap gave nothing again.
+  The counts now follow the progress down (scaled to the XP the spell still holds, all cleared at 0 XP), also
+  for saves made before, when they load.
+
 - **Don't Eat Spell Tomes and the mods that use it.** With the real Don't Eat Spell Tomes installed (LoreRim, for
   Rite of Arcana), Heart of Magic no longer takes over its script functions: it did, so a mod that asked for spell
   tome events registered with Heart of Magic while Don't Eat Spell Tomes sent them, and heard nothing. With the ISL

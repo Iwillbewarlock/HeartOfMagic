@@ -58,6 +58,8 @@ void ProgressionManager::SetSpellXP(RE::FormID formId, float xp)
     // (current XP = progress x required) start above the requirement.
     auto& progress = EnsureProgress(formId);
     progress.progressPercent = ProgressionMath::ProgressForXP(xp, progress.requiredXP);
+    // The per-source counts follow a lowered XP down (a source at its cap gives again)
+    ProgressionMath::FitTrackersToXP(progress, progress.GetCurrentXP());
     m_dirty = true;
     SpellEffectivenessHook::GetSingleton()->SyncProgress(formId, progress.progressPercent);
 

@@ -23,6 +23,13 @@ namespace ProgressionCheck
     void MathCases();
     /// RequiredXPTable.h: required XP by kind, what a revert keeps
     void RequiredXPCases();
+    /// ProgressionMath.h: the XP fixes of 2026-11-03 (per-source counts against the XP held, a copy
+    /// as a direct link, the XP a grant really added, single mode's order)
+    void XPFixCases();
+
+    // progression-check-mastery.cpp
+    /// MasteryMath.h and SLMX: mastery rank costs, ranks, skill factor, gain, settings, the record
+    void MasteryCases();
 
     // progression-check-memory.cpp
     /// librarian/SpellResearchMemoryMath.h: practice and memory (boundaries, SR's gain table and cap,
