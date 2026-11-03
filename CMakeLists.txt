@@ -69,8 +69,10 @@ set(DIST_VERSION_DIR "${DIST_DIR}/${DIST_NAME}_${PROJECT_VERSION}")
 #     Magic Librarian's release, an option of its FOMOD, with HoM's version (PROJECT_VERSION)
 #   - the Spell Research block (plugins/SL_MagicMenu_SpellResearch, MagicMenuRewrite_SpellResearch.dll)
 #     in "Spell Research - Prisma UI 2", which takes dist/SpellResearchBlock_<version>/ from here;
-#     its DLL carries that release's version, SPELL_RESEARCH_BLOCK_VERSION (2.0.0 assumed until
-#     that release is numbered)
+#     its DLL carries that release's version, SPELL_RESEARCH_BLOCK_VERSION (2.0.0 is a placeholder
+#     until that release is numbered). Its notices name the source tag spell-research-block-v<version>,
+#     made at release on the commit the package was built from (docs/magicmenu/BLOCKS_MOVE.md,
+#     "Releasing the Spell Research block")
 set(MAGIC_MENU_VERSION "1.2.0")
 set(MAGIC_MENU_DIST_VERSION_DIR "${DIST_DIR}/MagicMenuRewrite_${MAGIC_MENU_VERSION}")
 set(HOM_VERSION "${PROJECT_VERSION}")

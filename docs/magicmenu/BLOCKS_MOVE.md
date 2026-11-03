@@ -19,10 +19,20 @@ working. The HoM block still reads its keys from `MagicMenuRewrite.ini`, which M
 
 - The HoM block DLL carries Heart of Magic's version (`HOM_VERSION` = `VERSION`), its `.pdb` is in HoM's
   DebugSymbols zip, its notice in HoM's `THIRD-PARTY-NOTICES.md` (source tag `v<version>`).
-- The SR block DLL carries `SPELL_RESEARCH_BLOCK_VERSION` (top-level `CMakeLists.txt`; set it to the Spell Research -
-  Prisma UI 2 release's version), its notice names the source tag `spell-research-block-v<version>`, which has to be
-  made on this repository when that release goes out.
+- The SR block DLL carries `SPELL_RESEARCH_BLOCK_VERSION` (top-level `CMakeLists.txt`; 2.0.0 is a placeholder until
+  the Spell Research - Prisma UI 2 release is numbered), its notice names the source tag
+  `spell-research-block-v<version>` (see "Releasing the Spell Research block" below).
 - MMR: `MAGIC_MENU_VERSION` 1.2.0, the core and the Block API only (`MagicMenuRewrite.dll`).
+
+## Releasing the Spell Research block
+
+1. Set `SPELL_RESEARCH_BLOCK_VERSION` in the top-level `CMakeLists.txt` to the Spell Research - Prisma UI 2 version and
+   commit it.
+2. Build that commit (`BuildRelease.ps1`), run `node tools/release-zips-check.js`.
+3. Copy `dist/SpellResearchBlock_<version>/` into the Spell Research - Prisma UI 2 package: `SKSE/` into its Data
+   files, the notices, licence and `licenses/` beside its own, `DebugSymbols/` into its debug-symbols archive.
+4. When that release goes out, tag the commit the package was built from `spell-research-block-v<version>` on this
+   repository and push the tag: the notices point there for the Corresponding Source.
 
 ## Install order: what happens and how to fix it
 
