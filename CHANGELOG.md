@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## Heart of Magic Librarian 1.9.1
 
 ### Fixed
 

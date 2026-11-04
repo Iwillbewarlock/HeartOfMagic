@@ -5,7 +5,7 @@ A rebuild of [url=https://www.nexusmods.com/skyrimspecialedition/mods/171146]Hea
 released with the original author's permission to improve and re-release it.[/center]
 [center][color=#ffff00][size=6]PLZ read change log. [/size][/color]
 [/center]
-[center]Source code: [url=https://github.com/Iwillbewarlock/HeartOfMagic/tree/v1.9.0]https://github.com/Iwillbewarlock/HeartOfMagic/tree/v1.9.0[/url][/center]
+[center]Source code: [url=https://github.com/Iwillbewarlock/HeartOfMagic/tree/v1.9.1]https://github.com/Iwillbewarlock/HeartOfMagic/tree/v1.9.1[/url][/center]
 [center][youtube]fyMM1G6eWow[/youtube]
 
 [img][img]https://staticdelivery.nexusmods.com/mods/1704/images/193381/193381-1790651548-1806132487.png[/img][/img][/center]
@@ -21,6 +21,13 @@ No spell lists to maintain and no patches per spell mod: the tree is built from 
 [center][img][img]https://staticdelivery.nexusmods.com/mods/1704/images/193381/193381-1790651595-1004967725.gif[/img][/img][/center]
 
 [line]
+
+[size=5][b]New in 1.9.1[/b][/size]
+[list]
+[*][b]Magic Menu Rewrite installer option:[/b] In 1.9.0, the "Heart of Magic block for Magic Menu Rewrite" option on the "Magic Menu Rewrite" installer page stayed unchecked in Mod Organizer 2 because Mod Organizer 2 does not look for DLL files by default, so the block (spell tree window, learning progress card, and node card in Magic Menu Rewrite's menu) was not installed. In 1.9.1, the option is checked by default, and you should uncheck it if you do not use Magic Menu Rewrite because the block does nothing without it.[/*]
+[*][b]Merged ISL Compatibility Patch detection:[/b] The "Merged ISL Compatibility Patch" is only for Immersive Spell Learning - DESTified, but the installer had also suggested it (and in some mod managers installed it by itself) when it found Don't Eat Spell Tomes alone, replacing Don't Eat Spell Tomes' DLL so mods that listen for its spell tome events (such as Rite of Arcana) stopped hearing them. In 1.9.1, the patch is picked only for ISL, and its help text says to leave it unchecked with Don't Eat Spell Tomes alone.[/*]
+[/list]
+[b]After updating:[/b] Only the FOMOD installer changed, so no game code or saves are affected and no tree rebuild is needed. If you use Magic Menu Rewrite and installed 1.9.0 with Mod Organizer 2, reinstall (or install 1.9.1) and keep the "Heart of Magic block for Magic Menu Rewrite" option checked; if you use Don't Eat Spell Tomes without ISL and the patch was installed, reinstall and leave the patch unchecked.
 
 [size=5][b]New in 1.9.0[/b][/size]
 [list]

@@ -1,0 +1,23 @@
+Heart of Magic Librarian 1.9.1 - text for the Nexus upload
+(The page: docs/NEXUS_PAGE.bbcode, "New in 1.9.1". Full list: CHANGELOG.md. First draft by Gemini Argon from a fact sheet of CHANGELOG 1.9.1, checked against it. Installer only; Magic Menu Rewrite stays 1.2.0.)
+
+=====================================================================
+1. Files tab - main file
+=====================================================================
+
+Name: Heart of Magic Librarian
+Version: 1.9.1
+
+Description:
+Installer-only (FOMOD) update. No game code or saves affected; no tree rebuild. Checks "Heart of Magic block for Magic Menu Rewrite" by default so Mod Organizer 2 installs the block (uncheck without Magic Menu Rewrite). Picks "Merged ISL Compatibility Patch" only for Immersive Spell Learning - DESTified, not Don't Eat Spell Tomes alone, so Don't Eat Spell Tomes' DLL is not replaced and its spell tome events still fire.
+
+Debug Symbols file description (same version):
+Optional. Puts function names into Crash Logger reports. Install it only if you want to send a crash log.
+
+
+=====================================================================
+2. Changelogs tab - version 1.9.1 (one line per entry)
+=====================================================================
+
+Fixed: The "Heart of Magic block for Magic Menu Rewrite" installer option is now checked by default so Mod Organizer 2 (which does not look for DLL files by default) installs the Magic Menu Rewrite block instead of leaving it unchecked as in 1.9.0.
+Fixed: The "Merged ISL Compatibility Patch" installer option is now picked only for Immersive Spell Learning - DESTified and its help text says to leave it unchecked with Don't Eat Spell Tomes alone, preventing it from replacing Don't Eat Spell Tomes' DLL and stopping mods like Rite of Arcana from hearing spell tome events.
