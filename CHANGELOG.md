@@ -8,11 +8,12 @@
   `SKSE\Plugins\MagicMenuRewrite.dll`, but Mod Organizer 2 looks only for .esp, .esm and .esl files by default (its
   fomod installer's `use_any_file` setting is off), so the option stayed unchecked there even with Magic Menu Rewrite
   installed. Uncheck it if you do not use Magic Menu Rewrite; without it the block does nothing.
-- **Installer: the ISL compatibility patch says it is for Don't Eat Spell Tomes too.** Its help text told everyone
-  without Immersive Spell Learning to leave it unchecked; it is meant for Don't Eat Spell Tomes with or without ISL
-  (Heart of Magic keeps spell tomes itself and provides DEST's script functions in place of its DLL). The option is now
-  "Merged ISL / DEST Compatibility Patch". DEST ships no plugin file of its own, only its DLL, so Mod Organizer 2 does
-  not pick the option for DEST alone: check it yourself.
+- **Installer: the ISL compatibility patch is only for Immersive Spell Learning.** The installer also picked it, and
+  where the mod manager looks for DLL files (Vortex, or Mod Organizer 2 with `use_any_file` on) installed it by
+  itself, when it found Don't Eat Spell Tomes alone. The patch replaces DEST's DLL, so a mod that listens for DEST's
+  spell tome events (Rite of Arcana) stopped hearing them; with the real DEST, Heart of Magic leaves DEST's script
+  functions to it. The patch is now picked and installed by itself only for ISL (`DEST_ISL.esp` or
+  `ISL-DESTified.esp`), and its help text says to leave it unchecked with DEST alone and why.
 
 ## Heart of Magic Librarian 1.9.0
 

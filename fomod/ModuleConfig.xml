@@ -43,9 +43,9 @@ It holds one record: a copy, under a neutral name, of the base-game explosion My
             <optionalFileGroups order="Explicit">
                 <group name="ISL / DEST / Sit Down and Read / GTS CE Bookworm" type="SelectAny">
                     <plugins order="Explicit">
-                        <plugin name="Merged ISL / DEST Compatibility Patch">
+                        <plugin name="Merged ISL Compatibility Patch">
                             <description>
-Merged compatibility patch for Don't Eat Spell Tomes (by Parapets), Immersive Spell Learning - DESTified (by Hackfield), I Just Want to Sit Down and Read (by GiraPomba), and Gate to Sovngarde CE Bookworm trait support.
+Merged compatibility patch for Immersive Spell Learning - DESTified (by Hackfield), I Just Want to Sit Down and Read (by GiraPomba), and Gate to Sovngarde CE Bookworm trait support.
 
 Replaces DontEatSpellTomes.dll with an inert shim and installs a merged study script that preserves ALL features from every mod:
 
@@ -58,9 +58,9 @@ All features degrade gracefully — if a mod is not installed, its features are 
 
 IMPORTANT: Load Heart of Magic AFTER ISL/DEST/GTS/SDR so the merged scripts take priority.
 
-Check this if you use Don't Eat Spell Tomes (DEST) or Immersive Spell Learning - DESTified, also DEST without ISL. If you use neither, leave it unchecked.
+Check this only if you use Immersive Spell Learning - DESTified (DEST_ISL.esp). The installer picks it by itself when it finds ISL.
 
-The installer picks it by itself when it finds ISL's DEST_ISL.esp. DEST has no plugin file of its own, only SKSE\Plugins\DontEatSpellTomes.dll, and Mod Organizer 2 does not look for DLL files by default, so with DEST alone you may have to check it yourself.
+Using Don't Eat Spell Tomes (DEST) without ISL, for example because another mod such as Rite of Arcana needs it? Leave this unchecked. The patch replaces DEST's DLL, and mods that listen for DEST's spell tome events would stop hearing them. With the real DEST installed, Heart of Magic leaves DEST's script functions to DEST.
                             </description>
                             <conditionFlags>
                                 <flag name="ISLDetected">On</flag>
@@ -76,8 +76,7 @@ The installer picks it by itself when it finds ISL's DEST_ISL.esp. DEST has no p
                                         <pattern>
                                             <dependencies operator="Or">
                                                 <fileDependency file="DEST_ISL.esp" state="Active"/>
-                                                <fileDependency file="DontEatSpellTomes.esp" state="Active"/>
-                                                <fileDependency file="SKSE\Plugins\DontEatSpellTomes.dll" state="Active"/>
+                                                <fileDependency file="ISL-DESTified.esp" state="Active"/>
                                             </dependencies>
                                             <type name="Recommended"/>
                                         </pattern>
@@ -151,10 +150,11 @@ Magic Menu Rewrite 1.1.0 shipped this block itself, under the same file name (SK
     <conditionalFileInstalls>
         <patterns>
             <pattern>
+                <!-- ISL only: with Don't Eat Spell Tomes alone the patch would replace DEST's DLL, and mods
+                     listening for DEST's spell tome events (Rite of Arcana) would stop hearing them -->
                 <dependencies operator="Or">
                     <fileDependency file="DEST_ISL.esp"             state="Active"/>
-                    <fileDependency file="DontEatSpellTomes.esp"    state="Active"/>
-                    <fileDependency file="SKSE\Plugins\DontEatSpellTomes.dll" state="Active"/>
+                    <fileDependency file="ISL-DESTified.esp"        state="Active"/>
                 </dependencies>
                 <files>
                     <folder source="optional\ISLPatch\SKSE" destination="SKSE" priority="1"/>
