@@ -46,9 +46,8 @@ update installed with Merge, or a hand copy).
 
 | Case | Result | Fix |
 |---|---|---|
-| MMR 1.2.0 first, then HoM 1.9.0 | The HoM installer finds `SKSE\Plugins\MagicMenuRewrite.dll`: the "Magic Menu Rewrite" option is picked (Recommended). The block works. (미확인 / not tested) | - |
-| HoM 1.9.0 first, then MMR 1.2.0 | At HoM's install MMR was not there: the option was not picked (Optional). No HoM block in the menu; the preview and spell card work. (미확인 / not tested) | Reinstall HoM 1.9.0 (MO2: Reinstall) and pick "Heart of Magic block for Magic Menu Rewrite". |
-| HoM 1.9.0 first while MMR 1.1.0 is installed, then MMR 1.2.0 | MMR 1.1.0's DLL counted: the option was picked. The block works after the MMR update. (미확인 / not tested) | - |
+| HoM 1.9.0, MMR installed before or after, MO2 | HoM 1.9.0's installer picked the option only when it found `SKSE\Plugins\MagicMenuRewrite.dll`, but Mod Organizer 2 finds only .esp/.esm/.esl by default (its fomod installer's `use_any_file` setting is off; modorganizer-installer_fomod, `InstallerFomod::fileState`), so the option stayed unchecked (Optional) unless that setting is on. No HoM block in the menu; the preview and spell card work. | Reinstall HoM (MO2: Reinstall) and check "Heart of Magic block for Magic Menu Rewrite". |
+| HoM 1.9.1 or later | The option is checked by default whatever is installed (plain Recommended). The block works with MMR 1.2.0 installed before or after. (미확인 / not tested) | Without MMR, uncheck it (or leave it: it does nothing, see below). |
 | MMR 1.2.0 + HoM older than 1.9.0 | The HoM block is gone (MMR 1.2.0 no longer ships it). Its place in the layout and its hidden setting are kept (`magic-menu-layout-check`, "a block away and back"). | Update HoM to 1.9.0 with the option. |
 | HoM 1.9.0 with the option, MMR 1.2.0, MO2 priority HoM above (left pane higher) or below MMR | No file in common: priority does not matter. (미확인 / not tested) | - |
 | 1.1.0 left over, HoM 1.9.0 with the option, HoM below MMR (HoM wins) | HoM 1.9.0's block is loaded; MO2 shows the conflict. (미확인 / not tested) | Optional: delete the leftover from the MMR mod folder (reinstall MMR 1.2.0 with Replace). |
@@ -65,8 +64,8 @@ Prisma UI 2 and needs Magic Menu Rewrite to show anything.
 
 - `node tools/release-zips-check.js` (after `BuildRelease.ps1`): the MMR zip has no block file and no install step,
   its DebugSymbols zip no block `.pdb`; the HoM zip has the block's three files only under
-  `optional/MagicMenuRewriteBlocks/SKSE/Plugins/` and a FOMOD option for them (Recommended with
-  `MagicMenuRewrite.dll`, Optional otherwise, never in `requiredInstallFiles` or `conditionalFileInstalls`), its
+  `optional/MagicMenuRewriteBlocks/SKSE/Plugins/` and a FOMOD option for them (plain Recommended, checked
+  by default with no file condition, never in `requiredInstallFiles` or `conditionalFileInstalls`), its
   DebugSymbols zip `MagicMenuRewrite_HoM.pdb`; the SR block package is complete (DLL, ini, en/ko, `.pdb`, notices,
   licence texts). Exit 1 on a failure.
 - `magic-menu-layout-check` ("a block away and back"): an old `MagicMenuRewrite_Layout.json` with the retired ids

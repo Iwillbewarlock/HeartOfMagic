@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **Installer: the Magic Menu Rewrite block option is checked by default.** 1.9.0 picked it only when it found
+  `SKSE\Plugins\MagicMenuRewrite.dll`, but Mod Organizer 2 looks only for .esp, .esm and .esl files by default (its
+  fomod installer's `use_any_file` setting is off), so the option stayed unchecked there even with Magic Menu Rewrite
+  installed. Uncheck it if you do not use Magic Menu Rewrite; without it the block does nothing.
+- **Installer: the ISL compatibility patch says it is for Don't Eat Spell Tomes too.** Its help text told everyone
+  without Immersive Spell Learning to leave it unchecked; it is meant for Don't Eat Spell Tomes with or without ISL
+  (Heart of Magic keeps spell tomes itself and provides DEST's script functions in place of its DLL). The option is now
+  "Merged ISL / DEST Compatibility Patch". DEST ships no plugin file of its own, only its DLL, so Mod Organizer 2 does
+  not pick the option for DEST alone: check it yourself.
+
 ## Heart of Magic Librarian 1.9.0
 
 ### New

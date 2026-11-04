@@ -43,9 +43,9 @@ It holds one record: a copy, under a neutral name, of the base-game explosion My
             <optionalFileGroups order="Explicit">
                 <group name="ISL / DEST / Sit Down and Read / GTS CE Bookworm" type="SelectAny">
                     <plugins order="Explicit">
-                        <plugin name="Merged ISL Compatibility Patch">
+                        <plugin name="Merged ISL / DEST Compatibility Patch">
                             <description>
-Merged compatibility patch for Immersive Spell Learning - DESTified (by Hackfield), I Just Want to Sit Down and Read (by GiraPomba), and Gate to Sovngarde CE Bookworm trait support.
+Merged compatibility patch for Don't Eat Spell Tomes (by Parapets), Immersive Spell Learning - DESTified (by Hackfield), I Just Want to Sit Down and Read (by GiraPomba), and Gate to Sovngarde CE Bookworm trait support.
 
 Replaces DontEatSpellTomes.dll with an inert shim and installs a merged study script that preserves ALL features from every mod:
 
@@ -58,7 +58,9 @@ All features degrade gracefully — if a mod is not installed, its features are 
 
 IMPORTANT: Load Heart of Magic AFTER ISL/DEST/GTS/SDR so the merged scripts take priority.
 
-Auto-selected if ISL or DEST is detected. If you don't use ISL, leave this unchecked.
+Check this if you use Don't Eat Spell Tomes (DEST) or Immersive Spell Learning - DESTified, also DEST without ISL. If you use neither, leave it unchecked.
+
+The installer picks it by itself when it finds ISL's DEST_ISL.esp. DEST has no plugin file of its own, only SKSE\Plugins\DontEatSpellTomes.dll, and Mod Organizer 2 does not look for DLL files by default, so with DEST alone you may have to check it yourself.
                             </description>
                             <conditionFlags>
                                 <flag name="ISLDetected">On</flag>
@@ -126,7 +128,7 @@ Only installable when MysticismMagic.esp is active.
                             <description>
 Adds Heart of Magic Librarian's windows to the magic menu of Magic Menu Rewrite: the spell tree, the learning progress card (with the spells you can learn next when a school has no learning target) and the node card.
 
-Needs Magic Menu Rewrite (1.2.0 or later recommended). Without it this block does nothing. Picked by default when Magic Menu Rewrite is installed.
+Needs Magic Menu Rewrite (1.2.0 or later recommended). Checked by default: keep it if you use Magic Menu Rewrite, uncheck it if you don't (without Magic Menu Rewrite this block does nothing). The installer cannot tell whether Magic Menu Rewrite is installed, because Mod Organizer 2 does not look for DLL files by default.
 
 Magic Menu Rewrite 1.1.0 shipped this block itself, under the same file name (SKSE\Plugins\MagicMenuRewrite_HoM.dll). If that copy is still installed, this one conflicts with it: let Heart of Magic Librarian win (or remove that copy, for example by reinstalling Magic Menu Rewrite 1.2.0 so it replaces the old files). Your block layout and its settings in MagicMenuRewrite.ini stay as they are.
                             </description>
@@ -134,17 +136,7 @@ Magic Menu Rewrite 1.1.0 shipped this block itself, under the same file name (SK
                                 <folder source="optional\MagicMenuRewriteBlocks\SKSE" destination="SKSE" priority="0"/>
                             </files>
                             <typeDescriptor>
-                                <dependencyType>
-                                    <defaultType name="Optional"/>
-                                    <patterns>
-                                        <pattern>
-                                            <dependencies operator="And">
-                                                <fileDependency file="SKSE\Plugins\MagicMenuRewrite.dll" state="Active"/>
-                                            </dependencies>
-                                            <type name="Recommended"/>
-                                        </pattern>
-                                    </patterns>
-                                </dependencyType>
+                                <type name="Recommended"/>
                             </typeDescriptor>
                         </plugin>
                     </plugins>

@@ -6,7 +6,7 @@
  *     anywhere, no install step naming a block in its ModuleConfig.xml; its DebugSymbols zip without the blocks' .pdb.
  *   - Heart of Magic Librarian (HeartOfMagic-Librarian_<hom>.zip): MagicMenuRewrite_HoM.dll and its en/ko lang files only
  *     under optional/MagicMenuRewriteBlocks/SKSE/Plugins/ (never in the always-installed SKSE/), a ModuleConfig.xml
- *     option installing that folder (in a SelectAny group; Recommended with MagicMenuRewrite.dll, Optional otherwise,
+ *     option installing that folder (in a SelectAny group; plain Recommended, checked by default with no file condition,
  *     never another type; never in requiredInstallFiles or conditionalFileInstalls); its DebugSymbols zip with
  *     MagicMenuRewrite_HoM.pdb.
  *   - each block's and the core's DLL carries the expected SKSE plugin version (SKSEPlugin_Version read from the PE
@@ -264,9 +264,10 @@ function checkHeartOfMagic(dist, version) {
             'HoM: the option is only ever Optional or Recommended (got ' + list(types) + ')');
         expect(/<folder source="optional\\MagicMenuRewriteBlocks\\SKSE" destination="SKSE"/.test(plugin),
             'HoM: a Magic Menu Rewrite option installs optional\\MagicMenuRewriteBlocks\\SKSE to SKSE');
-        expect(/<defaultType name="Optional"\/>/.test(plugin) &&
-                /<fileDependency file="SKSE\\Plugins\\MagicMenuRewrite\.dll" state="Active"\/>\s*<\/dependencies>\s*<type name="Recommended"\/>/.test(plugin),
-            'HoM: the option is Recommended with MagicMenuRewrite.dll, Optional otherwise');
+        // Mod Organizer 2 finds only .esp/.esm/.esl by default (its fomod installer's use_any_file is off), so a
+        // condition on MagicMenuRewrite.dll never held there: the option is checked by default, unchecked by hand
+        expect(/<typeDescriptor>\s*<type name="Recommended"\/>\s*<\/typeDescriptor>/.test(plugin) && plugin.indexOf('fileDependency') < 0,
+            'HoM: the option is plain Recommended (checked by default), with no file condition');
         var info = zip.text(folder + '/fomod/info.xml') || '';
         expect(info.indexOf('<Version>' + version + '</Version>') >= 0, 'HoM: fomod/info.xml says ' + version);
         var notices = zip.text(folder + '/THIRD-PARTY-NOTICES.md') || '';
