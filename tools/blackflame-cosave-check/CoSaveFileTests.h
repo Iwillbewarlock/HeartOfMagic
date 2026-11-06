@@ -179,6 +179,26 @@ namespace CoSaveFileTests
                 std::string("co-save: refused, ") + c.what + " (" + CF::Describe(result) + ")");
         }
 
+        // 1.0.1 (Nexus bug report 2026-11-05): Actor Value Generator writes two blocks under one uniqueId (0x00415647, one
+        // before and one after ours in the reporter's file) and SKSE loads them; the walk takes both and the BFSL still reads
+        constexpr std::uint32_t kAvgUid = 0x00415647;
+        auto otherTwice = Normal();
+        otherTwice.insert(otherTwice.begin() + 2, PluginSpec{ kAvgUid, { { 'AVGA', 1, { 1, 2, 3 } } } });
+        otherTwice.push_back(PluginSpec{ kAvgUid, { { 'AVGA', 1, { 4 } }, { 'AVGB', 1, {} } } });
+        const auto otherFile = File(otherTwice);
+        const auto otherWalk = CF::WalkCoSave(otherFile.data(), otherFile.size());
+        const auto otherRead = CF::ReadBfsl(otherFile.data(), otherFile.size());
+        a_check(otherWalk.result == CF::Result::Ok && otherWalk.plugins.size() == 6 && otherWalk.plugins[2].uniqueId == kAvgUid &&
+                    otherWalk.plugins[5].uniqueId == kAvgUid && otherWalk.plugins[5].records.size() == 2 &&
+                    otherRead.state == CF::BfslState::kRead && otherRead.snapshot.slots == sample.slots,
+            "co-save: another plugin's uniqueId twice (Actor Value Generator) walks whole and the BFSL reads");
+        auto otherTwiceCut = otherTwice;
+        otherTwiceCut[2].lengthDelta = 1;
+        const auto otherCutFile = File(otherTwiceCut);
+        a_check(CF::WalkCoSave(otherCutFile.data(), otherCutFile.size()).result == CF::Result::BlockNotFilled &&
+                    CF::ReadBfsl(otherCutFile.data(), otherCutFile.size()).state == CF::BfslState::kBad,
+            "co-save: a repeated other uniqueId whose block is broken still refuses the whole file");
+
         auto noBlock = Normal();
         noBlock.erase(noBlock.begin() + 2);
         const auto noBlockFile = File(noBlock);

@@ -12,16 +12,17 @@
 //   per plugin   12 bytes  uniqueId u32 (SetUniqueID), numRecords u32, length u32 (every record header and data after it)
 //   per record   12 bytes  type u32, version u32, length u32 (the data after it), then the data
 // Every count and length is checked against what is left (u64 arithmetic), each plugin's records must end exactly at its
-// block end and the last block at the file size; any failure invalidates the whole file (nothing from it is used). A
-// uniqueId seen twice is refused. C++17, no game types: tools/blackflame-cosave-check tests it on byte buffers and on
-// real .skse files (--cosave <file>).
+// block end and the last block at the file size; any failure invalidates the whole file (nothing from it is used). Our own
+// uniqueId ('HBFS') seen twice is refused; another plugin's uniqueId seen twice is walked like any block (1.0.1: Actor
+// Value Generator writes two 0x00415647 blocks into every co-save and SKSE loads them, so refusing them closed every gate
+// for its users, Nexus bug report 2026-11-05). C++17, no game types: tools/blackflame-cosave-check tests it on byte
+// buffers and on real .skse files (--cosave <file>).
 
 #include "SlotCoSave.h"
 
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <set>
 #include <string>
 #include <vector>
 
@@ -46,7 +47,7 @@ namespace BlackFlame::CoSaveFile
         RecordTooLong,    // a record's data past its block's end
         BlockNotFilled,   // a block's records end before its length says
         TrailingBytes,    // bytes after the last block
-        DuplicateUid,     // one uniqueId twice
+        DuplicateUid,     // our uniqueId ('HBFS') twice
     };
 
     [[nodiscard]] inline const char* Describe(Result a_result) noexcept
@@ -63,7 +64,7 @@ namespace BlackFlame::CoSaveFile
             case Result::RecordTooLong: return "a record runs past its plugin block";
             case Result::BlockNotFilled: return "a plugin block's records end before the block does";
             case Result::TrailingBytes: return "bytes after the last plugin block";
-            case Result::DuplicateUid: return "a plugin unique id appears twice";
+            case Result::DuplicateUid: return "Black Flame's unique id appears twice";
         }
         return "unknown";
     }
@@ -144,7 +145,7 @@ namespace BlackFlame::CoSaveFile
         walk.runtimeVersion = Detail::U32(a_bytes, 12);
         const std::uint32_t pluginCount = Detail::U32(a_bytes, 16);
         std::uint64_t at = kFileHeaderSize;
-        std::set<std::uint32_t> seen;
+        bool seenOurs = false;
         for (std::uint32_t p = 0; p < pluginCount; ++p) {
             if (size - at < kPluginHeaderSize) {
                 return fail(Result::PluginHeaderCut, at);
@@ -161,8 +162,11 @@ namespace BlackFlame::CoSaveFile
             if (recordCount > length / kRecordHeaderSize) {
                 return fail(Result::TooManyRecords, at + 4);
             }
-            if (!seen.insert(plugin.uniqueId).second) {
-                return fail(Result::DuplicateUid, at);
+            if (plugin.uniqueId == SlotCoSave::kUniqueId) {
+                if (seenOurs) {
+                    return fail(Result::DuplicateUid, at);
+                }
+                seenOurs = true;
             }
             const std::uint64_t end = dataAt + length;
             at = dataAt;
