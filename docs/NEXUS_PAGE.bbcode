@@ -5,7 +5,7 @@ A rebuild of [url=https://www.nexusmods.com/skyrimspecialedition/mods/171146]Hea
 released with the original author's permission to improve and re-release it.[/center]
 [center][color=#ffff00][size=6]PLZ read change log. [/size][/color]
 [/center]
-[center]Source code: [url=https://github.com/Iwillbewarlock/HeartOfMagic/tree/v1.9.1]https://github.com/Iwillbewarlock/HeartOfMagic/tree/v1.9.1[/url][/center]
+[center]Source code: [url=https://github.com/Iwillbewarlock/HeartOfMagic/tree/v1.9.2]https://github.com/Iwillbewarlock/HeartOfMagic/tree/v1.9.2[/url][/center]
 [center][youtube]fyMM1G6eWow[/youtube]
 
 [img][img]https://staticdelivery.nexusmods.com/mods/1704/images/193381/193381-1790651548-1806132487.png[/img][/img][/center]
@@ -21,6 +21,12 @@ No spell lists to maintain and no patches per spell mod: the tree is built from 
 [center][img][img]https://staticdelivery.nexusmods.com/mods/1704/images/193381/193381-1790651595-1004967725.gif[/img][/img][/center]
 
 [line]
+
+[size=5][b]New in 1.9.2[/b][/size]
+[list]
+[*][b]Spell name in the ISL study messages:[/b] With the "Merged ISL Compatibility Patch" (for Immersive Spell Learning - DESTified), studying a spell tome showed "You studied {{spell}} for 3 hours." instead of the spell's name, and the same happened in "You have learned {{spell}}." and "You have forgotten {{spell}}." It happened because the spell-name placeholder was matched with exact upper/lower case while the game can hand the name over in a different case. Placeholders are now matched regardless of case, so the messages show the spell's name. Only the message text was wrong; studying itself, hours and XP worked normally. Thanks to the user who reported it.[/*]
+[/list]
+[b]After updating:[/b] Install 1.9.2 over 1.9.1. Only SpellLearning.dll changed, so no save changes and no tree rebuild are needed. Magic Menu Rewrite stays 1.2.0 and the design add-ons are unchanged.
 
 [size=5][b]New in 1.9.1[/b][/size]
 [list]

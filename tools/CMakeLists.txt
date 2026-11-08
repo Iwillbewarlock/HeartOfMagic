@@ -320,6 +320,22 @@ target_include_directories(progression-notify-check PRIVATE
 )
 
 # =============================================================================
+# hud-placeholders-check  -  offline check of the corner messages' {{name}} fill
+# =============================================================================
+# The plugin's own HudNotify.h (FillPlaceholders, header only): names compared
+# without case, since Papyrus hands names over as case-pooled BSFixedStrings.
+
+add_executable(hud-placeholders-check
+    hud-placeholders-check.cpp
+)
+
+target_compile_features(hud-placeholders-check PRIVATE cxx_std_23)
+
+target_include_directories(hud-placeholders-check PRIVATE
+    ${SL_INCLUDE_DIR}
+)
+
+# =============================================================================
 # thread-flag-check  -  offline check of IsOnGameThread()
 # =============================================================================
 # The plugin's own GameThreadFlag.h (header only): a thread is on the game thread

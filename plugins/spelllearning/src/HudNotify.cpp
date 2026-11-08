@@ -20,8 +20,6 @@ namespace HudNotify
     namespace
     {
         constexpr std::string_view kKeyPrefix = "hud.";
-        constexpr std::string_view kOpen = "{{";
-        constexpr std::string_view kClose = "}}";
 
         using Table = std::unordered_map<std::string, std::string>;
 
@@ -103,36 +101,6 @@ namespace HudNotify
     bool IsShown(std::string_view a_key)
     {
         return IsEnabled() || !IsXPAlert(a_key);
-    }
-
-    std::string FillPlaceholders(std::string_view a_text, std::span<const Param> a_params)
-    {
-        std::string out;
-        out.reserve(a_text.size());
-        std::size_t pos = 0;
-        while (pos < a_text.size()) {
-            auto open = a_text.find(kOpen, pos);
-            if (open == std::string_view::npos) break;
-            auto close = a_text.find(kClose, open + kOpen.size());
-            if (close == std::string_view::npos) break;
-            auto name = a_text.substr(open + kOpen.size(), close - open - kOpen.size());
-            const Param* match = nullptr;
-            for (const auto& param : a_params) {
-                if (param.first == name) {
-                    match = &param;
-                    break;
-                }
-            }
-            out.append(a_text.substr(pos, open - pos));
-            if (match) {
-                out.append(match->second);   // not read again: a spell name with {{ stays as it is
-            } else {
-                out.append(a_text.substr(open, close + kClose.size() - open));
-            }
-            pos = close + kClose.size();
-        }
-        if (pos < a_text.size()) out.append(a_text.substr(pos));
-        return out;
     }
 
     std::string Text(std::string_view a_key, std::string_view a_english, std::span<const Param> a_params)

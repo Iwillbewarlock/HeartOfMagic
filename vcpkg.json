@@ -1,6 +1,6 @@
 {
   "name": "heart-of-magic",
-  "version-string": "1.9.1",
+  "version-string": "1.9.2",
   "dependencies": [
     "fmt",
     "spdlog",

@@ -1,5 +1,15 @@
 # Changelog
 
+## Heart of Magic Librarian 1.9.2
+
+### Fixed
+
+- **Immersive Spell Learning patch: the study messages name the spell again.** With the ISL compatibility patch,
+  reading a spell tome showed "You studied {{spell}} for 3 hours." (and "You have learned {{spell}}.") instead of the
+  spell's name. The scripts hand the placeholder names to the DLL as game strings, which the game stores without case,
+  so "spell" can come back as "Spell", and the DLL matched names exactly. Placeholder names are now matched without
+  case (`HudNotify::FillPlaceholders`, checked by `tools/hud-placeholders-check`).
+
 ## Heart of Magic Librarian 1.9.1
 
 ### Fixed

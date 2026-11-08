@@ -1,0 +1,22 @@
+Heart of Magic Librarian 1.9.2 - text for the Nexus upload
+(The page: docs/NEXUS_PAGE.bbcode, "New in 1.9.2". Full list: CHANGELOG.md. First draft by Gemini Argon from a fact sheet of CHANGELOG 1.9.2, checked against it; files tab text shortened by Claude. SpellLearning.dll only; Magic Menu Rewrite stays 1.2.0.)
+
+=====================================================================
+1. Files tab - main file
+=====================================================================
+
+Name: Heart of Magic Librarian
+Version: 1.9.2
+
+Description:
+Bug-fix update. With the Merged ISL Compatibility Patch, the study messages showed "{{spell}}" instead of the spell's name ("You studied {{spell}} for 3 hours."); they now show the name. Only SpellLearning.dll changed: install over 1.9.1, no save changes, no tree rebuild.
+
+Debug Symbols file description (same version):
+Optional. Puts function names into Crash Logger reports. Install it only if you want to send a crash log.
+
+
+=====================================================================
+2. Changelogs tab - version 1.9.2 (one line per entry)
+=====================================================================
+
+Fixed: "{{spell}}" showing instead of the spell's name in "You studied {{spell}} for 3 hours.", "You have learned {{spell}}." and "You have forgotten {{spell}}." with the "Merged ISL Compatibility Patch" (for Immersive Spell Learning - DESTified), by matching placeholders regardless of case.

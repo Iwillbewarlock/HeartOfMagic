@@ -47,10 +47,57 @@ namespace HudNotify
     [[nodiscard]] bool IsShown(std::string_view a_key);
 
     /**
-     * {{name}} in a_text replaced by its value. Pure; a value that itself holds
-     * "{{" is not read again.
+     * Whether a placeholder name matches a parameter name, ignoring ASCII case.
+     * A name from Papyrus arrives as a BSFixedString, which the game pools without
+     * case: "spell" comes back as "Spell" when the pool already holds that word,
+     * so an exact compare left {{spell}} unfilled in the ISL study messages (1.9.1).
      */
-    [[nodiscard]] std::string FillPlaceholders(std::string_view a_text, std::span<const Param> a_params);
+    [[nodiscard]] inline bool PlaceholderNameEquals(std::string_view a_lhs, std::string_view a_rhs)
+    {
+        if (a_lhs.size() != a_rhs.size()) return false;
+        auto lower = [](char c) { return (c >= 'A' && c <= 'Z') ? static_cast<char>(c - 'A' + 'a') : c; };
+        for (std::size_t i = 0; i < a_lhs.size(); ++i) {
+            if (lower(a_lhs[i]) != lower(a_rhs[i])) return false;
+        }
+        return true;
+    }
+
+    /**
+     * {{name}} in a_text replaced by its value (names compared without case,
+     * PlaceholderNameEquals). Pure and header-only for tools/hud-placeholders-check;
+     * a value that itself holds "{{" is not read again.
+     */
+    [[nodiscard]] inline std::string FillPlaceholders(std::string_view a_text, std::span<const Param> a_params)
+    {
+        constexpr std::string_view kOpen = "{{";
+        constexpr std::string_view kClose = "}}";
+        std::string out;
+        out.reserve(a_text.size());
+        std::size_t pos = 0;
+        while (pos < a_text.size()) {
+            auto open = a_text.find(kOpen, pos);
+            if (open == std::string_view::npos) break;
+            auto close = a_text.find(kClose, open + kOpen.size());
+            if (close == std::string_view::npos) break;
+            auto name = a_text.substr(open + kOpen.size(), close - open - kOpen.size());
+            const Param* match = nullptr;
+            for (const auto& param : a_params) {
+                if (PlaceholderNameEquals(param.first, name)) {
+                    match = &param;
+                    break;
+                }
+            }
+            out.append(a_text.substr(pos, open - pos));
+            if (match) {
+                out.append(match->second);   // not read again: a spell name with {{ stays as it is
+            } else {
+                out.append(a_text.substr(open, close + kClose.size() - open));
+            }
+            pos = close + kClose.size();
+        }
+        if (pos < a_text.size()) out.append(a_text.substr(pos));
+        return out;
+    }
 
     /**
      * The translated text of a key with its placeholders filled, or a_english

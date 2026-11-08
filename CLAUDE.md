@@ -392,7 +392,7 @@ taken up to two past the cap, the spell's own tier first, the room term parting 
   exit 1 on a failure) and `progression-notify-check` (no arguments: `include/ProgressionNotifyQueue.h`, the rule by
   which `ProgressionNotify` holds the progression side's panel notices while a `Batch` is open and sends them in posting
   order when the outermost closes - nested, early return, a receiver posting or opening a Batch while they go out;
-  exit 1 on a failure; design: docs/superpowers/specs/2026-10-26-h1d-notify-design.md); and the magic menu's `magic-menu-*` harnesses (the core, the Heart of Magic block, the Spell Research
+  exit 1 on a failure; design: docs/superpowers/specs/2026-10-26-h1d-notify-design.md); `hud-placeholders-check` (no arguments: `include/HudNotify.h` `FillPlaceholders`, the corner messages' {{name}} fill, names matched without case because Papyrus hands them over as case-pooled BSFixedStrings - the 1.9.1 "{{spell}}" bug; exit 1 on a failure); and the magic menu's `magic-menu-*` harnesses (the core, the Heart of Magic block, the Spell Research
   block; built from `tools/magicmenu.cmake`): docs/magicmenu/CHECKS.md
 
 ## Code Style
