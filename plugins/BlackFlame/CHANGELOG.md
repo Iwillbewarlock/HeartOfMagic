@@ -3,6 +3,15 @@
 The add-on's own version (`plugins/BlackFlame/VERSION`). Heart of Magic Librarian's version (`VERSION` at the
 repository root) is separate.
 
+## 1.0.1
+
+- Fixed: with Actor Value Generator installed, every load showed "Black Flame: this save's slot list could not be
+  read; grey is off for N spells" and the player's fire stayed orange for the session. Actor Value Generator writes two
+  blocks under one plugin id (0x00415647) into every SKSE co-save, which SKSE loads, but Black Flame's own check of the
+  co-save before a load refused any plugin id seen twice. Now only Black Flame's own id seen twice is refused; every
+  other structure check stays. The save-folder scan, which counted those co-saves as bad, is fixed the same way.
+  Reported by mogzz (Nexus bug report, 2026-11-05). Copies and keys are unchanged, so nothing is rebuilt on update.
+
 ## Unreleased
 
 - AE 1.7.104: the five features that ran only on AE 1.6.1170 now run on 1.7.104 too - the hit path observation
