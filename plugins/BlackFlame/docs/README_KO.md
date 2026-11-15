@@ -1,4 +1,4 @@
-# Heart of Magic - 흑염 달구기 (Heart of Magic - Black Flame) 1.0.0
+# Heart of Magic - 흑염 달구기 (Heart of Magic - Black Flame) 1.0.1
 
 - 제작자: Iwillbewarlock
 - 기반 모드: Heart of Magic Librarian (제작자: Iwillbewarlock). Dinkel Zombie의 Heart of Magic - Spell Learning System을 다시 만든 모드입니다.

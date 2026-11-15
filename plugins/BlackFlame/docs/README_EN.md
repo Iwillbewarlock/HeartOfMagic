@@ -1,4 +1,4 @@
-# Heart of Magic - Black Flame 1.0.0
+# Heart of Magic - Black Flame 1.0.1
 
 **Korean name:** Heart of Magic - 흑염 달구기  
 **Author:** Iwillbewarlock  
